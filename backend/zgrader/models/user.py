@@ -22,6 +22,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Enum(UserRole, name="user_role"), default=UserRole.client, nullable=False
     )
     display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    verification_token: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
 
     submissions: Mapped[list["Submission"]] = relationship(  # noqa: F821
         back_populates="user", foreign_keys="Submission.user_id"

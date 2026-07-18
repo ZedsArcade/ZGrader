@@ -18,7 +18,11 @@ class ZGraderConfig(BaseSettings):
     scans_dir: Path = Path("/data/scans")
     reports_dir: Path = Path("/data/reports")
 
-    secret_key: str = "dev-secret-change-me"
+    # JWT signing key -- MUST be overridden via ZGRADER_SECRET_KEY in any
+    # non-local deployment. The default is 32 bytes (HS256's recommended
+    # minimum) purely so local dev doesn't trip PyJWT's short-key warning;
+    # it is not a secret.
+    secret_key: str = "dev-only-not-a-real-secret-32byte"
 
     # Fallback DPI used when a scan's image metadata doesn't declare one.
     default_scan_dpi: int = 600

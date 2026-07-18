@@ -6,34 +6,15 @@ compare -> PDF) against local sample images, without the watcher/API/portal.
 """
 
 import argparse
-import hashlib
 import sys
 from pathlib import Path
 
-from PIL import Image
-
 from zgrader.analysis import pipeline
-from zgrader.config import config
 from zgrader.db import SessionLocal
 from zgrader.models import Card, ScanImage, ScanSide, Submission, SubmissionStatus, User, UserRole
 from zgrader.reports import builder
+from zgrader.scan_ingest import read_scan_metadata, sha256_file
 from zgrader.seed import seed_all
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _scan_metadata(path: Path) -> tuple[int, int, int]:
-    with Image.open(path) as img:
-        width, height = img.size
-        dpi_info = img.info.get("dpi")
-        dpi = int(round(dpi_info[0])) if dpi_info else config.default_scan_dpi
-    return width, height, dpi
 
 
 def _get_or_create_user(db, email: str) -> User:
@@ -91,7 +72,7 @@ def run_dev_trigger(
             if path is None:
                 continue
             image_path = Path(path)
-            width, height, dpi = _scan_metadata(image_path)
+            width, height, dpi = read_scan_metadata(image_path)
             db.add(
                 ScanImage(
                     submission_id=submission.id,
@@ -101,7 +82,7 @@ def run_dev_trigger(
                     dpi=dpi,
                     width_px=width,
                     height_px=height,
-                    checksum=_sha256(image_path),
+                    checksum=sha256_file(image_path),
                 )
             )
         db.flush()
