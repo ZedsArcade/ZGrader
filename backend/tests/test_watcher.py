@@ -51,6 +51,15 @@ def test_front_and_back_scans_trigger_analysis(db_session, tmp_path, sample_scan
     assert {r.category for r in combined_results} == {"centering", "corners", "edges", "surface"}
     assert result.reports == []  # auto_publish defaults off -> stays a draft
 
+    # Regression check: the combined centering AnalysisResult must carry a
+    # top-level "worse_side_pct" (not just nested under front/back), since
+    # that's what rules_engine reads to generate centering comparison rows --
+    # every company should get a centering row, same as the other categories.
+    comparison_categories = {c.category for c in result.company_comparisons}
+    assert comparison_categories == {"centering", "corners", "edges", "surface"}
+    centering_companies = {c.company.value for c in result.company_comparisons if c.category == "centering"}
+    assert centering_companies == {"PSA", "BGS", "CGC", "TAG"}
+
 
 def test_auto_publish_generates_and_publishes_report(db_session, tmp_path, sample_scan_paths):
     _make_submission(db_session, "SUB-90003", auto_publish=True)

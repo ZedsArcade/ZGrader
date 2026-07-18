@@ -59,6 +59,7 @@ class SubmissionDetail(BaseModel):
     status: SubmissionStatus
     created_at: datetime.datetime
     notes: str | None
+    auto_publish: bool | None
     card: CardOut | None
     analysis_results: list[AnalysisResultOut] = []
     company_comparisons: list[ComparisonOut] = []

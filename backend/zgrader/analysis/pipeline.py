@@ -113,6 +113,19 @@ def _persist_combined(
             measurements["back"] = back_result["measurements"]
             flags.update(back_result.get("flags", {}))
 
+        if category == AnalysisCategory.centering:
+            # rules_engine reads centering's "worse_side_pct" straight off
+            # the combined result's top-level measurements (unlike
+            # corners/edges/surface, which key off raw_score instead) -- it
+            # has to be hoisted out of the front/back nesting above, or the
+            # comparison engine silently skips every centering rule.
+            front_worse = front_result["measurements"].get("worse_side_pct")
+            back_worse = back_result["measurements"].get("worse_side_pct") if back_result else None
+            if front_worse is not None and back_worse is not None:
+                measurements["worse_side_pct"] = round((front_worse + back_worse) / 2, 1)
+            elif front_worse is not None:
+                measurements["worse_side_pct"] = front_worse
+
         db.add(
             AnalysisResult(
                 submission_id=submission.id,

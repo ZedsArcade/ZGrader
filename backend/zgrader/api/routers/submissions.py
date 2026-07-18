@@ -1,13 +1,24 @@
+import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from zgrader.api.deps import get_current_user
+from zgrader.api.deps import get_current_user, require_operator
 from zgrader.config import config
 from zgrader.db import get_db
-from zgrader.models import Card, ReportStatus, Submission, SubmissionStatus, User, UserRole
+from zgrader.models import (
+    AuditLog,
+    Card,
+    ReportStatus,
+    Submission,
+    SubmissionStatus,
+    User,
+    UserRole,
+)
+from zgrader.reports import builder
+from zgrader.schemas.admin import AutoPublishUpdate
 from zgrader.schemas.submission import SubmissionCreate, SubmissionDetail, SubmissionSummary
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
@@ -80,3 +91,66 @@ def download_report(code: str, user: User = Depends(get_current_user), db: Sessi
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Report not yet published")
 
     return FileResponse(report.pdf_path, media_type="application/pdf", filename=f"{code}.pdf")
+
+
+@router.post("/{code}/approve", response_model=SubmissionDetail)
+def approve_submission(
+    code: str, operator: User = Depends(require_operator), db: Session = Depends(get_db)
+) -> Submission:
+    """Human review gate: an operator reviewing a draft_ready submission
+    approves and publishes it in one action -- there's no useful
+    intermediate "approved but not published" state for a single-operator
+    business, so this mirrors the watcher's auto-publish path."""
+    submission = db.query(Submission).filter(Submission.submission_code == code).first()
+    if submission is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found")
+    if submission.status not in (SubmissionStatus.draft_ready, SubmissionStatus.published):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Submission is '{submission.status.value}', not ready to approve",
+        )
+    if submission.status == SubmissionStatus.published:
+        return submission  # idempotent
+
+    report = builder.generate_report(db, submission)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    report.status = ReportStatus.published
+    report.approved_by_user_id = operator.id
+    report.approved_at = now
+    report.published_at = now
+    submission.status = SubmissionStatus.published
+    db.add(
+        AuditLog(
+            submission_id=submission.id,
+            user_id=operator.id,
+            action="approved_and_published",
+            detail={"report_version": report.version},
+        )
+    )
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
+@router.patch("/{code}/auto-publish", response_model=SubmissionDetail)
+def set_auto_publish_override(
+    code: str,
+    payload: AutoPublishUpdate,
+    operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> Submission:
+    submission = db.query(Submission).filter(Submission.submission_code == code).first()
+    if submission is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found")
+    submission.auto_publish = payload.auto_publish
+    db.add(
+        AuditLog(
+            submission_id=submission.id,
+            user_id=operator.id,
+            action="auto_publish_override_changed",
+            detail={"auto_publish": payload.auto_publish},
+        )
+    )
+    db.commit()
+    db.refresh(submission)
+    return submission
