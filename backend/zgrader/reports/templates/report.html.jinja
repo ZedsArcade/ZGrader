@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Pre-Grade Report {{ submission.code }}</title>
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+  <header class="report-header">
+    {% if business.logo_path %}
+    <img class="logo" src="{{ business.logo_path | file_uri }}" alt="logo">
+    {% endif %}
+    <div class="business-info">
+      <h1>{{ business.name }}</h1>
+      {% if business.contact %}<p class="contact">{{ business.contact }}</p>{% endif %}
+    </div>
+    <div class="submission-info">
+      <p><strong>Submission:</strong> {{ submission.code }}</p>
+      <p><strong>Date:</strong> {{ submission.created_at.strftime('%Y-%m-%d') }}</p>
+      {% if submission.client_email %}<p><strong>Client:</strong> {{ submission.client_email }}</p>{% endif %}
+    </div>
+  </header>
+
+  <section class="card-identity">
+    <h2>{{ card.card_name }}{% if card.foil %} (Foil){% endif %}</h2>
+    <p>
+      {{ card.game }}
+      {%- if card.set_name %} &mdash; {{ card.set_name }}{% endif %}
+      {%- if card.card_number %} &mdash; #{{ card.card_number }}{% endif %}
+    </p>
+  </section>
+
+  <section class="scorecard">
+    <h2>Summary Scorecard <span class="estimate-note">(independent estimate, not a guaranteed grade)</span></h2>
+    <table>
+      <thead><tr><th>Category</th><th>Front</th><th>Back</th><th>Combined</th></tr></thead>
+      <tbody>
+        {% for row in scorecard %}
+        <tr>
+          <td class="category-name">
+            {{ row.category | capitalize }}
+            {%- if row.category in lower_confidence_categories %} <span class="lower-confidence-badge">lower confidence</span>{% endif %}
+          </td>
+          <td>{{ '%.1f' % row.front_score if row.front_score is not none else '—' }}</td>
+          <td>{{ '%.1f' % row.back_score if row.back_score is not none else '—' }}</td>
+          <td class="combined-score">{{ '%.1f' % row.combined_score if row.combined_score is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="annotated-images">
+    <h2>Annotated Scans</h2>
+    {% for row in scorecard %}
+    <div class="image-row">
+      <h3>{{ row.category | capitalize }}</h3>
+      <div class="image-pair">
+        {% if row.front_image %}<figure><img src="{{ row.front_image | file_uri }}"><figcaption>Front</figcaption></figure>{% endif %}
+        {% if row.back_image %}<figure><img src="{{ row.back_image | file_uri }}"><figcaption>Back</figcaption></figure>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="comparison">
+    <h2>Multi-Company Comparison</h2>
+    <p class="comparison-intro">
+      This table highlights points of contention that may affect how different grading
+      companies would treat this card. It intentionally does not predict a specific
+      numeric grade from any company.
+    </p>
+    {% for category, comparisons in comparisons_by_category.items() %}
+    <div class="comparison-category">
+      <h3>{{ category | capitalize }}</h3>
+      <table>
+        <thead><tr><th>Company</th><th>Assessment</th><th>Notes</th></tr></thead>
+        <tbody>
+          {% for comp in comparisons %}
+          <tr>
+            <td>{{ comp.company.value }}</td>
+            <td><span class="severity-badge severity-{{ comp.severity.value }}">{{ comp.severity.value | capitalize }}</span></td>
+            <td>{{ comp.contention_note }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="limitations">
+    <h2>Limitations &amp; Methodology</h2>
+    <ul>
+      <li>This is an independent pre-grade estimate produced by an automated image-analysis
+      pipeline. It is not affiliated with, endorsed by, or a guarantee of the outcome from
+      PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company.</li>
+      <li>Measurements are derived from flatbed scans. Surface analysis in particular is
+      lower-confidence: flatbed scanning uses diffuse light, not the raking/angled light
+      professional graders use to catch surface scratches and print lines, so some surface
+      defects may be under-detected.</li>
+      <li>Company comparison thresholds are heuristic estimates based on each company's
+      publicly known grading philosophy, not official published tolerance tables, and are
+      refined over time against real submitted-grade outcomes.</li>
+    </ul>
+  </section>
+
+  <footer class="report-footer">
+    <p>{{ disclaimer }}</p>
+    <p class="meta">Report generated {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+  </footer>
+</body>
+</html>

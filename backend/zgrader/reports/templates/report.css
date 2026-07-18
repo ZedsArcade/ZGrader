@@ -1,0 +1,80 @@
+@page {
+  size: A4;
+  margin: 18mm 15mm;
+  @bottom-center {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 8pt;
+    color: #888;
+  }
+}
+
+body {
+  font-family: "DejaVu Sans", Arial, sans-serif;
+  font-size: 10.5pt;
+  color: #222;
+}
+
+h1 { font-size: 18pt; margin: 0; }
+h2 { font-size: 13pt; margin-top: 18pt; border-bottom: 1px solid #ccc; padding-bottom: 4pt; }
+h3 { font-size: 11pt; margin-bottom: 4pt; }
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #333;
+  padding-bottom: 8pt;
+}
+.report-header .logo { max-height: 50pt; max-width: 120pt; }
+.business-info h1 { color: #1a2b4c; }
+.contact { font-size: 9pt; color: #555; }
+.submission-info { text-align: right; font-size: 9.5pt; }
+.submission-info p { margin: 2pt 0; }
+
+.card-identity h2 { border: none; margin-top: 10pt; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 6pt; }
+th, td { border: 1px solid #ddd; padding: 5pt 7pt; text-align: left; font-size: 9.5pt; }
+th { background: #f2f4f7; }
+.category-name { font-weight: bold; }
+.combined-score { font-weight: bold; }
+.estimate-note { font-size: 8.5pt; font-weight: normal; color: #777; }
+.lower-confidence-badge {
+  font-size: 7.5pt;
+  background: #fdf0d5;
+  color: #92600a;
+  border-radius: 3pt;
+  padding: 1pt 4pt;
+}
+
+.image-row { margin-top: 10pt; page-break-inside: avoid; }
+.image-pair { display: flex; gap: 10pt; }
+.image-pair figure { margin: 0; text-align: center; }
+.image-pair img { max-width: 220pt; max-height: 300pt; border: 1px solid #ccc; }
+.image-pair figcaption { font-size: 8pt; color: #666; }
+
+.comparison-intro { font-size: 9pt; color: #555; }
+.comparison-category { page-break-inside: avoid; margin-top: 10pt; }
+
+.severity-badge {
+  display: inline-block;
+  padding: 1pt 6pt;
+  border-radius: 3pt;
+  font-size: 8.5pt;
+  font-weight: bold;
+  color: #fff;
+}
+.severity-badge.severity-none { background: #4a9c4a; }
+.severity-badge.severity-minor { background: #d99a1e; }
+.severity-badge.severity-major { background: #c33; }
+
+.limitations ul { font-size: 9pt; color: #444; padding-left: 14pt; }
+.limitations li { margin-bottom: 4pt; }
+
+.report-footer {
+  margin-top: 16pt;
+  border-top: 1px solid #ccc;
+  padding-top: 6pt;
+  font-size: 8pt;
+  color: #777;
+}
