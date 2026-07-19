@@ -83,6 +83,11 @@ export interface Game {
   verified: boolean;
 }
 
+export interface Branding {
+  business_name: string;
+  business_contact: string | null;
+}
+
 export interface Settings {
   auto_publish_default: boolean;
   business_name: string;
@@ -103,6 +108,15 @@ export interface Stats {
   total_submissions: number;
   by_status: Record<string, number>;
   published_reports: number;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  created_at: string;
+  action: string;
+  detail: Record<string, unknown>;
+  submission_code: string | null;
+  user_email: string | null;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -159,6 +173,10 @@ export async function getGames(): Promise<Game[]> {
   return request("/catalog/games");
 }
 
+export async function getBranding(): Promise<Branding> {
+  return request("/catalog/branding");
+}
+
 export async function createSubmission(token: string, payload: SubmissionCreate): Promise<SubmissionDetail> {
   return request("/submissions", {
     method: "POST",
@@ -213,4 +231,11 @@ export async function updateSettings(token: string, payload: SettingsUpdate): Pr
 
 export async function getStats(token: string): Promise<Stats> {
   return request("/admin/stats", { headers: authHeaders(token) });
+}
+
+export async function getAuditLog(
+  token: string,
+  { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {}
+): Promise<AuditLogEntry[]> {
+  return request(`/admin/audit-log?limit=${limit}&offset=${offset}`, { headers: authHeaders(token) });
 }

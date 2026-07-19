@@ -17,6 +17,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from zgrader.analysis import pipeline
+from zgrader.email.notifications import send_report_published
 from zgrader.models import (
     AuditLog,
     ReportStatus,
@@ -146,6 +147,9 @@ def process_submission_folder(db: Session, submission_code: str, folder: Path) -
                 detail={"report_version": report.version},
             )
         )
+        db.commit()
+        send_report_published(submission.user, submission, settings)
+        return submission
 
     db.commit()
     return submission

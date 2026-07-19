@@ -7,6 +7,9 @@ import type { NextConfig } from "next";
 const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = {
+  // Leaner production image: `next start` only needs this trimmed output +
+  // its own node_modules subset, not the full dev node_modules tree.
+  output: "standalone",
   async rewrites() {
     return [
       {

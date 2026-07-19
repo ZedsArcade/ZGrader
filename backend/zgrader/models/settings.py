@@ -1,5 +1,5 @@
 from sqlalchemy import Boolean, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from zgrader.db import Base
 from zgrader.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
@@ -27,3 +27,15 @@ class Settings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         nullable=False,
     )
+
+
+def get_or_create_settings(db: Session) -> "Settings":
+    """The Settings singleton is normally seeded by zgrader.seed.seed_all()
+    at startup; this fallback avoids a 500 if that hasn't run yet."""
+    settings = db.query(Settings).first()
+    if settings is None:
+        settings = Settings()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings

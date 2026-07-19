@@ -1,0 +1,17 @@
+# The Next.js frontend already proxies /api/* to the backend internally
+# (see frontend/next.config.ts), so Caddy's only job is being the single
+# external entry point in front of it -- no path-based routing needed here.
+
+# Homelab default: plain HTTP on port 80, LAN-only.
+#
+# To get real automatic HTTPS via Let's Encrypt instead, replace ":80" below
+# with your actual domain name (e.g. "zgrader.example.com"). Caddy handles
+# certificate issuance/renewal automatically, as long as ports 80 and 443
+# are reachable from the internet for the ACME challenge.
+#
+# For LAN-only HTTPS with no public domain, use Caddy's internal CA instead:
+# add a top-level `{ local_certs }` block and trust Caddy's root CA on your
+# devices (browsers will otherwise warn about it).
+:80 {
+	reverse_proxy frontend:3000
+}

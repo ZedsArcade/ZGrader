@@ -8,10 +8,12 @@ from sqlalchemy.orm import Session
 from zgrader.api.deps import get_current_user, require_operator
 from zgrader.config import config
 from zgrader.db import get_db
+from zgrader.email.notifications import send_report_published, send_submission_received
 from zgrader.models import (
     AuditLog,
     Card,
     ReportStatus,
+    Settings,
     Submission,
     SubmissionStatus,
     User,
@@ -63,6 +65,10 @@ def create_submission(
 
     db.commit()
     db.refresh(submission)
+
+    settings = db.query(Settings).first()
+    send_submission_received(user, submission, settings)
+
     return submission
 
 
@@ -129,6 +135,10 @@ def approve_submission(
     )
     db.commit()
     db.refresh(submission)
+
+    settings = db.query(Settings).first()
+    send_report_published(submission.user, submission, settings)
+
     return submission
 
 

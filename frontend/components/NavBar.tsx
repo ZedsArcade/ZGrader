@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useBranding } from "@/lib/branding-context";
 
 export default function NavBar() {
   const { user, logout, loading } = useAuth();
+  const { business_name } = useBranding();
   const router = useRouter();
 
   function handleLogout() {
@@ -17,7 +19,7 @@ export default function NavBar() {
     <nav className="navbar">
       <div className="navbar-inner">
         <Link href="/" className="navbar-brand">
-          ZGrader
+          {business_name}
         </Link>
         <div className="navbar-links">
           {loading ? null : user ? (

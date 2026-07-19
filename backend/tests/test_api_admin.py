@@ -130,3 +130,32 @@ def test_operator_can_set_per_submission_auto_publish_override(db_session):
     submission = db.query(Submission).filter(Submission.submission_code == code).first()
     assert submission.auto_publish is True
     db.close()
+
+
+def test_non_operator_cannot_view_audit_log(db_session):
+    token = _register_and_login("nonopaudit@example.com")
+    resp = client.get("/admin/audit-log", headers=_auth_headers(token))
+    assert resp.status_code == 403
+
+
+def test_audit_log_records_approve_action_with_joined_names(db_session, tmp_path, sample_scan_paths):
+    code = _create_draft_ready_submission(db_session, tmp_path, sample_scan_paths, "SUB-AUDIT1")
+    op_token = _make_operator(db_session, "auditop1@example.com")
+
+    resp = client.post(f"/submissions/{code}/approve", headers=_auth_headers(op_token))
+    assert resp.status_code == 200
+
+    resp = client.get("/admin/audit-log", headers=_auth_headers(op_token))
+    assert resp.status_code == 200
+    entries = resp.json()
+    entry = next(e for e in entries if e["submission_code"] == code)
+    assert entry["action"] == "approved_and_published"
+    assert entry["user_email"] == "auditop1@example.com"
+    assert entry["detail"]["report_version"] == 1
+
+
+def test_audit_log_supports_pagination(db_session):
+    op_token = _make_operator(db_session, "auditpageop@example.com")
+    resp = client.get("/admin/audit-log?limit=1&offset=0", headers=_auth_headers(op_token))
+    assert resp.status_code == 200
+    assert len(resp.json()) <= 1

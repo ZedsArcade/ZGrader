@@ -1,0 +1,9 @@
+{% extends "base.html.jinja" %}
+{% block content %}
+  <p>Hi,</p>
+  <p>
+    Your pre-grade report for submission <strong>{{ submission_code }}</strong>
+    {% if card_name %}({{ card_name }}){% endif %} is ready.
+  </p>
+  <p>Log in to your dashboard to view the scorecard and download the full PDF report.</p>
+{% endblock %}

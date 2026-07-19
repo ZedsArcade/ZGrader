@@ -3,10 +3,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import RequireAuth from "@/components/RequireAuth";
 import { useAuth } from "@/lib/auth-context";
+import { useBranding } from "@/lib/branding-context";
 import * as api from "@/lib/api";
 
 function SettingsForm() {
   const { token } = useAuth();
+  const { refresh: refreshBranding } = useBranding();
   const [settings, setSettings] = useState<api.Settings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -30,6 +32,7 @@ function SettingsForm() {
       const updated = await api.updateSettings(token, settings);
       setSettings(updated);
       setMessage("Settings saved.");
+      await refreshBranding();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     } finally {

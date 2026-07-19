@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zgrader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zgrader}
+      POSTGRES_DB: ${POSTGRES_DB:-zgrader}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zgrader}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: ./backend
+    command: alembic upgrade head
+    environment: &backend-env
+      ZGRADER_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zgrader}:${POSTGRES_PASSWORD:-zgrader}@postgres:5432/${POSTGRES_DB:-zgrader}
+      ZGRADER_SCANS_DIR: /data/scans
+      ZGRADER_REPORTS_DIR: /data/reports
+      ZGRADER_SECRET_KEY: ${ZGRADER_SECRET_KEY:?set a real random value in .env -- see .env.example}
+      ZGRADER_DEFAULT_SCAN_DPI: ${ZGRADER_DEFAULT_SCAN_DPI:-600}
+      ZGRADER_SMTP_HOST: ${ZGRADER_SMTP_HOST:-mailhog}
+      ZGRADER_SMTP_PORT: ${ZGRADER_SMTP_PORT:-1025}
+      ZGRADER_SMTP_USER: ${ZGRADER_SMTP_USER:-}
+      ZGRADER_SMTP_PASSWORD: ${ZGRADER_SMTP_PASSWORD:-}
+      ZGRADER_SMTP_FROM: ${ZGRADER_SMTP_FROM:-noreply@zgrader.local}
+      ZGRADER_SMTP_USE_TLS: ${ZGRADER_SMTP_USE_TLS:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment: *backend-env
+    volumes:
+      - ${SCANS_HOST_PATH:-./data/scans}:/data/scans
+      - reports_data:/data/reports
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: python -m zgrader.worker.main
+    environment: *backend-env
+    volumes:
+      - ${SCANS_HOST_PATH:-./data/scans}:/data/scans
+      - reports_data:/data/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  # Local SMTP catcher for dev/testing so notification emails have somewhere
+  # to go without configuring a real mail relay. Web UI at localhost:8025.
+  # For a real deployment, point ZGRADER_SMTP_* at your own relay instead and
+  # this service is unnecessary (just don't start it).
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+    profiles:
+      - dev
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  postgres_data:
+  reports_data:
+  caddy_data:
+  caddy_config:

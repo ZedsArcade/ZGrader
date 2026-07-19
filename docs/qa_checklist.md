@@ -13,7 +13,12 @@ operator (or auto-publish) gets it in front of the client as a report.
 2. Backend API: `cd backend && source .venv/bin/activate && uvicorn zgrader.api.main:app --port 8000`
 3. Watcher worker: `cd backend && source .venv/bin/activate && python -m zgrader.worker.main`
 4. Frontend: `cd frontend && BACKEND_URL=http://localhost:8000 npm run dev -- --port 3000`
-5. Open `http://localhost:3000`.
+5. (Optional, for testing notification emails) a local SMTP catcher on
+   `localhost:1025`, matching the backend's defaults -- e.g.
+   `python3 -m smtpd -n -c DebuggingServer localhost:1025`, which prints
+   received mail to stdout. Without one, email sending fails silently (by
+   design -- see `zgrader/email/client.py`) and everything else still works.
+6. Open `http://localhost:3000`.
 
 ## Client flow
 
@@ -35,6 +40,8 @@ operator (or auto-publish) gets it in front of the client as a report.
       (a regression here means the centering-row generation bug is back --
       see `zgrader/analysis/pipeline.py`'s `_persist_combined`).
 - [ ] "Download report" is not shown yet (report isn't published).
+- [ ] If an SMTP catcher is running, a "Submission received" email arrived
+      the moment the submission was created (not later).
 
 ## Admin flow
 
@@ -48,8 +55,17 @@ operator (or auto-publish) gets it in front of the client as a report.
       reloading persists the choice.
 - [ ] Click "Approve & publish". Status flips to `Published`, a success
       message shows, and the PDF becomes downloadable from this page too.
+- [ ] If an SMTP catcher is running, a "Your report ... is ready" email
+      arrived at the moment of publish.
 - [ ] Visit `/admin/settings`, change the business name/contact/disclaimer,
-      save, reload -- changes persisted.
+      save. **The NavBar brand text updates immediately, without a page
+      reload** (a regression here means `BrandingProvider`'s `refresh()`
+      wiring broke -- see `lib/branding-context.tsx` and
+      `app/admin/settings/page.tsx`). Reload and confirm the change
+      persisted.
+- [ ] Visit `/admin/audit-log`. The approve action from above appears with
+      the correct submission code, operator email, and a `report_version`
+      detail. Pagination ("Newer"/"Older") doesn't error on an empty page.
 
 ## Client sees the result
 
@@ -77,3 +93,32 @@ operator (or auto-publish) gets it in front of the client as a report.
 - [ ] A non-operator hitting `/admin` gets redirected away.
 - [ ] Backend test suite passes: `cd backend && source .venv/bin/activate && pytest -q`.
 - [ ] Frontend type-checks and builds cleanly: `cd frontend && npx next build`.
+
+## Docker Compose deployment (homelab)
+
+The `docker-compose.yml`, both `Dockerfile`s, and `infra/caddy/Caddyfile` are
+syntax-validated (`docker compose config`) but were **not** run end-to-end
+with a live daemon during development -- the sandbox this was built in can't
+run nested Docker. Treat the steps below as the first real test of the
+container path, not a formality:
+
+1. `cp .env.example .env` and fill in real values (`ZGRADER_SECRET_KEY`
+   especially -- generate with
+   `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`).
+   Set `SCANS_HOST_PATH` to wherever your scanner actually writes.
+2. `docker compose --profile dev up --build` (the `dev` profile adds
+   mailhog at `http://localhost:8025` so notification emails have
+   somewhere to go without a real SMTP relay).
+3. Confirm all containers reach a healthy/running state: `postgres`,
+   `migrate` (should exit 0, not stay running), `backend`, `worker`,
+   `frontend`, `mailhog`.
+4. Hit `http://localhost:3000` directly, and separately
+   `http://localhost` (via Caddy) -- both should serve the same app.
+5. Walk the full client/admin flow above against the Dockerized stack.
+6. Drop a real scan pair into `${SCANS_HOST_PATH}/<submission-code>/` from
+   the host filesystem (not from inside a container) to confirm the bind
+   mount actually round-trips files the way a real scanner would.
+7. For production use, either point `ZGRADER_SMTP_*` at a real relay and
+   drop the `dev` profile (no mailhog), or swap the `Caddyfile`'s `:80`
+   site block for a real domain name to get automatic HTTPS -- see the
+   comments in `infra/caddy/Caddyfile`.

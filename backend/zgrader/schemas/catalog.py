@@ -6,3 +6,10 @@ class GameOut(BaseModel):
 
     game: str
     verified: bool
+
+
+class BrandingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    business_name: str
+    business_contact: str | None

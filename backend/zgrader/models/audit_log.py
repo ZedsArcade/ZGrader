@@ -2,7 +2,7 @@ import uuid
 
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from zgrader.db import Base
 from zgrader.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
@@ -21,3 +21,10 @@ class AuditLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    # One-directional (no back_populates) -- just for convenient joined
+    # reads in the admin audit log view.
+    submission: Mapped["Submission | None"] = relationship(  # noqa: F821
+        foreign_keys=[submission_id], viewonly=True
+    )
+    user: Mapped["User | None"] = relationship(foreign_keys=[user_id], viewonly=True)  # noqa: F821

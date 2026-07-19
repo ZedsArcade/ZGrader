@@ -1,3 +1,6 @@
+import datetime
+import uuid
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -27,3 +30,14 @@ class StatsOut(BaseModel):
 
 class AutoPublishUpdate(BaseModel):
     auto_publish: bool | None  # null clears the per-submission override
+
+
+class AuditLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    created_at: datetime.datetime
+    action: str
+    detail: dict
+    submission_code: str | None
+    user_email: str | None

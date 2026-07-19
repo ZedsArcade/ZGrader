@@ -30,9 +30,14 @@ function AdminOverview() {
           <h1>Admin</h1>
           <p>All client submissions, business-wide.</p>
         </div>
-        <Link href="/admin/settings" className="btn btn-secondary">
-          Settings
-        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link href="/admin/audit-log" className="btn btn-secondary">
+            Audit log
+          </Link>
+          <Link href="/admin/settings" className="btn btn-secondary">
+            Settings
+          </Link>
+        </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
