@@ -7,7 +7,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zgrader}
       POSTGRES_DB: ${POSTGRES_DB:-zgrader}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      #- postgres_data:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_PATH:-postgres_data}:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zgrader}"]
       interval: 5s
@@ -39,9 +40,11 @@ services:
     environment: *backend-env
     volumes:
       - ${SCANS_HOST_PATH:-./data/scans}:/data/scans
-      - reports_data:/data/reports
-    ports:
-      - "8000:8000"
+      - ${REPORTS_DATA_PATH:-reports_data}:/data/reports
+      #- ${SCANS_HOST_PATH:-./data/scans}:/data/scans
+      #- reports_data:/data/reports
+    #ports:
+    #  - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,7 +58,9 @@ services:
     environment: *backend-env
     volumes:
       - ${SCANS_HOST_PATH:-./data/scans}:/data/scans
-      - reports_data:/data/reports
+      - ${REPORTS_DATA_PATH:-reports_data}:/data/reports
+      #- ${SCANS_HOST_PATH:-./data/scans}:/data/scans
+      #- reports_data:/data/reports
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,8 +72,8 @@ services:
     restart: unless-stopped
     environment:
       BACKEND_URL: http://backend:8000
-    ports:
-      - "3000:3000"
+    #ports:
+    #  - "3000:3000"
     depends_on:
       - backend
 
@@ -88,8 +93,8 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
+      #- "443:443"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
