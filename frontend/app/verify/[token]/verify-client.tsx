@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Card, Spinner } from "@heroui/react";
 import { verifyEmail, ApiError } from "@/lib/api";
 
 export default function VerifyClient({ token }: { token: string }) {
@@ -18,19 +19,28 @@ export default function VerifyClient({ token }: { token: string }) {
   }, [token]);
 
   return (
-    <div className="card" style={{ maxWidth: 460, margin: "0 auto" }}>
-      <h1>Email verification</h1>
-      {status === "pending" && <p className="spinner-text">Verifying…</p>}
-      {status === "success" && (
-        <div className="alert alert-success" style={{ marginTop: 16 }}>
-          Your email is verified. You can now <Link href="/login">log in</Link>.
-        </div>
-      )}
-      {status === "error" && (
-        <div className="alert alert-error" style={{ marginTop: 16 }}>
-          {message}
-        </div>
-      )}
-    </div>
+    <Card className="mx-auto max-w-md">
+      <Card.Header>
+        <Card.Title>Email verification</Card.Title>
+      </Card.Header>
+      <Card.Content>
+        {status === "pending" && (
+          <div className="flex items-center gap-3 text-sm text-muted">
+            <Spinner size="sm" />
+            Verifying…
+          </div>
+        )}
+        {status === "success" && (
+          <p className="text-sm text-success">
+            Your email is verified. You can now{" "}
+            <Link href="/login" className="text-accent hover:underline">
+              log in
+            </Link>
+            .
+          </p>
+        )}
+        {status === "error" && <p className="text-sm text-danger">{message}</p>}
+      </Card.Content>
+    </Card>
   );
 }

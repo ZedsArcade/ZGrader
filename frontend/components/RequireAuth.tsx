@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { Spinner } from "@heroui/react";
 import { useAuth } from "@/lib/auth-context";
 import type { UserRole } from "@/lib/api";
 
@@ -21,7 +22,11 @@ export default function RequireAuth({ children, role }: { children: ReactNode; r
   }, [loading, user, role, router]);
 
   if (loading || !user || (role && user.role !== role)) {
-    return <p className="spinner-text">Loading…</p>;
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner size="lg" />
+      </div>
+    );
   }
 
   return <>{children}</>;

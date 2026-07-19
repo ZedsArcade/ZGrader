@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button, Card, Skeleton } from "@heroui/react";
 import RequireAuth from "@/components/RequireAuth";
 import SubmissionOverview from "@/components/SubmissionOverview";
 import { useAuth } from "@/lib/auth-context";
+import { toastError } from "@/lib/toast";
 import * as api from "@/lib/api";
 
 function Detail({ code }: { code: string }) {
@@ -34,26 +36,47 @@ function Detail({ code }: { code: string }) {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Report not available yet");
+      toastError(err instanceof Error ? err.message : "Report not available yet");
     } finally {
       setDownloading(false);
     }
   }
 
-  if (error) return <div className="alert alert-error">{error}</div>;
-  if (!submission) return <p className="spinner-text">Loading…</p>;
+  if (error) {
+    return (
+      <Card>
+        <Card.Content>
+          <p className="text-sm text-danger">{error}</p>
+        </Card.Content>
+      </Card>
+    );
+  }
+
+  if (!submission) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-8 w-48" />
+        <Card>
+          <Card.Content className="flex flex-col gap-4">
+            <Skeleton className="h-6 w-64" />
+            <Skeleton className="h-24 w-full" />
+          </Card.Content>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="page-header flex-row">
+      <div className="mb-5 flex items-center justify-between gap-4">
         <div>
-          <h1>{submission.submission_code}</h1>
-          <p>Created {new Date(submission.created_at).toLocaleString()}</p>
+          <h1 className="text-2xl font-bold text-foreground">{submission.submission_code}</h1>
+          <p className="text-sm text-muted">Created {new Date(submission.created_at).toLocaleString()}</p>
         </div>
         {submission.status === "published" && (
-          <button className="btn" onClick={handleDownload} disabled={downloading}>
+          <Button variant="primary" onPress={handleDownload} isDisabled={downloading}>
             {downloading ? "Downloading…" : "Download report"}
-          </button>
+          </Button>
         )}
       </div>
       <SubmissionOverview submission={submission} />

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button, Card, ListBox, Select, Skeleton } from "@heroui/react";
 import RequireAuth from "@/components/RequireAuth";
 import SubmissionOverview from "@/components/SubmissionOverview";
 import { useAuth } from "@/lib/auth-context";
+import { toastError, toastSuccess } from "@/lib/toast";
 import * as api from "@/lib/api";
 
 const AUTO_PUBLISH_OPTIONS: { label: string; value: string }[] = [
@@ -27,7 +29,6 @@ function AdminDetail({ code }: { code: string }) {
   const { token } = useAuth();
   const [submission, setSubmission] = useState<api.SubmissionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   function load() {
@@ -43,14 +44,12 @@ function AdminDetail({ code }: { code: string }) {
   async function handleApprove() {
     if (!token) return;
     setBusy(true);
-    setError(null);
-    setMessage(null);
     try {
       const updated = await api.approveSubmission(token, code);
       setSubmission(updated);
-      setMessage("Approved and published.");
+      toastSuccess("Approved and published.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Approve failed");
+      toastError(err instanceof Error ? err.message : "Approve failed");
     } finally {
       setBusy(false);
     }
@@ -59,63 +58,91 @@ function AdminDetail({ code }: { code: string }) {
   async function handleAutoPublishChange(option: string) {
     if (!token) return;
     setBusy(true);
-    setError(null);
     try {
       const updated = await api.setAutoPublish(token, code, optionToAutoPublish(option));
       setSubmission(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update auto-publish");
+      toastError(err instanceof Error ? err.message : "Failed to update auto-publish");
     } finally {
       setBusy(false);
     }
   }
 
-  if (error && !submission) return <div className="alert alert-error">{error}</div>;
-  if (!submission) return <p className="spinner-text">Loading…</p>;
+  if (error && !submission) {
+    return (
+      <Card>
+        <Card.Content>
+          <p className="text-sm text-danger">{error}</p>
+        </Card.Content>
+      </Card>
+    );
+  }
+
+  if (!submission) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-8 w-48" />
+        <Card>
+          <Card.Content className="flex flex-col gap-4">
+            <Skeleton className="h-6 w-64" />
+            <Skeleton className="h-24 w-full" />
+          </Card.Content>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="page-header">
-        <h1>{submission.submission_code}</h1>
-        <p>Created {new Date(submission.created_at).toLocaleString()}</p>
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold text-foreground">{submission.submission_code}</h1>
+        <p className="text-sm text-muted">Created {new Date(submission.created_at).toLocaleString()}</p>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
-      {message && <div className="alert alert-success">{message}</div>}
-
-      <div className="card">
-        <div className="flex-row">
-          <div>
-            <h3>Auto-publish</h3>
-            <p className="muted" style={{ fontSize: "0.85rem" }}>
-              Controls whether this submission publishes automatically once analysis finishes,
-              or waits for manual approval below.
-            </p>
+      <Card>
+        <Card.Content>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Auto-publish</h3>
+              <p className="mt-1 text-sm text-muted">
+                Controls whether this submission publishes automatically once analysis finishes,
+                or waits for manual approval below.
+              </p>
+            </div>
+            <Select.Root
+              selectedKey={autoPublishToOption(submission.auto_publish)}
+              onSelectionChange={(key) => handleAutoPublishChange(String(key))}
+              isDisabled={busy}
+            >
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {AUTO_PUBLISH_OPTIONS.map((opt) => (
+                    <ListBox.Item id={opt.value} key={opt.value} textValue={opt.label}>
+                      {opt.label}
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select.Root>
           </div>
-          <select
-            value={autoPublishToOption(submission.auto_publish)}
-            onChange={(e) => handleAutoPublishChange(e.target.value)}
-            disabled={busy}
-            style={{ width: "auto" }}
-          >
-            {AUTO_PUBLISH_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
 
-        {submission.status === "draft_ready" && (
-          <div style={{ marginTop: 18 }}>
-            <button className="btn" onClick={handleApprove} disabled={busy}>
-              {busy ? "Working…" : "Approve & publish"}
-            </button>
-          </div>
-        )}
+          {submission.status === "draft_ready" && (
+            <div className="mt-5">
+              <Button variant="primary" onPress={handleApprove} isDisabled={busy}>
+                {busy ? "Working…" : "Approve & publish"}
+              </Button>
+            </div>
+          )}
+        </Card.Content>
+      </Card>
+
+      <div className="mt-5">
+        <SubmissionOverview submission={submission} />
       </div>
-
-      <SubmissionOverview submission={submission} />
     </>
   );
 }

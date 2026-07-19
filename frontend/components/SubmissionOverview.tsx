@@ -1,11 +1,12 @@
+import { Card, Chip, Table } from "@heroui/react";
 import type { Comparison, SubmissionDetail } from "@/lib/api";
 import StatusBadge from "./StatusBadge";
 
 const CATEGORY_ORDER = ["centering", "corners", "edges", "surface"];
-const SEVERITY_STYLES: Record<string, string> = {
-  none: "badge-success",
-  minor: "badge-warning",
-  major: "badge-danger",
+const SEVERITY_COLOR: Record<string, "success" | "warning" | "danger"> = {
+  none: "success",
+  minor: "warning",
+  major: "danger",
 };
 
 export default function SubmissionOverview({ submission }: { submission: SubmissionDetail }) {
@@ -21,76 +22,90 @@ export default function SubmissionOverview({ submission }: { submission: Submiss
 
   return (
     <>
-      <div className="card">
-        <div className="flex-row">
-          <div>
-            <h2>{submission.card?.card_name ?? "Unknown card"}</h2>
-            <p className="muted">
-              {submission.card?.game}
-              {submission.card?.set_name ? ` — ${submission.card.set_name}` : ""}
-              {submission.card?.card_number ? ` — #${submission.card.card_number}` : ""}
-              {submission.card?.foil ? " — Foil" : ""}
-            </p>
+      <Card>
+        <Card.Content>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                {submission.card?.card_name ?? "Unknown card"}
+              </h2>
+              <p className="text-sm text-muted">
+                {submission.card?.game}
+                {submission.card?.set_name ? ` — ${submission.card.set_name}` : ""}
+                {submission.card?.card_number ? ` — #${submission.card.card_number}` : ""}
+                {submission.card?.foil ? " — Foil" : ""}
+              </p>
+            </div>
+            <StatusBadge status={submission.status} />
           </div>
-          <StatusBadge status={submission.status} />
-        </div>
 
-        {combinedByCategory.size > 0 && (
-          <div className="score-grid">
-            {CATEGORY_ORDER.filter((c) => combinedByCategory.has(c)).map((category) => {
-              const result = combinedByCategory.get(category)!;
-              const lowerConfidence = Boolean(result.flags?.lower_confidence);
-              return (
-                <div className="score-tile" key={category}>
-                  <div className="muted" style={{ textTransform: "capitalize", fontSize: "0.82rem" }}>
-                    {category}
-                    {lowerConfidence && (
-                      <span className="badge badge-warning" style={{ marginLeft: 6 }}>
-                        lower confidence
-                      </span>
-                    )}
+          {combinedByCategory.size > 0 && (
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {CATEGORY_ORDER.filter((c) => combinedByCategory.has(c)).map((category) => {
+                const result = combinedByCategory.get(category)!;
+                const lowerConfidence = Boolean(result.flags?.lower_confidence);
+                return (
+                  <div key={category} className="rounded-xl border border-border bg-surface-secondary p-3">
+                    <div className="flex items-center gap-1.5 text-xs text-muted capitalize">
+                      {category}
+                      {lowerConfidence && (
+                        <Chip color="warning" variant="soft" size="sm">
+                          lower confidence
+                        </Chip>
+                      )}
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-foreground">
+                      {result.raw_score.toFixed(1)}
+                    </div>
                   </div>
-                  <div className="value">{result.raw_score.toFixed(1)}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </Card.Content>
+      </Card>
 
       {comparisonsByCategory.size > 0 && (
-        <div className="card">
-          <h3>Multi-company comparison</h3>
-          <p className="muted" style={{ marginTop: 6, fontSize: "0.88rem" }}>
-            Points of contention that may affect how each company treats this card. This is not a
-            predicted numeric grade from any company.
-          </p>
-          {CATEGORY_ORDER.filter((c) => comparisonsByCategory.has(c)).map((category) => (
-            <div key={category} style={{ marginTop: 18 }}>
-              <h3 style={{ textTransform: "capitalize", fontSize: "0.95rem" }}>{category}</h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Company</th>
-                    <th>Assessment</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {comparisonsByCategory.get(category)!.map((comp) => (
-                    <tr key={`${comp.company}-${comp.category}`}>
-                      <td>{comp.company}</td>
-                      <td>
-                        <span className={`badge ${SEVERITY_STYLES[comp.severity]}`}>{comp.severity}</span>
-                      </td>
-                      <td style={{ fontSize: "0.88rem" }}>{comp.contention_note}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-        </div>
+        <Card className="mt-5">
+          <Card.Header>
+            <Card.Title>Multi-company comparison</Card.Title>
+            <Card.Description>
+              Points of contention that may affect how each company treats this card. This is not
+              a predicted numeric grade from any company.
+            </Card.Description>
+          </Card.Header>
+          <Card.Content className="flex flex-col gap-6">
+            {CATEGORY_ORDER.filter((c) => comparisonsByCategory.has(c)).map((category) => (
+              <div key={category}>
+                <h3 className="mb-2 text-sm font-semibold capitalize text-foreground">{category}</h3>
+                <Table>
+                  <Table.ScrollContainer>
+                    <Table.Content aria-label={`${category} company comparison`}>
+                      <Table.Header>
+                        <Table.Column isRowHeader>Company</Table.Column>
+                        <Table.Column>Assessment</Table.Column>
+                        <Table.Column>Notes</Table.Column>
+                      </Table.Header>
+                      <Table.Body>
+                        {comparisonsByCategory.get(category)!.map((comp) => (
+                          <Table.Row key={`${comp.company}-${comp.category}`} id={`${comp.company}-${comp.category}`}>
+                            <Table.Cell>{comp.company}</Table.Cell>
+                            <Table.Cell>
+                              <Chip color={SEVERITY_COLOR[comp.severity]} variant="soft" size="sm">
+                                {comp.severity}
+                              </Chip>
+                            </Table.Cell>
+                            <Table.Cell className="text-sm">{comp.contention_note}</Table.Cell>
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table.Content>
+                  </Table.ScrollContainer>
+                </Table>
+              </div>
+            ))}
+          </Card.Content>
+        </Card>
       )}
     </>
   );

@@ -1,13 +1,14 @@
+import { Chip } from "@heroui/react";
 import type { SubmissionStatus } from "@/lib/api";
 
-const STATUS_STYLES: Record<SubmissionStatus, string> = {
-  created: "badge-neutral",
-  awaiting_scans: "badge-neutral",
-  processing: "badge-info",
-  draft_ready: "badge-warning",
-  approved: "badge-info",
-  published: "badge-success",
-  error: "badge-danger",
+const STATUS_COLOR: Record<SubmissionStatus, "default" | "accent" | "warning" | "success" | "danger"> = {
+  created: "default",
+  awaiting_scans: "default",
+  processing: "accent",
+  draft_ready: "warning",
+  approved: "accent",
+  published: "success",
+  error: "danger",
 };
 
 const STATUS_LABELS: Record<SubmissionStatus, string> = {
@@ -21,5 +22,9 @@ const STATUS_LABELS: Record<SubmissionStatus, string> = {
 };
 
 export default function StatusBadge({ status }: { status: SubmissionStatus }) {
-  return <span className={`badge ${STATUS_STYLES[status]}`}>{STATUS_LABELS[status]}</span>;
+  return (
+    <Chip color={STATUS_COLOR[status]} variant="soft" size="sm">
+      {STATUS_LABELS[status]}
+    </Chip>
+  );
 }
