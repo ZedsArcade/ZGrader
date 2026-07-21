@@ -1,0 +1,120 @@
+export const en = {
+  nav: {
+    admin: "Admin",
+    dashboard: "Dashboard",
+    logout: "Log out",
+    login: "Log in",
+    register: "Register",
+    menu: "Menu",
+    openMenu: "Open menu",
+    closeMenu: "Close menu",
+  },
+  status: {
+    created: "Created",
+    awaiting_scans: "Awaiting scans",
+    processing: "Processing",
+    draft_ready: "Draft ready",
+    approved: "Approved",
+    published: "Published",
+    error: "Error",
+  },
+  category: {
+    centering: "Centering",
+    corners: "Corners",
+    edges: "Edges",
+    surface: "Surface",
+  },
+  severity: {
+    none: "None",
+    minor: "Minor",
+    major: "Major",
+  },
+  landing: {
+    title: "Know before you submit.",
+    subtitle:
+      "ZGrader is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how PSA, BGS, CGC, and TAG are likely to treat each one before you pay to submit for real.",
+    getStarted: "Get started",
+    login: "Log in",
+    feature1Title: "Automated analysis",
+    feature1Body:
+      "Every submission gets a measured centering ratio, corner and edge wear detection, and a surface texture pass -- with annotated images showing exactly what was flagged.",
+    feature2Title: "Multi-company comparison",
+    feature2Body:
+      "PSA, BGS, CGC, and TAG don't grade the same way. We highlight the specific points of contention that could sway your card's treatment differently at each company -- never a promised numeric grade.",
+    feature3Title: "Track every submission",
+    feature3Body:
+      "Create a submission, ship us your card, and watch it move from received to a downloadable report -- all from your dashboard.",
+    noteTitle: "An important note",
+    noteBody:
+      "ZGrader is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
+  },
+  login: {
+    title: "Log in",
+    email: "Email",
+    password: "Password",
+    submit: "Log in",
+    submitting: "Logging in…",
+    failed: "Login failed",
+  },
+  register: {
+    title: "Create an account",
+    subtitle: "Register to submit cards and track your reports.",
+    email: "Email",
+    password: "Password",
+    submit: "Register",
+    submitting: "Creating account…",
+    failed: "Registration failed",
+  },
+  verify: {
+    title: "Email verification",
+    verifying: "Verifying…",
+    success: "Your email is verified. You can now",
+    loginLink: "log in",
+    failed: "Verification failed",
+  },
+  dashboard: {
+    title: "Your submissions",
+    subtitle: "Track every card you've sent in for pre-grading.",
+    newSubmission: "New submission",
+    loadFailed: "Failed to load submissions",
+    empty: "No submissions yet.",
+    emptyCta: "Create your first one.",
+    colCode: "Code",
+    colStatus: "Status",
+    colCreated: "Created",
+    view: "View",
+  },
+  newSubmission: {
+    title: "New submission",
+    subtitle: "Tell us about the card, then ship it to us for scanning.",
+    game: "Game",
+    dimensionsUnverified: " (dimensions unverified)",
+    cardName: "Card name",
+    setName: "Set (optional)",
+    cardNumber: "Card number (optional)",
+    foil: "Foil / holo",
+    submit: "Create submission",
+    submitting: "Creating…",
+    failed: "Failed to create submission",
+  },
+  submissionDetail: {
+    createdOn: "Created",
+    download: "Download report",
+    downloading: "Downloading…",
+    downloadFailed: "Report not available yet",
+    loadFailed: "Failed to load submission",
+    unknownCard: "Unknown card",
+    foilLabel: "Foil",
+    lowerConfidence: "lower confidence",
+    comparisonTitle: "Multi-company comparison",
+    comparisonSubtitle:
+      "Points of contention that may affect how each company treats this card. This is not a predicted numeric grade from any company.",
+    colCompany: "Company",
+    colAssessment: "Assessment",
+    colNotes: "Notes",
+  },
+} as const;
+
+type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };
+
+export type Dictionary = Widen<typeof en>;

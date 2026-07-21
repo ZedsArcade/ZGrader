@@ -3,7 +3,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
-from zgrader.models import SubmissionStatus
+from zgrader.models import SubmissionLanguage, SubmissionStatus
 
 
 class SubmissionCreate(BaseModel):
@@ -12,6 +12,7 @@ class SubmissionCreate(BaseModel):
     set_name: str | None = None
     card_number: str | None = None
     foil: bool = False
+    language: SubmissionLanguage = SubmissionLanguage.en
 
 
 class CardOut(BaseModel):

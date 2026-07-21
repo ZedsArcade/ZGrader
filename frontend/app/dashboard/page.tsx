@@ -6,10 +6,13 @@ import { Card, Skeleton, Table, buttonVariants } from "@heroui/react";
 import RequireAuth from "@/components/RequireAuth";
 import StatusBadge from "@/components/StatusBadge";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 function DashboardList() {
   const { token } = useAuth();
+  const { locale } = useLocale();
+  const t = useTranslations();
   const [submissions, setSubmissions] = useState<api.SubmissionSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,18 +21,19 @@ function DashboardList() {
     api
       .listSubmissions(token)
       .then(setSubmissions)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load submissions"));
+      .catch((err) => setError(err instanceof Error ? err.message : t.dashboard.loadFailed));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   return (
     <>
       <div className="mb-5 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Your submissions</h1>
-          <p className="text-sm text-muted">Track every card you&apos;ve sent in for pre-grading.</p>
+          <h1 className="text-2xl font-bold text-foreground">{t.dashboard.title}</h1>
+          <p className="text-sm text-muted">{t.dashboard.subtitle}</p>
         </div>
         <Link href="/dashboard/new" className={buttonVariants({ variant: "primary" })}>
-          New submission
+          {t.dashboard.newSubmission}
         </Link>
       </div>
 
@@ -51,19 +55,19 @@ function DashboardList() {
             </div>
           ) : submissions.length === 0 ? (
             <p className="text-sm text-muted">
-              No submissions yet.{" "}
+              {t.dashboard.empty}{" "}
               <Link href="/dashboard/new" className="text-accent hover:underline">
-                Create your first one.
+                {t.dashboard.emptyCta}
               </Link>
             </p>
           ) : (
             <Table>
               <Table.ScrollContainer>
-                <Table.Content aria-label="Your submissions">
+                <Table.Content aria-label={t.dashboard.title}>
                   <Table.Header>
-                    <Table.Column isRowHeader>Code</Table.Column>
-                    <Table.Column>Status</Table.Column>
-                    <Table.Column>Created</Table.Column>
+                    <Table.Column isRowHeader>{t.dashboard.colCode}</Table.Column>
+                    <Table.Column>{t.dashboard.colStatus}</Table.Column>
+                    <Table.Column>{t.dashboard.colCreated}</Table.Column>
                     <Table.Column>{""}</Table.Column>
                   </Table.Header>
                   <Table.Body>
@@ -71,12 +75,12 @@ function DashboardList() {
                       <Table.Row key={s.submission_code} id={s.submission_code}>
                         <Table.Cell>{s.submission_code}</Table.Cell>
                         <Table.Cell>
-                          <StatusBadge status={s.status} />
+                          <StatusBadge status={s.status} locale={locale} />
                         </Table.Cell>
                         <Table.Cell>{new Date(s.created_at).toLocaleDateString()}</Table.Cell>
                         <Table.Cell>
                           <Link href={`/dashboard/${s.submission_code}`} className="text-accent hover:underline">
-                            View
+                            {t.dashboard.view}
                           </Link>
                         </Table.Cell>
                       </Table.Row>

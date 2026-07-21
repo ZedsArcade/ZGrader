@@ -76,6 +76,7 @@ export interface SubmissionCreate {
   set_name?: string;
   card_number?: string;
   foil?: boolean;
+  language?: "en" | "es";
 }
 
 export interface Game {

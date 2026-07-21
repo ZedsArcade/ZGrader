@@ -45,7 +45,12 @@ def create_submission(
     payload: SubmissionCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> Submission:
     code = _next_submission_code(db)
-    submission = Submission(submission_code=code, user_id=user.id, status=SubmissionStatus.created)
+    submission = Submission(
+        submission_code=code,
+        user_id=user.id,
+        status=SubmissionStatus.created,
+        language=payload.language,
+    )
     db.add(submission)
     db.flush()
 

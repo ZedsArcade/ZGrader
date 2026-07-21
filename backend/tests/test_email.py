@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from zgrader.email.client import send_email
 from zgrader.email.notifications import send_report_published, send_submission_received
-from zgrader.models import Settings
+from zgrader.models import Settings, SubmissionLanguage
 
 
 def test_send_email_calls_smtp_with_expected_message():
@@ -41,6 +41,7 @@ class _FakeCard:
 class _FakeSubmission:
     submission_code = "SUB-00099"
     card = _FakeCard()
+    language = SubmissionLanguage.en
 
 
 def test_submission_received_uses_business_name_from_settings():

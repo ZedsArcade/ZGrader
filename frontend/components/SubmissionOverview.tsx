@@ -1,15 +1,23 @@
 import { Card, Chip, Table } from "@heroui/react";
 import type { Comparison, SubmissionDetail } from "@/lib/api";
+import { getDictionary, type Locale } from "@/lib/i18n/context";
 import StatusBadge from "./StatusBadge";
 
-const CATEGORY_ORDER = ["centering", "corners", "edges", "surface"];
+const CATEGORY_ORDER = ["centering", "corners", "edges", "surface"] as const;
 const SEVERITY_COLOR: Record<string, "success" | "warning" | "danger"> = {
   none: "success",
   minor: "warning",
   major: "danger",
 };
 
-export default function SubmissionOverview({ submission }: { submission: SubmissionDetail }) {
+export default function SubmissionOverview({
+  submission,
+  locale = "en",
+}: {
+  submission: SubmissionDetail;
+  locale?: Locale;
+}) {
+  const t = getDictionary(locale);
   const combinedByCategory = new Map(
     submission.analysis_results.filter((r) => r.side === "combined").map((r) => [r.category, r])
   );
@@ -27,16 +35,16 @@ export default function SubmissionOverview({ submission }: { submission: Submiss
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-foreground">
-                {submission.card?.card_name ?? "Unknown card"}
+                {submission.card?.card_name ?? t.submissionDetail.unknownCard}
               </h2>
               <p className="text-sm text-muted">
                 {submission.card?.game}
                 {submission.card?.set_name ? ` — ${submission.card.set_name}` : ""}
                 {submission.card?.card_number ? ` — #${submission.card.card_number}` : ""}
-                {submission.card?.foil ? " — Foil" : ""}
+                {submission.card?.foil ? ` — ${t.submissionDetail.foilLabel}` : ""}
               </p>
             </div>
-            <StatusBadge status={submission.status} />
+            <StatusBadge status={submission.status} locale={locale} />
           </div>
 
           {combinedByCategory.size > 0 && (
@@ -46,11 +54,11 @@ export default function SubmissionOverview({ submission }: { submission: Submiss
                 const lowerConfidence = Boolean(result.flags?.lower_confidence);
                 return (
                   <div key={category} className="rounded-xl border border-border bg-surface-secondary p-3">
-                    <div className="flex items-center gap-1.5 text-xs text-muted capitalize">
-                      {category}
+                    <div className="flex items-center gap-1.5 text-xs text-muted">
+                      {t.category[category]}
                       {lowerConfidence && (
                         <Chip color="warning" variant="soft" size="sm">
-                          lower confidence
+                          {t.submissionDetail.lowerConfidence}
                         </Chip>
                       )}
                     </div>
@@ -68,23 +76,20 @@ export default function SubmissionOverview({ submission }: { submission: Submiss
       {comparisonsByCategory.size > 0 && (
         <Card className="mt-5">
           <Card.Header>
-            <Card.Title>Multi-company comparison</Card.Title>
-            <Card.Description>
-              Points of contention that may affect how each company treats this card. This is not
-              a predicted numeric grade from any company.
-            </Card.Description>
+            <Card.Title>{t.submissionDetail.comparisonTitle}</Card.Title>
+            <Card.Description>{t.submissionDetail.comparisonSubtitle}</Card.Description>
           </Card.Header>
           <Card.Content className="flex flex-col gap-6">
             {CATEGORY_ORDER.filter((c) => comparisonsByCategory.has(c)).map((category) => (
               <div key={category}>
-                <h3 className="mb-2 text-sm font-semibold capitalize text-foreground">{category}</h3>
+                <h3 className="mb-2 text-sm font-semibold text-foreground">{t.category[category]}</h3>
                 <Table>
                   <Table.ScrollContainer>
-                    <Table.Content aria-label={`${category} company comparison`}>
+                    <Table.Content aria-label={`${t.category[category]} ${t.submissionDetail.comparisonTitle}`}>
                       <Table.Header>
-                        <Table.Column isRowHeader>Company</Table.Column>
-                        <Table.Column>Assessment</Table.Column>
-                        <Table.Column>Notes</Table.Column>
+                        <Table.Column isRowHeader>{t.submissionDetail.colCompany}</Table.Column>
+                        <Table.Column>{t.submissionDetail.colAssessment}</Table.Column>
+                        <Table.Column>{t.submissionDetail.colNotes}</Table.Column>
                       </Table.Header>
                       <Table.Body>
                         {comparisonsByCategory.get(category)!.map((comp) => (
@@ -92,7 +97,7 @@ export default function SubmissionOverview({ submission }: { submission: Submiss
                             <Table.Cell>{comp.company}</Table.Cell>
                             <Table.Cell>
                               <Chip color={SEVERITY_COLOR[comp.severity]} variant="soft" size="sm">
-                                {comp.severity}
+                                {t.severity[comp.severity as keyof typeof t.severity]}
                               </Chip>
                             </Table.Cell>
                             <Table.Cell className="text-sm">{comp.contention_note}</Table.Cell>

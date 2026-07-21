@@ -1,5 +1,6 @@
 import { Chip } from "@heroui/react";
 import type { SubmissionStatus } from "@/lib/api";
+import { getDictionary, type Locale } from "@/lib/i18n/context";
 
 const STATUS_COLOR: Record<SubmissionStatus, "default" | "accent" | "warning" | "success" | "danger"> = {
   created: "default",
@@ -11,20 +12,11 @@ const STATUS_COLOR: Record<SubmissionStatus, "default" | "accent" | "warning" | 
   error: "danger",
 };
 
-const STATUS_LABELS: Record<SubmissionStatus, string> = {
-  created: "Created",
-  awaiting_scans: "Awaiting scans",
-  processing: "Processing",
-  draft_ready: "Draft ready",
-  approved: "Approved",
-  published: "Published",
-  error: "Error",
-};
-
-export default function StatusBadge({ status }: { status: SubmissionStatus }) {
+export default function StatusBadge({ status, locale = "en" }: { status: SubmissionStatus; locale?: Locale }) {
+  const t = getDictionary(locale);
   return (
     <Chip color={STATUS_COLOR[status]} variant="soft" size="sm">
-      {STATUS_LABELS[status]}
+      {t.status[status]}
     </Chip>
   );
 }

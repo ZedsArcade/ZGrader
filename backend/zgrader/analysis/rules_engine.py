@@ -21,11 +21,18 @@ from zgrader.models import (
     Submission,
     ToleranceSeverity,
 )
+from zgrader.reports.strings import CATEGORY_LABELS
 
 _SEVERITY_WORDS = {
     ToleranceSeverity.none: "not expected to be flagged",
     ToleranceSeverity.minor: "likely to draw a minor deduction",
     ToleranceSeverity.major: "likely to draw a significant deduction",
+}
+
+_SEVERITY_WORDS_ES = {
+    ToleranceSeverity.none: "no debería generar ninguna deducción",
+    ToleranceSeverity.minor: "probablemente reciba una deducción menor",
+    ToleranceSeverity.major: "probablemente reciba una deducción significativa",
 }
 
 
@@ -59,6 +66,9 @@ def _combined_results_by_category(submission: Submission) -> dict[str, AnalysisR
 
 def evaluate(db: Session, submission: Submission) -> list[GradingCompanyComparison]:
     combined_by_category = _combined_results_by_category(submission)
+    language = submission.language.value
+    is_es = language == "es"
+    severity_words = _SEVERITY_WORDS_ES if is_es else _SEVERITY_WORDS
 
     rules = (
         db.query(GradingCompanyToleranceRule)
@@ -72,24 +82,29 @@ def evaluate(db: Session, submission: Submission) -> list[GradingCompanyComparis
         if result is None:
             continue
 
+        # Falls back to the English template if a rule was tuned/added
+        # without a Spanish translation yet, rather than erroring out.
+        template = (rule.note_template_es if is_es and rule.note_template_es else rule.note_template)
+
         measurements = result.measurements or {}
         if rule.metric_key == "worse_side_pct":
             worse_side_pct = measurements.get("worse_side_pct")
             if worse_side_pct is None:
                 continue
             severity = _severity_for_centering(worse_side_pct, rule.thresholds)
-            note = rule.note_template.format(
+            note = template.format(
                 worse_side_pct=worse_side_pct,
                 better_side_pct=100 - worse_side_pct,
-                severity_word=_SEVERITY_WORDS[severity],
+                severity_word=severity_words[severity],
             )
         elif rule.metric_key == "raw_score":
             raw_score = float(result.raw_score)
             severity = _severity_for_score(raw_score, rule.thresholds)
-            note = rule.note_template.format(
+            category_word = CATEGORY_LABELS["es"][rule.category].lower() if is_es else rule.category
+            note = template.format(
                 raw_score=raw_score,
-                category=rule.category,
-                severity_word=_SEVERITY_WORDS[severity],
+                category=category_word,
+                severity_word=severity_words[severity],
             )
         else:
             continue

@@ -15,11 +15,14 @@ import {
 import RequireAuth from "@/components/RequireAuth";
 import { useAuth } from "@/lib/auth-context";
 import { toastError } from "@/lib/toast";
+import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 function NewSubmissionForm() {
   const { token } = useAuth();
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = useTranslations();
   const [games, setGames] = useState<api.Game[]>([]);
   const [game, setGame] = useState("");
   const [cardName, setCardName] = useState("");
@@ -46,10 +49,11 @@ function NewSubmissionForm() {
         set_name: setName || undefined,
         card_number: cardNumber || undefined,
         foil,
+        language: locale,
       });
       router.push(`/dashboard/${submission.submission_code}`);
     } catch (err) {
-      toastError(err instanceof Error ? err.message : "Failed to create submission");
+      toastError(err instanceof Error ? err.message : t.newSubmission.failed);
     } finally {
       setSubmitting(false);
     }
@@ -58,8 +62,8 @@ function NewSubmissionForm() {
   return (
     <Card className="mx-auto max-w-xl">
       <Card.Header>
-        <Card.Title>New submission</Card.Title>
-        <Card.Description>Tell us about the card, then ship it to us for scanning.</Card.Description>
+        <Card.Title>{t.newSubmission.title}</Card.Title>
+        <Card.Description>{t.newSubmission.subtitle}</Card.Description>
       </Card.Header>
       <Card.Content>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
@@ -69,7 +73,7 @@ function NewSubmissionForm() {
             isRequired
             fullWidth
           >
-            <Label>Game</Label>
+            <Label>{t.newSubmission.game}</Label>
             <Select.Trigger>
               <Select.Value />
               <Select.Indicator />
@@ -79,7 +83,7 @@ function NewSubmissionForm() {
                 {games.map((g) => (
                   <ListBox.Item id={g.game} key={g.game} textValue={g.game}>
                     {g.game}
-                    {!g.verified ? " (dimensions unverified)" : ""}
+                    {!g.verified ? t.newSubmission.dimensionsUnverified : ""}
                   </ListBox.Item>
                 ))}
               </ListBox>
@@ -87,17 +91,17 @@ function NewSubmissionForm() {
           </Select.Root>
 
           <TextField value={cardName} onChange={setCardName} isRequired fullWidth>
-            <Label>Card name</Label>
+            <Label>{t.newSubmission.cardName}</Label>
             <Input />
           </TextField>
 
           <TextField value={setName} onChange={setSetName} fullWidth>
-            <Label>Set (optional)</Label>
+            <Label>{t.newSubmission.setName}</Label>
             <Input />
           </TextField>
 
           <TextField value={cardNumber} onChange={setCardNumber} fullWidth>
-            <Label>Card number (optional)</Label>
+            <Label>{t.newSubmission.cardNumber}</Label>
             <Input />
           </TextField>
 
@@ -106,12 +110,12 @@ function NewSubmissionForm() {
               <Checkbox.Control>
                 <Checkbox.Indicator />
               </Checkbox.Control>
-              Foil / holo
+              {t.newSubmission.foil}
             </Checkbox.Content>
           </Checkbox.Root>
 
           <Button type="submit" variant="primary" isDisabled={submitting || !game} fullWidth>
-            {submitting ? "Creating…" : "Create submission"}
+            {submitting ? t.newSubmission.submitting : t.newSubmission.submit}
           </Button>
         </form>
       </Card.Content>

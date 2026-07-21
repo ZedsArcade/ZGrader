@@ -6,10 +6,13 @@ import RequireAuth from "@/components/RequireAuth";
 import SubmissionOverview from "@/components/SubmissionOverview";
 import { useAuth } from "@/lib/auth-context";
 import { toastError } from "@/lib/toast";
+import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 function Detail({ code }: { code: string }) {
   const { token } = useAuth();
+  const { locale } = useLocale();
+  const t = useTranslations();
   const [submission, setSubmission] = useState<api.SubmissionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -19,7 +22,8 @@ function Detail({ code }: { code: string }) {
     api
       .getSubmission(token, code)
       .then(setSubmission)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load submission"));
+      .catch((err) => setError(err instanceof Error ? err.message : t.submissionDetail.loadFailed));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, code]);
 
   async function handleDownload() {
@@ -36,7 +40,7 @@ function Detail({ code }: { code: string }) {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      toastError(err instanceof Error ? err.message : "Report not available yet");
+      toastError(err instanceof Error ? err.message : t.submissionDetail.downloadFailed);
     } finally {
       setDownloading(false);
     }
@@ -71,15 +75,17 @@ function Detail({ code }: { code: string }) {
       <div className="mb-5 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{submission.submission_code}</h1>
-          <p className="text-sm text-muted">Created {new Date(submission.created_at).toLocaleString()}</p>
+          <p className="text-sm text-muted">
+            {t.submissionDetail.createdOn} {new Date(submission.created_at).toLocaleString()}
+          </p>
         </div>
         {submission.status === "published" && (
           <Button variant="primary" onPress={handleDownload} isDisabled={downloading}>
-            {downloading ? "Downloading…" : "Download report"}
+            {downloading ? t.submissionDetail.downloading : t.submissionDetail.download}
           </Button>
         )}
       </div>
-      <SubmissionOverview submission={submission} />
+      <SubmissionOverview submission={submission} locale={locale} />
     </>
   );
 }

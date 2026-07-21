@@ -41,6 +41,7 @@ class GradingCompanyToleranceRule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # company/category/metric combination.
     thresholds: Mapped[dict] = mapped_column(JSONB, nullable=False)
     note_template: Mapped[str] = mapped_column(Text, nullable=False)
+    note_template_es: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
 

@@ -5,7 +5,7 @@
   <h2 style="color: #1a2b4c;">{{ business_name }}</h2>
   {% block content %}{% endblock %}
   <p style="color: #667085; font-size: 12px; margin-top: 32px; border-top: 1px solid #e2e5ea; padding-top: 12px;">
-    This is an automated notification from {{ business_name }}, an independent TCG pre-grading service.
+    {{ strings.footer.format(business_name=business_name) }}
   </p>
 </body>
 </html>

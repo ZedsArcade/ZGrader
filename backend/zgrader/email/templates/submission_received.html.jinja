@@ -1,12 +1,9 @@
 {% extends "base.html.jinja" %}
 {% block content %}
-  <p>Hi,</p>
+  <p>{{ strings.greeting }}</p>
   <p>
-    We've received your submission <strong>{{ submission_code }}</strong>
-    {% if card_name %}for <strong>{{ card_name }}</strong>{% endif %}.
+    {{ strings.received_intro }} <strong>{{ submission_code }}</strong>
+    {% if card_name %}{{ strings.received_for }} <strong>{{ card_name }}</strong>{% endif %}.
   </p>
-  <p>
-    Once your card arrives and is scanned, we'll run our automated analysis and
-    let you know as soon as your report is ready.
-  </p>
+  <p>{{ strings.received_body }}</p>
 {% endblock %}

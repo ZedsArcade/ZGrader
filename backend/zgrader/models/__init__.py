@@ -11,7 +11,7 @@ from zgrader.models.grading_comparison import (
 from zgrader.models.report import Report, ReportStatus
 from zgrader.models.scan_image import ScanImage, ScanSide
 from zgrader.models.settings import Settings
-from zgrader.models.submission import Submission, SubmissionStatus
+from zgrader.models.submission import Submission, SubmissionLanguage, SubmissionStatus
 from zgrader.models.user import User, UserRole
 
 __all__ = [
@@ -30,6 +30,7 @@ __all__ = [
     "ScanSide",
     "Settings",
     "Submission",
+    "SubmissionLanguage",
     "SubmissionStatus",
     "ToleranceSeverity",
     "User",

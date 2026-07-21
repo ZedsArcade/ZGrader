@@ -19,6 +19,15 @@ class SubmissionStatus(str, enum.Enum):
     error = "error"
 
 
+class SubmissionLanguage(str, enum.Enum):
+    """Language the client had active when creating the submission --
+    drives which language the PDF report and notification emails render
+    in. Not a per-account preference; captured once at creation time."""
+
+    en = "en"
+    es = "es"
+
+
 class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One Submission == one physical card's grading job.
 
@@ -47,6 +56,12 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     auto_publish: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    language: Mapped[SubmissionLanguage] = mapped_column(
+        Enum(SubmissionLanguage, name="submission_language"),
+        default=SubmissionLanguage.en,
+        server_default=SubmissionLanguage.en.value,
+        nullable=False,
+    )
 
     user: Mapped["User"] = relationship(back_populates="submissions", foreign_keys=[user_id])  # noqa: F821
     card: Mapped["Card"] = relationship(  # noqa: F821

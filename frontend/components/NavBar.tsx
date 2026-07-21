@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/react";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
+import { useTranslations } from "@/lib/i18n/context";
 import ThemeSwitch from "@/components/theme-switch";
+import LocaleSwitch from "@/components/locale-switch";
 import NavDrawer from "@/components/nav-drawer";
 
 export default function NavBar() {
   const { user, logout, loading } = useAuth();
   const { business_name } = useBranding();
+  const t = useTranslations();
   const router = useRouter();
 
   function handleLogout() {
@@ -30,33 +33,36 @@ export default function NavBar() {
             <>
               {user.role === "operator" ? (
                 <Link href="/admin" className="text-sm font-medium text-foreground hover:text-accent">
-                  Admin
+                  {t.nav.admin}
                 </Link>
               ) : (
                 <Link href="/dashboard" className="text-sm font-medium text-foreground hover:text-accent">
-                  Dashboard
+                  {t.nav.dashboard}
                 </Link>
               )}
               <span className="text-sm text-muted">{user.email}</span>
+              <LocaleSwitch />
               <ThemeSwitch />
               <Button variant="outline" size="sm" onPress={handleLogout}>
-                Log out
+                {t.nav.logout}
               </Button>
             </>
           ) : (
             <>
               <Link href="/login" className="text-sm font-medium text-foreground hover:text-accent">
-                Log in
+                {t.nav.login}
               </Link>
               <Link href="/register" className="text-sm font-medium text-foreground hover:text-accent">
-                Register
+                {t.nav.register}
               </Link>
+              <LocaleSwitch />
               <ThemeSwitch />
             </>
           )}
         </nav>
 
         <div className="flex items-center gap-2 md:hidden">
+          <LocaleSwitch />
           <ThemeSwitch />
           <NavDrawer>
             {(close) => (
@@ -69,7 +75,7 @@ export default function NavBar() {
                         onClick={close}
                         className="rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover"
                       >
-                        Admin
+                        {t.nav.admin}
                       </Link>
                     ) : (
                       <Link
@@ -77,7 +83,7 @@ export default function NavBar() {
                         onClick={close}
                         className="rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover"
                       >
-                        Dashboard
+                        {t.nav.dashboard}
                       </Link>
                     )}
                     <div className="px-3 py-2 text-sm text-muted">{user.email}</div>
@@ -90,7 +96,7 @@ export default function NavBar() {
                         handleLogout();
                       }}
                     >
-                      Log out
+                      {t.nav.logout}
                     </Button>
                   </>
                 ) : (
@@ -100,14 +106,14 @@ export default function NavBar() {
                       onClick={close}
                       className="rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover"
                     >
-                      Log in
+                      {t.nav.login}
                     </Link>
                     <Link
                       href="/register"
                       onClick={close}
                       className="rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover"
                     >
-                      Register
+                      {t.nav.register}
                     </Link>
                   </>
                 )}

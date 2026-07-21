@@ -11,6 +11,7 @@ from weasyprint import HTML
 
 from zgrader.config import config
 from zgrader.models import AnalysisSide, GradingCompany, Report, ReportStatus, Settings, Submission
+from zgrader.reports.strings import CATEGORY_LABELS, REPORT_STRINGS, SEVERITY_LABELS
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 CATEGORY_ORDER = ["centering", "corners", "edges", "surface"]
@@ -72,7 +73,11 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
     for comparisons in comparisons_by_category.values():
         comparisons.sort(key=lambda c: (_severity_rank(c.severity), c.company.value))
 
+    language = submission.language.value
     return {
+        "strings": REPORT_STRINGS[language],
+        "category_labels": CATEGORY_LABELS[language],
+        "severity_labels": SEVERITY_LABELS[language],
         "business": {
             "name": settings.business_name,
             "logo_path": settings.business_logo_path,
