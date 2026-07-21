@@ -95,10 +95,10 @@ services:
     ports:
       - "8080:80"
       #- "443:443"
-    volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+    #volumes:
+     # - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+     # - caddy_data:/data
+     # - caddy_config:/config
     depends_on:
       - frontend
       - backend
