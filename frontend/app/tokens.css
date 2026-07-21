@@ -1,0 +1,31 @@
+:root {
+  /* base — deep synthwave night, purple-tinted, layered for depth */
+  --bg:        #0d0221;
+  --surface-1: #160b2e;
+  --surface-2: #1e1140;
+  --border:    #2d1b52;
+
+  /* neon accents — used ONLY for interactive/emphasis, never large fills */
+  --neon-pink:   #ff2e97;   /* primary accent — CTAs, focus, active */
+  --neon-cyan:   #05d9e8;   /* secondary accent — links, highlights */
+  --neon-purple: #b967ff;   /* tertiary — subtle gradients, borders */
+  --neon-glow:   #ff2e9740; /* the hover/focus glow, low alpha */
+
+  /* text stays high-contrast — this is what keeps it usable */
+  --text:     #f5f0ff;
+  --text-dim: #a89ec9;
+
+  /* grade colors — semantic, reskinned to fit the palette */
+  --grade-gem:  #00ffc8;   /* 10   — electric mint */
+  --grade-mint: #7fff4d;   /* 9.5  — neon lime */
+  --grade-warn: #ffb300;   /* sub-9 — synthwave amber */
+
+  --radius: 12px;
+  --shadow-card: 0 8px 30px rgba(0,0,0,.5);
+  --font: "Geist", "Inter", system-ui, sans-serif;
+
+  /* motion tokens — referenced by every interaction, see below */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 150ms;
+  --dur-med:  250ms;
+}

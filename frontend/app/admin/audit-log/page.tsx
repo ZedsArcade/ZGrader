@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Input, Skeleton, Table, TextField } from "@heroui/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Card, Input, Table, TextField } from "@heroui/react";
 import type { SortDescriptor } from "react-aria-components";
+import Button from "@/components/Button";
 import RequireAuth from "@/components/RequireAuth";
+import Skeleton from "@/components/Skeleton";
+import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 
@@ -20,13 +24,16 @@ function AuditLogList() {
     direction: "descending",
   });
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!token) return;
+    setError(null);
     api
       .getAuditLog(token, { limit: PAGE_SIZE, offset })
       .then(setEntries)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load audit log"));
   }, [token, offset]);
+
+  useEffect(load, [load]);
 
   const visibleEntries = useMemo(() => {
     if (!entries) return [];
@@ -56,14 +63,9 @@ function AuditLogList() {
         </p>
       </div>
 
-      {error && (
-        <Card className="mb-5">
-          <Card.Content>
-            <p className="text-sm text-danger">{error}</p>
-          </Card.Content>
-        </Card>
-      )}
-
+      {error ? (
+        <ErrorState message={error} onRetry={load} />
+      ) : (
       <Card>
         <Card.Content>
           {entries === null ? (
@@ -73,7 +75,7 @@ function AuditLogList() {
               <Skeleton className="h-9 w-full" />
             </div>
           ) : entries.length === 0 ? (
-            <p className="text-sm text-muted">Nothing here yet.</p>
+            <EmptyState title="Nothing here yet" description="Approvals and publish events will show up here." />
           ) : (
             <>
               <TextField
@@ -129,25 +131,28 @@ function AuditLogList() {
           )}
         </Card.Content>
       </Card>
+      )}
 
-      <div className="mt-4 flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onPress={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-          isDisabled={offset === 0}
-        >
-          Newer
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onPress={() => setOffset(offset + PAGE_SIZE)}
-          isDisabled={!entries || entries.length < PAGE_SIZE}
-        >
-          Older
-        </Button>
-      </div>
+      {!error && (
+        <div className="mt-4 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+            isDisabled={offset === 0}
+          >
+            Newer
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => setOffset(offset + PAGE_SIZE)}
+            isDisabled={!entries || entries.length < PAGE_SIZE}
+          >
+            Older
+          </Button>
+        </div>
+      )}
     </>
   );
 }

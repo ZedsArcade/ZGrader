@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Button,
   Card,
   Checkbox,
   Input,
@@ -12,7 +11,10 @@ import {
   Select,
   TextField,
 } from "@heroui/react";
+import Button from "@/components/Button";
 import RequireAuth from "@/components/RequireAuth";
+import Skeleton from "@/components/Skeleton";
+import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
 import { toastError } from "@/lib/toast";
 import { useLocale, useTranslations } from "@/lib/i18n/context";
@@ -23,7 +25,8 @@ function NewSubmissionForm() {
   const router = useRouter();
   const { locale } = useLocale();
   const t = useTranslations();
-  const [games, setGames] = useState<api.Game[]>([]);
+  const [games, setGames] = useState<api.Game[] | null>(null);
+  const [gamesError, setGamesError] = useState<string | null>(null);
   const [game, setGame] = useState("");
   const [cardName, setCardName] = useState("");
   const [setName, setSetName] = useState("");
@@ -31,12 +34,19 @@ function NewSubmissionForm() {
   const [foil, setFoil] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    api.getGames().then((list) => {
-      setGames(list);
-      if (list.length > 0) setGame(list[0].game);
-    });
+  const loadGames = useCallback(() => {
+    setGamesError(null);
+    api
+      .getGames()
+      .then((list) => {
+        setGames(list);
+        if (list.length > 0) setGame(list[0].game);
+      })
+      .catch((err) => setGamesError(err instanceof Error ? err.message : t.newSubmission.gamesLoadFailed));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(loadGames, [loadGames]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -57,6 +67,26 @@ function NewSubmissionForm() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (gamesError) {
+    return (
+      <div className="mx-auto max-w-xl">
+        <ErrorState message={gamesError} onRetry={loadGames} retryLabel={t.common.retry} />
+      </div>
+    );
+  }
+
+  if (games === null) {
+    return (
+      <Card className="mx-auto max-w-xl">
+        <Card.Content className="flex flex-col gap-4">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </Card.Content>
+      </Card>
+    );
   }
 
   return (

@@ -53,7 +53,10 @@ export default function SubmissionOverview({
                 const result = combinedByCategory.get(category)!;
                 const lowerConfidence = Boolean(result.flags?.lower_confidence);
                 return (
-                  <div key={category} className="rounded-xl border border-border bg-surface-secondary p-3">
+                  <div
+                    key={category}
+                    className="interactive-card verdict-reveal rounded-xl border border-border bg-surface-secondary p-3"
+                  >
                     <div className="flex items-center gap-1.5 text-xs text-muted">
                       {t.category[category]}
                       {lowerConfidence && (

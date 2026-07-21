@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Card, Input, Skeleton, Table, TextField, buttonVariants } from "@heroui/react";
+import { Card, Input, Table, TextField, buttonVariants, cn } from "@heroui/react";
 import type { SortDescriptor } from "react-aria-components";
 import RequireAuth from "@/components/RequireAuth";
 import StatusBadge from "@/components/StatusBadge";
+import Skeleton from "@/components/Skeleton";
+import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 
@@ -20,8 +23,9 @@ function AdminOverview() {
     direction: "descending",
   });
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!token) return;
+    setError(null);
     Promise.all([api.listSubmissions(token), api.getStats(token)])
       .then(([subs, s]) => {
         setSubmissions(subs);
@@ -29,6 +33,8 @@ function AdminOverview() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load admin data"));
   }, [token]);
+
+  useEffect(load, [load]);
 
   const visibleSubmissions = useMemo(() => {
     if (!submissions) return [];
@@ -55,41 +61,37 @@ function AdminOverview() {
           <p className="text-sm text-muted">All client submissions, business-wide.</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/admin/audit-log" className={buttonVariants({ variant: "outline" })}>
+          <Link href="/admin/audit-log" className={cn(buttonVariants({ variant: "outline" }), "btn-press btn-neon-hover")}>
             Audit log
           </Link>
-          <Link href="/admin/settings" className={buttonVariants({ variant: "outline" })}>
+          <Link href="/admin/settings" className={cn(buttonVariants({ variant: "outline" }), "btn-press btn-neon-hover")}>
             Settings
           </Link>
         </div>
       </div>
 
-      {error && (
-        <Card className="mb-5">
-          <Card.Content>
-            <p className="text-sm text-danger">{error}</p>
-          </Card.Content>
-        </Card>
-      )}
-
-      {stats && (
-        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-surface-secondary p-3">
-            <div className="text-xs text-muted">Total submissions</div>
-            <div className="mt-1 text-2xl font-semibold text-foreground">{stats.total_submissions}</div>
-          </div>
-          <div className="rounded-xl border border-border bg-surface-secondary p-3">
-            <div className="text-xs text-muted">Draft ready</div>
-            <div className="mt-1 text-2xl font-semibold text-foreground">
-              {stats.by_status.draft_ready ?? 0}
+      {error ? (
+        <ErrorState message={error} onRetry={load} />
+      ) : (
+        <>
+          {stats && (
+            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-border bg-surface-secondary p-3">
+                <div className="text-xs text-muted">Total submissions</div>
+                <div className="mt-1 text-2xl font-semibold text-foreground">{stats.total_submissions}</div>
+              </div>
+              <div className="rounded-xl border border-border bg-surface-secondary p-3">
+                <div className="text-xs text-muted">Draft ready</div>
+                <div className="mt-1 text-2xl font-semibold text-foreground">
+                  {stats.by_status.draft_ready ?? 0}
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-surface-secondary p-3">
+                <div className="text-xs text-muted">Published reports</div>
+                <div className="mt-1 text-2xl font-semibold text-foreground">{stats.published_reports}</div>
+              </div>
             </div>
-          </div>
-          <div className="rounded-xl border border-border bg-surface-secondary p-3">
-            <div className="text-xs text-muted">Published reports</div>
-            <div className="mt-1 text-2xl font-semibold text-foreground">{stats.published_reports}</div>
-          </div>
-        </div>
-      )}
+          )}
 
       <Card>
         <Card.Content>
@@ -100,7 +102,7 @@ function AdminOverview() {
               <Skeleton className="h-9 w-full" />
             </div>
           ) : submissions.length === 0 ? (
-            <p className="text-sm text-muted">No submissions yet.</p>
+            <EmptyState title="No submissions yet" description="Nothing has come in yet." />
           ) : (
             <>
               <TextField
@@ -138,7 +140,7 @@ function AdminOverview() {
                           </Table.Cell>
                           <Table.Cell>{new Date(s.created_at).toLocaleDateString()}</Table.Cell>
                           <Table.Cell>
-                            <Link href={`/admin/${s.submission_code}`} className="text-accent hover:underline">
+                            <Link href={`/admin/${s.submission_code}`} className="text-accent hover:underline link-accent-hover">
                               Review
                             </Link>
                           </Table.Cell>
@@ -152,6 +154,8 @@ function AdminOverview() {
           )}
         </Card.Content>
       </Card>
+        </>
+      )}
     </>
   );
 }

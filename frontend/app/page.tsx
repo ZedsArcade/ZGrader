@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Card, buttonVariants } from "@heroui/react";
+import { Card, buttonVariants, cn } from "@heroui/react";
 import { useTranslations } from "@/lib/i18n/context";
 
 export default function HomePage() {
@@ -14,10 +14,10 @@ export default function HomePage() {
         </h1>
         <p className="max-w-2xl text-lg text-muted">{t.landing.subtitle}</p>
         <div className="flex flex-wrap gap-3">
-          <Link href="/register" className={buttonVariants({ variant: "primary" })}>
+          <Link href="/register" className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}>
             {t.landing.getStarted}
           </Link>
-          <Link href="/login" className={buttonVariants({ variant: "outline" })}>
+          <Link href="/login" className={cn(buttonVariants({ variant: "outline" }), "btn-press btn-neon-hover")}>
             {t.landing.login}
           </Link>
         </div>

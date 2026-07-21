@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, Skeleton, Table, buttonVariants } from "@heroui/react";
+import { Card, Table, buttonVariants, cn } from "@heroui/react";
 import RequireAuth from "@/components/RequireAuth";
 import StatusBadge from "@/components/StatusBadge";
+import Skeleton from "@/components/Skeleton";
+import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
@@ -16,14 +19,17 @@ function DashboardList() {
   const [submissions, setSubmissions] = useState<api.SubmissionSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!token) return;
+    setError(null);
     api
       .listSubmissions(token)
       .then(setSubmissions)
       .catch((err) => setError(err instanceof Error ? err.message : t.dashboard.loadFailed));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  useEffect(load, [load]);
 
   return (
     <>
@@ -32,35 +38,30 @@ function DashboardList() {
           <h1 className="text-2xl font-bold text-foreground">{t.dashboard.title}</h1>
           <p className="text-sm text-muted">{t.dashboard.subtitle}</p>
         </div>
-        <Link href="/dashboard/new" className={buttonVariants({ variant: "primary" })}>
+        <Link href="/dashboard/new" className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}>
           {t.dashboard.newSubmission}
         </Link>
       </div>
 
-      {error && (
-        <Card className="mb-5">
+      {error ? (
+        <ErrorState message={error} onRetry={load} retryLabel={t.common.retry} />
+      ) : (
+        <Card>
           <Card.Content>
-            <p className="text-sm text-danger">{error}</p>
-          </Card.Content>
-        </Card>
-      )}
-
-      <Card>
-        <Card.Content>
-          {submissions === null ? (
-            <div className="flex flex-col gap-3">
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
-            </div>
-          ) : submissions.length === 0 ? (
-            <p className="text-sm text-muted">
-              {t.dashboard.empty}{" "}
-              <Link href="/dashboard/new" className="text-accent hover:underline">
-                {t.dashboard.emptyCta}
-              </Link>
-            </p>
-          ) : (
+            {submissions === null ? (
+              <div className="flex flex-col gap-3">
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            ) : submissions.length === 0 ? (
+              <EmptyState
+                title={t.dashboard.emptyTitle}
+                description={t.dashboard.emptyDescription}
+                actionLabel={t.dashboard.emptyCta}
+                actionHref="/dashboard/new"
+              />
+            ) : (
             <Table>
               <Table.ScrollContainer>
                 <Table.Content aria-label={t.dashboard.title}>
@@ -79,7 +80,7 @@ function DashboardList() {
                         </Table.Cell>
                         <Table.Cell>{new Date(s.created_at).toLocaleDateString()}</Table.Cell>
                         <Table.Cell>
-                          <Link href={`/dashboard/${s.submission_code}`} className="text-accent hover:underline">
+                          <Link href={`/dashboard/${s.submission_code}`} className="text-accent hover:underline link-accent-hover">
                             {t.dashboard.view}
                           </Link>
                         </Table.Cell>
@@ -89,9 +90,10 @@ function DashboardList() {
                 </Table.Content>
               </Table.ScrollContainer>
             </Table>
-          )}
-        </Card.Content>
-      </Card>
+            )}
+          </Card.Content>
+        </Card>
+      )}
     </>
   );
 }

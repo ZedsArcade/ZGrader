@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@heroui/react";
+import Button from "@/components/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
 import { useTranslations } from "@/lib/i18n/context";
@@ -32,11 +32,11 @@ export default function NavBar() {
           {loading ? null : user ? (
             <>
               {user.role === "operator" ? (
-                <Link href="/admin" className="text-sm font-medium text-foreground hover:text-accent">
+                <Link href="/admin" className="text-sm font-medium text-foreground hover:text-accent link-accent-hover">
                   {t.nav.admin}
                 </Link>
               ) : (
-                <Link href="/dashboard" className="text-sm font-medium text-foreground hover:text-accent">
+                <Link href="/dashboard" className="text-sm font-medium text-foreground hover:text-accent link-accent-hover">
                   {t.nav.dashboard}
                 </Link>
               )}
@@ -49,10 +49,10 @@ export default function NavBar() {
             </>
           ) : (
             <>
-              <Link href="/login" className="text-sm font-medium text-foreground hover:text-accent">
+              <Link href="/login" className="text-sm font-medium text-foreground hover:text-accent link-accent-hover">
                 {t.nav.login}
               </Link>
-              <Link href="/register" className="text-sm font-medium text-foreground hover:text-accent">
+              <Link href="/register" className="text-sm font-medium text-foreground hover:text-accent link-accent-hover">
                 {t.nav.register}
               </Link>
               <LocaleSwitch />

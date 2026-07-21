@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import { Button, Card, Checkbox, Input, Label, Skeleton, TextArea, TextField } from "@heroui/react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Card, Checkbox, Input, Label, TextArea, TextField } from "@heroui/react";
+import Button from "@/components/Button";
 import RequireAuth from "@/components/RequireAuth";
+import Skeleton from "@/components/Skeleton";
+import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -15,13 +18,16 @@ function SettingsForm() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!token) return;
+    setLoadError(null);
     api
       .getSettings(token)
       .then(setSettings)
       .catch((err) => setLoadError(err instanceof Error ? err.message : "Failed to load settings"));
   }, [token]);
+
+  useEffect(load, [load]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -41,11 +47,9 @@ function SettingsForm() {
 
   if (loadError && !settings) {
     return (
-      <Card className="mx-auto max-w-2xl">
-        <Card.Content>
-          <p className="text-sm text-danger">{loadError}</p>
-        </Card.Content>
-      </Card>
+      <div className="mx-auto max-w-2xl">
+        <ErrorState message={loadError} onRetry={load} />
+      </div>
     );
   }
 

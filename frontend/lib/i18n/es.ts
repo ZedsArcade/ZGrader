@@ -1,6 +1,9 @@
 import type { Dictionary } from "./en";
 
 export const es: Dictionary = {
+  common: {
+    retry: "Reintentar",
+  },
   nav: {
     admin: "Administración",
     dashboard: "Panel",
@@ -79,8 +82,9 @@ export const es: Dictionary = {
     subtitle: "Siga cada carta que ha enviado para pre-calificación.",
     newSubmission: "Nuevo envío",
     loadFailed: "Error al cargar los envíos",
-    empty: "Aún no hay envíos.",
-    emptyCta: "Cree el primero.",
+    emptyTitle: "Aún no hay cartas calificadas",
+    emptyDescription: "Siga aquí cada carta que ha enviado para pre-calificación.",
+    emptyCta: "Escanee su primera carta",
     colCode: "Código",
     colStatus: "Estado",
     colCreated: "Creado",
@@ -98,6 +102,7 @@ export const es: Dictionary = {
     submit: "Crear envío",
     submitting: "Creando…",
     failed: "Error al crear el envío",
+    gamesLoadFailed: "Error al cargar los juegos",
   },
   submissionDetail: {
     createdOn: "Creado",
@@ -114,5 +119,8 @@ export const es: Dictionary = {
     colCompany: "Compañía",
     colAssessment: "Evaluación",
     colNotes: "Notas",
+    awaitingScansTitle: "Esperando a que se escanee su carta",
+    processingTitle: "Analizando carta…",
+    processingDescription: "Esto normalmente solo toma un momento.",
   },
 };

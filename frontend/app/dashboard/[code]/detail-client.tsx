@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button, Card, Skeleton } from "@heroui/react";
+import { useCallback, useEffect, useState } from "react";
+import { Card } from "@heroui/react";
+import Button from "@/components/Button";
 import RequireAuth from "@/components/RequireAuth";
 import SubmissionOverview from "@/components/SubmissionOverview";
+import Skeleton from "@/components/Skeleton";
+import ErrorState from "@/components/ErrorState";
+import ProcessingState from "@/components/ProcessingState";
 import { useAuth } from "@/lib/auth-context";
 import { toastError } from "@/lib/toast";
 import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
+
+const PENDING_STATUSES = new Set(["created", "awaiting_scans", "processing"]);
 
 function Detail({ code }: { code: string }) {
   const { token } = useAuth();
@@ -17,14 +23,17 @@ function Detail({ code }: { code: string }) {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!token) return;
+    setError(null);
     api
       .getSubmission(token, code)
       .then(setSubmission)
       .catch((err) => setError(err instanceof Error ? err.message : t.submissionDetail.loadFailed));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, code]);
+
+  useEffect(load, [load]);
 
   async function handleDownload() {
     if (!token) return;
@@ -47,13 +56,7 @@ function Detail({ code }: { code: string }) {
   }
 
   if (error) {
-    return (
-      <Card>
-        <Card.Content>
-          <p className="text-sm text-danger">{error}</p>
-        </Card.Content>
-      </Card>
-    );
+    return <ErrorState message={error} onRetry={load} retryLabel={t.common.retry} />;
   }
 
   if (!submission) {
@@ -85,7 +88,11 @@ function Detail({ code }: { code: string }) {
           </Button>
         )}
       </div>
-      <SubmissionOverview submission={submission} locale={locale} />
+      {PENDING_STATUSES.has(submission.status) ? (
+        <ProcessingState status={submission.status} locale={locale} />
+      ) : (
+        <SubmissionOverview submission={submission} locale={locale} />
+      )}
     </>
   );
 }

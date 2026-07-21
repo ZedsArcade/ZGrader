@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, ButtonGroup } from "@heroui/react";
+import { ButtonGroup } from "@heroui/react";
+import Button from "@/components/Button";
 import { useLocale, type Locale } from "@/lib/i18n/context";
 
 export default function LocaleSwitch() {

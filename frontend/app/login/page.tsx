@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, Input, Label, TextField } from "@heroui/react";
+import { Card, Input, Label, TextField } from "@heroui/react";
+import Button from "@/components/Button";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
 import { toastError } from "@/lib/toast";

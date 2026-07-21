@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "@heroui/styles";
+@import "./tokens.css";
+@import "./motion.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -35,6 +37,41 @@
 [data-theme="dark"] {
   --accent: oklch(0.72 0.15 258);
   --accent-foreground: oklch(0.16 0.02 258);
+}
+
+/*
+ * Focus ring recolor. HeroUI's `status-focused` utility (used by every
+ * interactive component -- Button, TextField, Checkbox, Switch, Select...)
+ * resolves to `ring-2 ring-focus ...`, where `ring-focus` maps to
+ * `var(--color-focus)` -> `var(--focus)`. Repointing that one token gives
+ * every focusable element in the app a 2px neon-cyan ring with no
+ * per-component changes, same mechanism as the --accent override above.
+ */
+:root,
+[data-theme="light"],
+.dark,
+[data-theme="dark"] {
+  --focus: var(--neon-cyan);
+}
+
+/*
+ * Skeleton recolor. HeroUI's Skeleton shimmer already does exactly what the
+ * spec asks for (a linear-gradient sweep across --surface-tertiary); this
+ * just retunes its base surface to match the synthwave tokens (--surface-2)
+ * instead of HeroUI's default.
+ *
+ * The shimmer's animation timing/pause is handled separately in motion.css:
+ * HeroUI's compiled `.skeleton--shimmer::after`/`::before` rules hardcode
+ * `animation: 2s linear infinite skeleton` directly (no --animate-skeleton
+ * or other custom property is actually read), so timing and
+ * prefers-reduced-motion overrides have to target those selectors directly
+ * rather than through a token.
+ */
+:root,
+[data-theme="light"],
+.dark,
+[data-theme="dark"] {
+  --surface-tertiary: var(--surface-2);
 }
 
 html,

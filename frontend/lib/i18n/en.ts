@@ -1,4 +1,7 @@
 export const en = {
+  common: {
+    retry: "Retry",
+  },
   nav: {
     admin: "Admin",
     dashboard: "Dashboard",
@@ -77,8 +80,9 @@ export const en = {
     subtitle: "Track every card you've sent in for pre-grading.",
     newSubmission: "New submission",
     loadFailed: "Failed to load submissions",
-    empty: "No submissions yet.",
-    emptyCta: "Create your first one.",
+    emptyTitle: "No cards graded yet",
+    emptyDescription: "Track every card you've sent in for pre-grading, right here.",
+    emptyCta: "Scan your first card",
     colCode: "Code",
     colStatus: "Status",
     colCreated: "Created",
@@ -96,6 +100,7 @@ export const en = {
     submit: "Create submission",
     submitting: "Creating…",
     failed: "Failed to create submission",
+    gamesLoadFailed: "Failed to load games",
   },
   submissionDetail: {
     createdOn: "Created",
@@ -112,6 +117,9 @@ export const en = {
     colCompany: "Company",
     colAssessment: "Assessment",
     colNotes: "Notes",
+    awaitingScansTitle: "Waiting for your card to be scanned",
+    processingTitle: "Analysing card…",
+    processingDescription: "This usually only takes a moment.",
   },
 } as const;
 

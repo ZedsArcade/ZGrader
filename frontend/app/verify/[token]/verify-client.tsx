@@ -36,7 +36,7 @@ export default function VerifyClient({ token }: { token: string }) {
         {status === "success" && (
           <p className="text-sm text-success">
             {t.verify.success}{" "}
-            <Link href="/login" className="text-accent hover:underline">
+            <Link href="/login" className="text-accent hover:underline link-accent-hover">
               {t.verify.loginLink}
             </Link>
             .

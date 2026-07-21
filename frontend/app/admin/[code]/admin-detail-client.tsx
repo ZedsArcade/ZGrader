@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button, Card, ListBox, Select, Skeleton } from "@heroui/react";
+import { useCallback, useEffect, useState } from "react";
+import { Card, ListBox, Select } from "@heroui/react";
+import Button from "@/components/Button";
 import RequireAuth from "@/components/RequireAuth";
 import SubmissionOverview from "@/components/SubmissionOverview";
+import Skeleton from "@/components/Skeleton";
+import ErrorState from "@/components/ErrorState";
+import ProcessingState from "@/components/ProcessingState";
 import { useAuth } from "@/lib/auth-context";
 import { toastError, toastSuccess } from "@/lib/toast";
 import * as api from "@/lib/api";
+
+const PENDING_STATUSES = new Set(["created", "awaiting_scans", "processing"]);
 
 const AUTO_PUBLISH_OPTIONS: { label: string; value: string }[] = [
   { label: "Inherit global default", value: "inherit" },
@@ -31,15 +37,16 @@ function AdminDetail({ code }: { code: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function load() {
+  const load = useCallback(() => {
     if (!token) return;
+    setError(null);
     api
       .getSubmission(token, code)
       .then(setSubmission)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load submission"));
-  }
+  }, [token, code]);
 
-  useEffect(load, [token, code]);
+  useEffect(load, [load]);
 
   async function handleApprove() {
     if (!token) return;
@@ -69,13 +76,7 @@ function AdminDetail({ code }: { code: string }) {
   }
 
   if (error && !submission) {
-    return (
-      <Card>
-        <Card.Content>
-          <p className="text-sm text-danger">{error}</p>
-        </Card.Content>
-      </Card>
-    );
+    return <ErrorState message={error} onRetry={load} />;
   }
 
   if (!submission) {
@@ -141,7 +142,11 @@ function AdminDetail({ code }: { code: string }) {
       </Card>
 
       <div className="mt-5">
-        <SubmissionOverview submission={submission} />
+        {PENDING_STATUSES.has(submission.status) ? (
+          <ProcessingState status={submission.status} />
+        ) : (
+          <SubmissionOverview submission={submission} />
+        )}
       </div>
     </>
   );

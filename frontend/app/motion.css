@@ -1,0 +1,122 @@
+/*
+ * Micro-interaction utilities. Hard rules (per spec):
+ *  - Only transform, opacity, and box-shadow are animated -- never layout
+ *    properties (width/height/top/left/margin).
+ *  - Every transition/animation references --dur-fast/--dur-med/--ease-out --
+ *    no ad-hoc durations.
+ *  - Everything is flattened under prefers-reduced-motion: reduce.
+ *  - No bounce/overshoot, nothing over --dur-med (250ms).
+ *
+ * These land in Tailwind v4's `utilities` layer (via @utility), which always
+ * wins over HeroUI's own `components`-layer styles (`.button`, `.card`, ...)
+ * regardless of selector specificity or source order -- see the cascade-layer
+ * order declared in @heroui/styles (`@layer theme, base, components,
+ * utilities;`). So these safely override HeroUI's defaults (e.g. Button's
+ * own :active scale) without !important.
+ */
+
+@keyframes verdict-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility interactive-card {
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      var(--shadow-card),
+      0 0 0 1px var(--neon-glow);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+@utility btn-press {
+  transition: transform var(--dur-fast) var(--ease-out);
+
+  &:active,
+  &[data-pressed="true"] {
+    transform: scale(0.98);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:active,
+    &[data-pressed="true"] {
+      transform: none;
+    }
+  }
+}
+
+@utility btn-neon-hover {
+  transition: background-color var(--dur-fast) var(--ease-out);
+
+  @media (hover: hover) {
+    &:hover,
+    &[data-hovered="true"] {
+      background-color: color-mix(in oklab, var(--button-bg-hover, transparent) 70%, var(--neon-pink) 30%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+@utility link-accent-hover {
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+@utility verdict-reveal {
+  animation: verdict-reveal var(--dur-med) var(--ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/*
+ * Skeleton shimmer timing + reduced-motion. Unlayered on purpose: HeroUI's
+ * compiled `.skeleton--shimmer::after`/`::before` rules live in its
+ * `components` layer with a hardcoded `animation: 2s linear infinite
+ * skeleton` (no custom property involved), so an unlayered rule is needed
+ * to win the cascade and retune it to the spec's ~1.5s loop, and -- more
+ * importantly -- actually silence it under prefers-reduced-motion (HeroUI's
+ * own CSS doesn't gate this animation on that media query at all).
+ */
+.skeleton--shimmer::after,
+.skeleton--shimmer::before {
+  animation-duration: 1.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton--shimmer::after,
+  .skeleton--shimmer::before {
+    animation: none;
+  }
+}
