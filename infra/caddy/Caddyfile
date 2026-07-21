@@ -13,6 +13,6 @@
 # add a top-level `{ local_certs }` block and trust Caddy's root CA on your
 # devices (browsers will otherwise warn about it).
 :80 {
-	reverse_proxy /api/* backend:8000
+	# reverse_proxy /api/* backend:8000
 	reverse_proxy frontend:3000
 }
