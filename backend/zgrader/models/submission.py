@@ -79,3 +79,11 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     reports: Mapped[list["Report"]] = relationship(  # noqa: F821
         back_populates="submission", cascade="all, delete-orphan"
     )
+
+    @property
+    def scan_sides(self) -> list[str]:
+        """Which sides have a registered scan -- lets callers (the upload
+        endpoint, the frontend) distinguish "nothing uploaded", "front only
+        (partial check)", and "both" without those being separate
+        SubmissionStatus values."""
+        return sorted({s.side.value for s in self.scan_images})

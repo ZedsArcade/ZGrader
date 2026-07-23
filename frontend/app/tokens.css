@@ -10,6 +10,10 @@
   --neon-cyan:   #05d9e8;   /* secondary accent — links, highlights */
   --neon-purple: #b967ff;   /* tertiary — subtle gradients, borders */
   --neon-glow:   #ff2e9740; /* the hover/focus glow, low alpha */
+  /* label text on top of a neon fill (buttons/CTAs) — near-white reads
+     fine against every neon hue above in both themes, so it's one shared
+     value rather than a per-theme pair */
+  --neon-foreground: #fff5fb;
 
   /* text stays high-contrast — this is what keeps it usable */
   --text:     #f5f0ff;
@@ -28,4 +32,45 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 150ms;
   --dur-med:  250ms;
+}
+
+/*
+ * Light-mode companion palette — same synthwave hue family as :root above,
+ * shifted for a light background instead of retired for a generic one.
+ * The dark-mode neon values (e.g. #ff2e97) are far too light/saturated to
+ * read as text or a thin border on white, so the accent hues are deepened
+ * and desaturated here rather than reused verbatim; --radius/--shadow-card/
+ * --font/the motion tokens are unchanged since they aren't color.
+ *
+ * .light is the selector that actually matters: next-themes (see
+ * providers.tsx, default `attribute="class"`) sets class="light"/"dark" on
+ * <html>, never a data-theme attribute -- [data-theme="light"] alone would
+ * silently never match and this block would never apply, leaving the
+ * unconditional dark values in :root above active even in light mode.
+ * [data-theme="light"] is kept only as defensive backward-compat with the
+ * rest of this file's existing token-override convention.
+ */
+.light,
+[data-theme="light"] {
+  /* base — soft purple-tinted daylight, not generic gray/white */
+  --bg:        #f7f4fb;
+  --surface-1: #ffffff;
+  --surface-2: #efe9f7;
+  --border:    #ddd2ec;
+
+  /* neon accents — deepened/desaturated for AA contrast on a light surface */
+  --neon-pink:   #c40064;
+  --neon-cyan:   #007080;
+  --neon-purple: #6b32b3;
+  --neon-glow:   #c4006433;
+
+  /* text stays dark, purple-tinted rather than pure black */
+  --text:     #241736;
+  --text-dim: #6b5e82;
+
+  /* grade colors — same hues as dark mode, deepened so they stay legible
+     as text on a light chip fill instead of reading as near-white */
+  --grade-gem:  #00876b;
+  --grade-mint: #4d7f1f;
+  --grade-warn: #a36000;
 }

@@ -62,5 +62,6 @@ class SubmissionDetail(BaseModel):
     notes: str | None
     auto_publish: bool | None
     card: CardOut | None
+    scan_sides: list[str] = []
     analysis_results: list[AnalysisResultOut] = []
     company_comparisons: list[ComparisonOut] = []

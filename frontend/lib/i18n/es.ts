@@ -66,6 +66,7 @@ export const es: Dictionary = {
     subtitle: "Regístrese para enviar cartas y seguir sus informes.",
     email: "Correo electrónico",
     password: "Contraseña",
+    passwordHint: "Al menos 8 caracteres.",
     submit: "Registrarse",
     submitting: "Creando cuenta…",
     failed: "Error al registrarse",
@@ -122,5 +123,21 @@ export const es: Dictionary = {
     awaitingScansTitle: "Esperando a que se escanee su carta",
     processingTitle: "Analizando carta…",
     processingDescription: "Esto normalmente solo toma un momento.",
+  },
+  upload: {
+    title: "Suba las fotos de su carta",
+    subtitle: "Añada una foto clara de cada lado, o escanéela con la cámara de su dispositivo.",
+    frontLabel: "Frente (obligatorio)",
+    backLabel: "Reverso (opcional)",
+    backHint:
+      "Añádalo ahora o más tarde — solo el frente ya le permite obtener una revisión parcial.",
+    chooseFile: "Elegir foto",
+    uploading: "Subiendo…",
+    frontUploadedTitle: "Frente recibido",
+    frontUploadedNote:
+      "Su revisión parcial está en curso. Añada una foto del reverso en cualquier momento antes de que se apruebe para una revisión completa, o déjelo así.",
+    uploadFailed: "Error al subir la imagen",
+    invalidImage: "Eso no parece una imagen válida. Pruebe con un JPEG, PNG o TIFF.",
+    fileTooLarge: "Esa imagen es demasiado grande.",
   },
 };

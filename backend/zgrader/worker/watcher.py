@@ -1,12 +1,18 @@
 """Core, directly-testable folder-watching logic.
 
 `process_submission_folder` is the unit both the real watchdog-based worker
-(main.py) and tests call: given a submission code and its scan folder, it
-registers any new front/back scan files, and once a front scan is present,
-runs the Phase 1 analysis pipeline and applies the effective auto-publish
-setting. It's idempotent and safe to call repeatedly (e.g. once per watchdog
-event, or once per safety-net poll) since it no-ops once a submission has
-moved past the awaiting-scans stage.
+(main.py), the self-serve scan upload endpoint, and tests call: given a
+submission code and its scan folder, it registers any new front/back scan
+files, and once a front scan is present, runs the Phase 1 analysis pipeline
+and applies the effective auto-publish setting (which requires both sides --
+a front-only "partial check" always lands in draft_ready, never auto-
+published). It's idempotent and safe to call repeatedly (e.g. once per
+watchdog event, or once per safety-net poll): it no-ops once a submission
+reaches a terminal or in-flight state, and no-ops on a draft_ready
+submission if nothing new has arrived since the draft was produced. A new
+side arriving after a draft already exists (typically the back scan,
+uploaded after an earlier front-only check) clears that draft's stale
+results and reruns analysis rather than duplicating rows.
 """
 
 import datetime
@@ -19,7 +25,9 @@ from sqlalchemy.orm import Session
 from zgrader.analysis import pipeline
 from zgrader.email.notifications import send_report_published
 from zgrader.models import (
+    AnalysisResult,
     AuditLog,
+    GradingCompanyComparison,
     ReportStatus,
     ScanImage,
     ScanSide,
@@ -34,6 +42,18 @@ logger = logging.getLogger(__name__)
 
 SUBMISSION_CODE_RE = re.compile(r"^SUB-\d{5}$")
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+
+# Terminal (published/error) or mid-processing -- process_submission_folder
+# no-ops for these regardless of what's in the folder. Everything else
+# (created/awaiting_scans/draft_ready) can still accept a newly-arrived
+# scan side, since draft_ready may only reflect a front-only "partial
+# check" with the back still to come.
+_TERMINAL_OR_IN_FLIGHT_STATUSES = (
+    SubmissionStatus.processing,
+    SubmissionStatus.approved,
+    SubmissionStatus.published,
+    SubmissionStatus.error,
+)
 
 
 def _classify_side(filename: str) -> ScanSide | None:
@@ -98,13 +118,14 @@ def process_submission_folder(db: Session, submission_code: str, folder: Path) -
         logger.warning("No submission found for folder %s (code %s)", folder, submission_code)
         return None
 
-    # Already processed (or mid-processing) -- idempotent no-op.
-    if submission.status not in (SubmissionStatus.created, SubmissionStatus.awaiting_scans):
+    # Terminal or mid-processing -- idempotent no-op.
+    if submission.status in _TERMINAL_OR_IN_FLIGHT_STATUSES:
         return submission
 
     if not folder.is_dir():
         return submission
 
+    sides_before = {s.side for s in submission.scan_images}
     warnings = _register_new_scans(db, submission, folder)
     # _register_new_scans reads submission.scan_images (to dedupe) before
     # adding new rows, which caches the pre-registration collection on the
@@ -116,12 +137,32 @@ def process_submission_folder(db: Session, submission_code: str, folder: Path) -
         submission.notes = "\n".join(filter(None, [submission.notes, *warnings]))
         db.commit()
 
-    has_front = any(s.side == ScanSide.front for s in submission.scan_images)
+    sides_after = {s.side for s in submission.scan_images}
+    newly_added_sides = sides_after - sides_before
+    has_front = ScanSide.front in sides_after
+    has_back = ScanSide.back in sides_after
+
     if not has_front:
         if submission.status != SubmissionStatus.awaiting_scans:
             submission.status = SubmissionStatus.awaiting_scans
             db.commit()
         return submission
+
+    if submission.status == SubmissionStatus.draft_ready:
+        if not newly_added_sides:
+            # Nothing changed since the analysis that already produced this
+            # draft (e.g. a routine safety-net poll) -- stay idempotent.
+            return submission
+        # A side -- typically the back scan -- arrived after an earlier
+        # front-only "partial check" already ran. run_analysis and
+        # rules_engine.evaluate always insert fresh rows rather than
+        # upsert, so the prior draft's rows must be cleared first or the
+        # rerun would duplicate them instead of replacing them.
+        db.query(AnalysisResult).filter(AnalysisResult.submission_id == submission.id).delete()
+        db.query(GradingCompanyComparison).filter(
+            GradingCompanyComparison.submission_id == submission.id
+        ).delete()
+        db.commit()
 
     try:
         pipeline.run_analysis(db, submission)
@@ -134,7 +175,7 @@ def process_submission_folder(db: Session, submission_code: str, folder: Path) -
         return submission
 
     settings = db.query(Settings).first()
-    if _effective_auto_publish(submission, settings):
+    if has_back and _effective_auto_publish(submission, settings):
         report = builder.generate_report(db, submission)
         report.status = ReportStatus.published
         report.published_at = datetime.datetime.now(datetime.timezone.utc)

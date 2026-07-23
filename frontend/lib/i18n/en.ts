@@ -64,6 +64,7 @@ export const en = {
     subtitle: "Register to submit cards and track your reports.",
     email: "Email",
     password: "Password",
+    passwordHint: "At least 8 characters.",
     submit: "Register",
     submitting: "Creating account…",
     failed: "Registration failed",
@@ -120,6 +121,21 @@ export const en = {
     awaitingScansTitle: "Waiting for your card to be scanned",
     processingTitle: "Analysing card…",
     processingDescription: "This usually only takes a moment.",
+  },
+  upload: {
+    title: "Upload your card scans",
+    subtitle: "Add a clear photo of each side, or scan it with your device's camera.",
+    frontLabel: "Front (required)",
+    backLabel: "Back (optional)",
+    backHint: "Add now, or add it later — front alone still gets you a partial check.",
+    chooseFile: "Choose photo",
+    uploading: "Uploading…",
+    frontUploadedTitle: "Front received",
+    frontUploadedNote:
+      "Your partial check is underway. Add a back image any time before it's approved for a full check, or leave it as-is.",
+    uploadFailed: "Upload failed",
+    invalidImage: "That doesn't look like a valid image. Try a JPEG, PNG, or TIFF.",
+    fileTooLarge: "That image is too large.",
   },
 } as const;
 

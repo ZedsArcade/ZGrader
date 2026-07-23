@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Input, Label, TextField } from "@heroui/react";
+import { Card, Description, FieldError, Input, Label, TextField } from "@heroui/react";
 import Button from "@/components/Button";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
@@ -52,6 +52,8 @@ export default function RegisterPage() {
           >
             <Label>{t.register.password}</Label>
             <Input />
+            <Description>{t.register.passwordHint}</Description>
+            <FieldError />
           </TextField>
           <Button type="submit" variant="primary" isDisabled={submitting} fullWidth>
             {submitting ? t.register.submitting : t.register.submit}

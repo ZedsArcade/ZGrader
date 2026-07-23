@@ -58,6 +58,8 @@ export interface Comparison {
   contention_note: string;
 }
 
+export type ScanSide = "front" | "back";
+
 export interface SubmissionDetail {
   id: string;
   submission_code: string;
@@ -66,6 +68,7 @@ export interface SubmissionDetail {
   notes: string | null;
   auto_publish: boolean | null;
   card: Card | null;
+  scan_sides: ScanSide[];
   analysis_results: AnalysisResult[];
   company_comparisons: Comparison[];
 }
@@ -192,6 +195,24 @@ export async function listSubmissions(token: string): Promise<SubmissionSummary[
 
 export async function getSubmission(token: string, code: string): Promise<SubmissionDetail> {
   return request(`/submissions/${code}`, { headers: authHeaders(token) });
+}
+
+export async function uploadScan(
+  token: string,
+  code: string,
+  side: ScanSide,
+  file: File
+): Promise<SubmissionDetail> {
+  const body = new FormData();
+  body.set("side", side);
+  body.set("file", file);
+  // No Content-Type header here -- the browser sets the multipart boundary
+  // itself; setting one manually (as every JSON call above does) breaks it.
+  return request(`/submissions/${code}/scans`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body,
+  });
 }
 
 export async function downloadReport(token: string, code: string): Promise<Blob> {

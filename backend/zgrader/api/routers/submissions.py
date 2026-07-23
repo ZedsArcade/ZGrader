@@ -1,8 +1,11 @@
 import datetime
+import io
 from pathlib import Path
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from zgrader.api.deps import get_current_user, require_operator
@@ -22,8 +25,21 @@ from zgrader.models import (
 from zgrader.reports import builder
 from zgrader.schemas.admin import AutoPublishUpdate
 from zgrader.schemas.submission import SubmissionCreate, SubmissionDetail, SubmissionSummary
+from zgrader.worker.watcher import _IMAGE_SUFFIXES, process_submission_folder
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
+
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+_UPLOADABLE_STATUSES = (
+    SubmissionStatus.created,
+    SubmissionStatus.awaiting_scans,
+    SubmissionStatus.draft_ready,
+)
+_PIL_FORMAT_TO_SUFFIX = {
+    "JPEG": ".jpg",
+    "PNG": ".png",
+    "TIFF": ".tiff",
+}
 
 
 def _next_submission_code(db: Session) -> str:
@@ -88,6 +104,54 @@ def list_submissions(user: User = Depends(get_current_user), db: Session = Depen
 @router.get("/{code}", response_model=SubmissionDetail)
 def get_submission(code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Submission:
     return _get_owned_submission(code, user, db)
+
+
+@router.post("/{code}/scans", response_model=SubmissionDetail)
+async def upload_scan(
+    code: str,
+    side: Literal["front", "back"] = Form(...),
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Submission:
+    """Self-serve counterpart to the operator manual-drop workflow: writes
+    the uploaded image into the same scans_dir/<code>/ folder the watcher
+    already watches, using the same front.<ext>/back.<ext> naming it already
+    matches on, then runs the same processing function the watcher uses so
+    the UI reflects the result immediately rather than waiting on a
+    filesystem event or the poll safety net."""
+    submission = _get_owned_submission(code, user, db)
+
+    if submission.status not in _UPLOADABLE_STATUSES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Submission is '{submission.status.value}' -- scans can no longer be added",
+        )
+    if side in submission.scan_sides:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"A {side} scan has already been uploaded")
+
+    content = await file.read(_MAX_UPLOAD_BYTES + 1)
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Image is too large")
+
+    try:
+        image = Image.open(io.BytesIO(content))
+        image_format = image.format
+        image.verify()
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a valid image") from None
+
+    suffix = _PIL_FORMAT_TO_SUFFIX.get(image_format or "")
+    if suffix is None or suffix not in _IMAGE_SUFFIXES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unsupported image format -- use JPEG, PNG, or TIFF")
+
+    folder = Path(config.scans_dir) / code
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{side}{suffix}").write_bytes(content)
+
+    process_submission_folder(db, code, folder)
+    db.refresh(submission)
+    return submission
 
 
 @router.get("/{code}/report")
