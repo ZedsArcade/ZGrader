@@ -94,6 +94,7 @@ services:
     restart: unless-stopped
     ports:
       - "8080:80"
+    command: caddy reverse-proxy --from :80 --to frontend:3000
       #- "443:443"
     #volumes:
      # - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
