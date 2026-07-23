@@ -6,6 +6,7 @@ import Button from "@/components/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
 import { useTranslations } from "@/lib/i18n/context";
+import { titanOne } from "@/lib/fonts";
 import ThemeSwitch from "@/components/theme-switch";
 import LocaleSwitch from "@/components/locale-switch";
 import NavDrawer from "@/components/nav-drawer";
@@ -24,7 +25,7 @@ export default function NavBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5">
-        <Link href="/" className="text-base font-semibold text-foreground">
+        <Link href="/" className={`${titanOne.className} text-xl tracking-wide text-foreground`}>
           {business_name}
         </Link>
 

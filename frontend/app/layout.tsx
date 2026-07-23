@@ -8,7 +8,7 @@ import { LocaleProvider } from "@/lib/i18n/context";
 import NavBar from "@/components/NavBar";
 
 export const metadata: Metadata = {
-  title: "ZGrader",
+  title: "Card Care Center",
   description: "Independent TCG card pre-grading service",
 };
 

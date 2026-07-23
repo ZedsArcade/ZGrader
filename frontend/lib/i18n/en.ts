@@ -35,7 +35,7 @@ export const en = {
   landing: {
     title: "Know before you submit.",
     subtitle:
-      "ZGrader is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how PSA, BGS, CGC, and TAG are likely to treat each one before you pay to submit for real.",
+      "Card Care Center is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how PSA, BGS, CGC, and TAG are likely to treat each one before you pay to submit for real.",
     getStarted: "Get started",
     login: "Log in",
     feature1Title: "Automated analysis",
@@ -49,7 +49,7 @@ export const en = {
       "Create a submission, ship us your card, and watch it move from received to a downloadable report -- all from your dashboard.",
     noteTitle: "An important note",
     noteBody:
-      "ZGrader is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
+      "Card Care Center is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
   },
   login: {
     title: "Log in",
@@ -64,6 +64,7 @@ export const en = {
     subtitle: "Register to submit cards and track your reports.",
     email: "Email",
     password: "Password",
+    passwordHint: "At least 8 characters.",
     submit: "Register",
     submitting: "Creating account…",
     failed: "Registration failed",
@@ -120,6 +121,21 @@ export const en = {
     awaitingScansTitle: "Waiting for your card to be scanned",
     processingTitle: "Analysing card…",
     processingDescription: "This usually only takes a moment.",
+  },
+  upload: {
+    title: "Upload your card scans",
+    subtitle: "Add a clear photo of each side, or scan it with your device's camera.",
+    frontLabel: "Front (required)",
+    backLabel: "Back (optional)",
+    backHint: "Add now, or add it later — front alone still gets you a partial check.",
+    chooseFile: "Choose photo",
+    uploading: "Uploading…",
+    frontUploadedTitle: "Front received",
+    frontUploadedNote:
+      "Your partial check is underway. Add a back image any time before it's approved for a full check, or leave it as-is.",
+    uploadFailed: "Upload failed",
+    invalidImage: "That doesn't look like a valid image. Try a JPEG, PNG, or TIFF.",
+    fileTooLarge: "That image is too large.",
   },
 } as const;
 

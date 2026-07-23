@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from zgrader.api.routers import admin, auth, catalog, submissions
 
-app = FastAPI(title="ZGrader API", version="0.1.0")
+app = FastAPI(title="Card Care Center API", version="0.1.0")
 
 app.include_router(auth.router)
 app.include_router(submissions.router)

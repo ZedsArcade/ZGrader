@@ -18,25 +18,49 @@
  * time, not build time -- so overriding just the base --accent/
  * --accent-foreground pair here is enough for every derived shade
  * (button hover states, focus rings, soft-badge backgrounds, etc.) to
- * update automatically. Everything else (success/warning/danger/surface/
- * background/etc.) keeps HeroUI's own tuned defaults.
+ * update automatically.
  *
- * Hue (~258) stays close to HeroUI's own default accent (253.83) so it
- * still harmonizes with their other semantic colors, but darker/richer in
- * light mode (a deeper, more "professional appraisal service" blue than
- * their brighter default) and lightened for dark-mode contrast, mirroring
- * the light->dark lightening pattern HeroUI uses on its own tokens.
+ * --neon-pink is what makes the primary brand color actually read as
+ * synthwave instead of a generic template color -- it already has its own
+ * light/dark values in tokens.css, so one rule covers both themes here.
+ * A near-white foreground keeps CTA/button label text legible against it
+ * in both themes (dark mode's brighter pink and light mode's deeper,
+ * more saturated one both contrast fine against it).
  */
 :root,
-[data-theme="light"] {
-  --accent: oklch(0.52 0.17 258);
-  --accent-foreground: oklch(0.98 0.005 258);
-}
-
+[data-theme="light"],
 .dark,
 [data-theme="dark"] {
-  --accent: oklch(0.72 0.15 258);
-  --accent-foreground: oklch(0.16 0.02 258);
+  --accent: var(--neon-pink);
+  --accent-foreground: var(--neon-foreground);
+}
+
+/*
+ * Full background/surface/text repoint, same mechanism as --accent above:
+ * HeroUI's own --background/--foreground/--surface/--surface-secondary/
+ * --muted tokens (see @heroui/styles' theme/default/variables.css) get
+ * pointed at the synthwave tokens so the deep-purple base (dark mode) and
+ * its light companion actually paint the page, not HeroUI's stock
+ * near-white/near-black defaults.
+ *
+ * --border and --radius are deliberately NOT repointed here: tokens.css
+ * already defines custom properties of those exact names on :root/
+ * [data-theme="light"], and since that file is imported unlayered while
+ * HeroUI's own --border/--radius live inside its `base` cascade layer, the
+ * unlayered declaration already wins outright (CSS Cascade Layers: any
+ * unlayered rule beats any layered one, regardless of specificity or
+ * source order) -- both are already synthwave-controlled without a
+ * separate override, so writing one here would just be a no-op.
+ */
+:root,
+[data-theme="light"],
+.dark,
+[data-theme="dark"] {
+  --background: var(--bg);
+  --foreground: var(--text);
+  --surface: var(--surface-1);
+  --surface-secondary: var(--surface-2);
+  --muted: var(--text-dim);
 }
 
 /*

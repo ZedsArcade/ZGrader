@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import * as api from "./api";
 
-const DEFAULT_BRANDING: api.Branding = { business_name: "ZGrader", business_contact: null };
+const DEFAULT_BRANDING: api.Branding = { business_name: "Card Care Center", business_contact: null };
 
 interface BrandingContextValue extends api.Branding {
   refresh: () => Promise<void>;

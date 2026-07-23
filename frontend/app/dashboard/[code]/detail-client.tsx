@@ -8,12 +8,17 @@ import SubmissionOverview from "@/components/SubmissionOverview";
 import Skeleton from "@/components/Skeleton";
 import ErrorState from "@/components/ErrorState";
 import ProcessingState from "@/components/ProcessingState";
+import UploadStep from "@/components/UploadStep";
 import { useAuth } from "@/lib/auth-context";
 import { toastError } from "@/lib/toast";
 import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 const PENDING_STATUSES = new Set(["created", "awaiting_scans", "processing"]);
+// Mirrors the backend's upload gate (created/awaiting_scans/draft_ready) --
+// once a submission is approved/published/errored, scans can no longer be
+// added.
+const UPLOAD_ALLOWED_STATUSES = new Set(["created", "awaiting_scans", "draft_ready"]);
 
 function Detail({ code }: { code: string }) {
   const { token } = useAuth();
@@ -88,10 +93,17 @@ function Detail({ code }: { code: string }) {
           </Button>
         )}
       </div>
-      {PENDING_STATUSES.has(submission.status) ? (
+      {PENDING_STATUSES.has(submission.status) && !submission.scan_sides.includes("front") ? (
+        <UploadStep code={code} token={token!} scanSides={submission.scan_sides} onUploaded={setSubmission} />
+      ) : PENDING_STATUSES.has(submission.status) ? (
         <ProcessingState status={submission.status} locale={locale} />
       ) : (
-        <SubmissionOverview submission={submission} locale={locale} />
+        <div className="flex flex-col gap-5">
+          <SubmissionOverview submission={submission} locale={locale} />
+          {UPLOAD_ALLOWED_STATUSES.has(submission.status) && !submission.scan_sides.includes("back") && (
+            <UploadStep code={code} token={token!} scanSides={submission.scan_sides} onUploaded={setSubmission} />
+          )}
+        </div>
       )}
     </>
   );

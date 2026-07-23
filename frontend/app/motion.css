@@ -101,6 +101,30 @@
 }
 
 /*
+ * Grade-tier chip colors. HeroUI's Chip only sets the --chip-bg/--chip-fg
+ * custom properties per color/variant combo (see chip.css); the base
+ * .chip rule itself is what actually applies background-color/color from
+ * those variables. Setting background-color/color directly here (in the
+ * utilities layer) wins over that regardless of which color/variant props
+ * the Chip was given, so these compose with any HeroUI Chip usage as a
+ * plain className -- no color/variant prop juggling needed.
+ */
+@utility grade-gem {
+  background-color: color-mix(in oklab, var(--grade-gem) 20%, transparent);
+  color: var(--grade-gem);
+}
+
+@utility grade-mint {
+  background-color: color-mix(in oklab, var(--grade-mint) 20%, transparent);
+  color: var(--grade-mint);
+}
+
+@utility grade-warn {
+  background-color: color-mix(in oklab, var(--grade-warn) 20%, transparent);
+  color: var(--grade-warn);
+}
+
+/*
  * Skeleton shimmer timing + reduced-motion. Unlayered on purpose: HeroUI's
  * compiled `.skeleton--shimmer::after`/`::before` rules live in its
  * `components` layer with a hardcoded `animation: 2s linear infinite

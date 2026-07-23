@@ -37,7 +37,7 @@ export const es: Dictionary = {
   landing: {
     title: "Sepa antes de enviar.",
     subtitle:
-      "ZGrader es un servicio independiente de pre-calificación para juegos de cartas coleccionables. Envíenos sus cartas y analizaremos el centrado, las esquinas, los bordes y la superficie, para mostrarle exactamente cómo es probable que PSA, BGS, CGC y TAG traten cada una antes de que pague por un envío real.",
+      "Card Care Center es un servicio independiente de pre-calificación para juegos de cartas coleccionables. Envíenos sus cartas y analizaremos el centrado, las esquinas, los bordes y la superficie, para mostrarle exactamente cómo es probable que PSA, BGS, CGC y TAG traten cada una antes de que pague por un envío real.",
     getStarted: "Comenzar",
     login: "Iniciar sesión",
     feature1Title: "Análisis automatizado",
@@ -51,7 +51,7 @@ export const es: Dictionary = {
       "Cree un envío, mándenos su carta y véala avanzar desde la recepción hasta un informe descargable, todo desde su panel.",
     noteTitle: "Nota importante",
     noteBody:
-      "ZGrader es una estimación independiente, no está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG ni ninguna otra compañía de calificación externa. Los escaneos se capturan con un escáner plano, que utiliza luz difusa en lugar de luz rasante; el análisis de superficie en particular tiene menor confiabilidad que lo que puede detectar la fotografía especializada de una compañía de calificación.",
+      "Card Care Center es una estimación independiente, no está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG ni ninguna otra compañía de calificación externa. Los escaneos se capturan con un escáner plano, que utiliza luz difusa en lugar de luz rasante; el análisis de superficie en particular tiene menor confiabilidad que lo que puede detectar la fotografía especializada de una compañía de calificación.",
   },
   login: {
     title: "Iniciar sesión",
@@ -66,6 +66,7 @@ export const es: Dictionary = {
     subtitle: "Regístrese para enviar cartas y seguir sus informes.",
     email: "Correo electrónico",
     password: "Contraseña",
+    passwordHint: "Al menos 8 caracteres.",
     submit: "Registrarse",
     submitting: "Creando cuenta…",
     failed: "Error al registrarse",
@@ -122,5 +123,21 @@ export const es: Dictionary = {
     awaitingScansTitle: "Esperando a que se escanee su carta",
     processingTitle: "Analizando carta…",
     processingDescription: "Esto normalmente solo toma un momento.",
+  },
+  upload: {
+    title: "Suba las fotos de su carta",
+    subtitle: "Añada una foto clara de cada lado, o escanéela con la cámara de su dispositivo.",
+    frontLabel: "Frente (obligatorio)",
+    backLabel: "Reverso (opcional)",
+    backHint:
+      "Añádalo ahora o más tarde — solo el frente ya le permite obtener una revisión parcial.",
+    chooseFile: "Elegir foto",
+    uploading: "Subiendo…",
+    frontUploadedTitle: "Frente recibido",
+    frontUploadedNote:
+      "Su revisión parcial está en curso. Añada una foto del reverso en cualquier momento antes de que se apruebe para una revisión completa, o déjelo así.",
+    uploadFailed: "Error al subir la imagen",
+    invalidImage: "Eso no parece una imagen válida. Pruebe con un JPEG, PNG o TIFF.",
+    fileTooLarge: "Esa imagen es demasiado grande.",
   },
 };

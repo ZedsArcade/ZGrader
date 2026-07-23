@@ -8,11 +8,14 @@ os.environ["ZGRADER_DATABASE_URL"] = "postgresql+psycopg://zgrader:zgrader@local
 os.environ.setdefault("ZGRADER_REPORTS_DIR", "/tmp/zgrader-test/reports")
 os.environ.setdefault("ZGRADER_SCANS_DIR", "/tmp/zgrader-test/scans")
 
+import shutil  # noqa: E402
+
 import pytest  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 import zgrader.models  # noqa: E402,F401  (registers all tables on Base.metadata)
+from zgrader.config import config  # noqa: E402
 from zgrader.db import Base  # noqa: E402
 from zgrader.seed import seed_all  # noqa: E402
 
@@ -42,6 +45,13 @@ def db_session(engine):
         with engine.begin() as conn:
             for table in reversed(Base.metadata.sorted_tables):
                 conn.execute(table.delete())
+        # Submission codes are DB-count-based and so get reused across
+        # tests once the DB rows above are wiped -- without also clearing
+        # the filesystem dirs, a later test reusing e.g. SUB-00001 would
+        # see scan/report files left behind by an earlier, unrelated test
+        # that happened to get the same code.
+        shutil.rmtree(config.scans_dir, ignore_errors=True)
+        shutil.rmtree(config.reports_dir, ignore_errors=True)
 
 
 @pytest.fixture()

@@ -21,7 +21,7 @@ _env = Environment(
 
 
 def _business_name(settings: Settings | None) -> str:
-    return settings.business_name if settings else "ZGrader"
+    return settings.business_name if settings else "Card Care Center"
 
 
 def _card_name(submission: Submission) -> str | None:

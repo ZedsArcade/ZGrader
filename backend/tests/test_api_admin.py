@@ -54,7 +54,7 @@ def test_operator_can_read_and_update_settings(db_session):
 
     resp = client.get("/admin/settings", headers=_auth_headers(op_token))
     assert resp.status_code == 200
-    assert resp.json()["business_name"] == "ZGrader"
+    assert resp.json()["business_name"] == "Card Care Center"
 
     resp = client.patch(
         "/admin/settings",

@@ -107,3 +107,147 @@ def test_report_download_404_before_report_exists(db_session):
 
     resp = client.get(f"/submissions/{code}/report", headers=_auth_headers(token))
     assert resp.status_code == 404
+
+
+def test_upload_front_only_is_a_valid_partial_check(db_session, sample_scan_paths):
+    token = _register_and_login("uploader1@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        resp = client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token),
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["scan_sides"] == ["front"]
+    assert body["status"] == "draft_ready"
+
+
+def test_upload_front_then_back_replaces_partial_with_complete(db_session, sample_scan_paths):
+    token = _register_and_login("uploader2@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token),
+        )
+    with open(sample_scan_paths["pokemon_back"], "rb") as f:
+        resp = client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("back.png", f, "image/png")},
+            data={"side": "back"},
+            headers=_auth_headers(token),
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body["scan_sides"]) == {"front", "back"}
+    assert body["status"] == "draft_ready"
+
+
+def test_upload_rejects_invalid_image(db_session):
+    token = _register_and_login("uploader3@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    resp = client.post(
+        f"/submissions/{code}/scans",
+        files={"file": ("front.png", b"not an image", "image/png")},
+        data={"side": "front"},
+        headers=_auth_headers(token),
+    )
+
+    assert resp.status_code == 400
+
+
+def test_upload_rejects_reupload_of_same_side(db_session, sample_scan_paths):
+    token = _register_and_login("uploader4@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token),
+        )
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        resp = client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token),
+        )
+
+    assert resp.status_code == 409
+
+
+def test_upload_rejected_once_published(db_session, sample_scan_paths):
+    token = _register_and_login("uploader5@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token),
+        )
+    with open(sample_scan_paths["pokemon_back"], "rb") as f:
+        client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("back.png", f, "image/png")},
+            data={"side": "back"},
+            headers=_auth_headers(token),
+        )
+
+    op_token = _make_operator(db_session, "uploadop@example.com")
+    client.post(f"/submissions/{code}/approve", headers=_auth_headers(op_token))
+
+    resp = client.post(
+        f"/submissions/{code}/scans",
+        files={"file": ("front2.png", b"irrelevant", "image/png")},
+        data={"side": "front"},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 409
+
+
+def test_cannot_upload_to_someone_elses_submission(db_session, sample_scan_paths):
+    token_a = _register_and_login("uploadowner@example.com")
+    token_b = _register_and_login("uploadintruder@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Secret"}, headers=_auth_headers(token_a)
+    )
+    code = create_resp.json()["submission_code"]
+
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        resp = client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token_b),
+        )
+
+    assert resp.status_code == 403

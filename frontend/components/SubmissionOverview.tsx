@@ -10,6 +10,19 @@ const SEVERITY_COLOR: Record<string, "success" | "warning" | "danger"> = {
   major: "danger",
 };
 
+// Thresholds are a judgment call: the backend has no discrete "grade"
+// concept, only a continuous raw_score per category, so these map that
+// score onto the synthwave grade-tier palette (--grade-gem/mint/warn).
+// Compared against the same one-decimal rounding used for display (not the
+// raw float), so a score that *displays* as "9.5" can't fall on the wrong
+// side of the 9.5 threshold just from floating-point noise below that digit.
+function gradeTierClass(score: number): string {
+  const rounded = Math.round(score * 10) / 10;
+  if (rounded >= 9.9) return "grade-gem";
+  if (rounded >= 9.5) return "grade-mint";
+  return "grade-warn";
+}
+
 export default function SubmissionOverview({
   submission,
   locale = "en",
@@ -65,7 +78,9 @@ export default function SubmissionOverview({
                         </Chip>
                       )}
                     </div>
-                    <div className="mt-1 text-2xl font-semibold text-foreground">
+                    <div
+                      className={`mt-1 inline-flex rounded-lg px-2 py-0.5 text-2xl font-semibold ${gradeTierClass(result.raw_score)}`}
+                    >
                       {result.raw_score.toFixed(1)}
                     </div>
                   </div>
