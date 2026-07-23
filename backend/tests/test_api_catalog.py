@@ -19,7 +19,7 @@ def test_get_branding_is_public_and_defaults_seeded(db_session):
     resp = client.get("/catalog/branding")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["business_name"] == "ZGrader"
+    assert body["business_name"] == "Card Care Center"
     assert "business_contact" in body
 
 

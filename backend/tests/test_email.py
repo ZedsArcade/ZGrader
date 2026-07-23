@@ -64,7 +64,7 @@ def test_report_published_falls_back_to_default_business_name_when_settings_miss
 
         mock_send.assert_called_once()
         _to, subject, _html = mock_send.call_args[0]
-        assert "ZGrader" in subject
+        assert "Card Care Center" in subject
 
 
 # --- Wiring: the real request/worker flows actually trigger these, not just

@@ -35,7 +35,7 @@ export const en = {
   landing: {
     title: "Know before you submit.",
     subtitle:
-      "ZGrader is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how PSA, BGS, CGC, and TAG are likely to treat each one before you pay to submit for real.",
+      "Card Care Center is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how PSA, BGS, CGC, and TAG are likely to treat each one before you pay to submit for real.",
     getStarted: "Get started",
     login: "Log in",
     feature1Title: "Automated analysis",
@@ -49,7 +49,7 @@ export const en = {
       "Create a submission, ship us your card, and watch it move from received to a downloadable report -- all from your dashboard.",
     noteTitle: "An important note",
     noteBody:
-      "ZGrader is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
+      "Card Care Center is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
   },
   login: {
     title: "Log in",
