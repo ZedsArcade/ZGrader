@@ -1,5 +1,6 @@
 import datetime
 import io
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -40,6 +41,7 @@ _PIL_FORMAT_TO_SUFFIX = {
     "PNG": ".png",
     "TIFF": ".tiff",
 }
+_REGION_ID_RE = re.compile(r"^[a-z0-9_]+$")
 
 
 def _next_submission_code(db: Session) -> str:
@@ -152,6 +154,47 @@ async def upload_scan(
     process_submission_folder(db, code, folder)
     db.refresh(submission)
     return submission
+
+
+@router.get("/{code}/scans/{side}/photo")
+def get_side_photo(
+    code: str,
+    side: Literal["front", "back"],
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """The plain analyzed photo for one side, for the web results page's
+    annotated-photo display -- saved once per side in
+    pipeline.py::_persist_side. 404 until analysis has actually run."""
+    _get_owned_submission(code, user, db)
+    photo_path = Path(config.reports_dir) / code / f"{side}_base.png"
+    if not photo_path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo not available yet")
+    return FileResponse(photo_path, media_type="image/png")
+
+
+@router.get("/{code}/scans/{side}/regions/{category}/{region_id}/crop")
+def get_region_crop(
+    code: str,
+    side: Literal["front", "back"],
+    category: Literal["centering", "corners", "edges", "surface"],
+    region_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """A single flagged region's zoomed breakout crop -- see
+    zgrader.analysis.regions.build_regions for how region_id is derived and
+    zgrader.analysis.annotate.crop_region for how the file is generated.
+    Filenames are fully deterministic from (code, side, category,
+    region_id), so this never needs a DB round-trip -- region_id is
+    regex-validated before touching disk as defense in depth."""
+    _get_owned_submission(code, user, db)
+    if not _REGION_ID_RE.match(region_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Region not found")
+    crop_path = Path(config.reports_dir) / code / f"{side}_{category}_{region_id}_crop.png"
+    if not crop_path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Region crop not available")
+    return FileResponse(crop_path, media_type="image/png")
 
 
 @router.get("/{code}/report")

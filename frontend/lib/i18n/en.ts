@@ -121,6 +121,15 @@ export const en = {
     awaitingScansTitle: "Waiting for your card to be scanned",
     processingTitle: "Analysing card…",
     processingDescription: "This usually only takes a moment.",
+    photoTitle: "Analyzed photo",
+  },
+  breakout: {
+    front: "Front",
+    back: "Back",
+    zoomedViewLabel: "Zoomed view",
+    okChip: "OK",
+    flaggedChip: "Flagged",
+    noRegionsNote: "Nothing was flagged on this side.",
   },
   upload: {
     title: "Upload your card scans",

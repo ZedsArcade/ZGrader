@@ -17,6 +17,61 @@ def _to_pil(card_image: np.ndarray) -> Image.Image:
     return Image.fromarray(cv2.cvtColor(card_image, cv2.COLOR_BGR2RGB))
 
 
+def to_pil(card_image: np.ndarray) -> Image.Image:
+    """Public wrapper around _to_pil, for callers outside this module (e.g.
+    persisting the plain base photo for the web results page)."""
+    return _to_pil(card_image)
+
+
+def crop_region(
+    card_image: np.ndarray,
+    bbox_px: tuple[float, float, float, float],
+    zoom: int = 4,
+    min_output_px: int = 280,
+    pad_fraction: float = 0.6,
+    color: tuple[int, int, int] = _FLAG_COLOR,
+) -> Image.Image:
+    """Zoomed, bordered crop of an arbitrary defect region for a web
+    breakout-box panel -- generalizes the per-corner crop+zoom+border
+    pattern annotate_corners already does (for a fixed corner_fraction) to
+    any bbox from any category."""
+    h, w = card_image.shape[:2]
+    x0, y0, x1, y1 = bbox_px
+    box_w, box_h = x1 - x0, y1 - y0
+    pad_x, pad_y = box_w * pad_fraction, box_h * pad_fraction
+
+    crop_x0 = max(0, int(x0 - pad_x))
+    crop_y0 = max(0, int(y0 - pad_y))
+    crop_x1 = min(w, int(x1 + pad_x))
+    crop_y1 = min(h, int(y1 + pad_y))
+
+    crop = card_image[crop_y0:crop_y1, crop_x0:crop_x1]
+    crop_h, crop_w = crop.shape[:2]
+    if crop_w == 0 or crop_h == 0:
+        crop = card_image
+        crop_h, crop_w = crop.shape[:2]
+        crop_x0, crop_y0 = 0, 0
+
+    scale = max(zoom, min_output_px / max(1, min(crop_w, crop_h)))
+    out_w, out_h = max(1, int(crop_w * scale)), max(1, int(crop_h * scale))
+
+    pil_crop = _to_pil(crop).resize((out_w, out_h), Image.NEAREST)
+    draw = ImageDraw.Draw(pil_crop)
+
+    # Draw the defect's own box within this (padded, zoomed) crop, so the
+    # exact flagged region is still pinpointed, not just "somewhere in here".
+    rel_box = [
+        (x0 - crop_x0) * scale,
+        (y0 - crop_y0) * scale,
+        (x1 - crop_x0) * scale,
+        (y1 - crop_y0) * scale,
+    ]
+    line_width = max(2, out_w // 100)
+    draw.rectangle(rel_box, outline=color, width=line_width)
+
+    return pil_crop
+
+
 def annotate_centering(card_image: np.ndarray, measurements: dict) -> Image.Image:
     img = _to_pil(card_image).convert("RGB")
     draw = ImageDraw.Draw(img)

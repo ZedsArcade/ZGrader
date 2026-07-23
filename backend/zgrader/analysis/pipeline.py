@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from sqlalchemy.orm import Session
 
-from zgrader.analysis import annotate, centering, corners, edges, preprocessing, rules_engine, surface
+from zgrader.analysis import annotate, centering, corners, edges, preprocessing, regions, rules_engine, surface
 from zgrader.config import config
 from zgrader.models import (
     AnalysisCategory,
@@ -69,11 +69,31 @@ def _persist_side(
     reports_dir.mkdir(parents=True, exist_ok=True)
     results: dict[AnalysisCategory, dict] = {}
 
+    # The plain deskewed photo, previously never persisted (it only existed
+    # transiently as `card_image`) -- the web results page's base photo for
+    # this side, served by GET /submissions/{code}/scans/{side}/photo.
+    annotate.to_pil(card_image).save(reports_dir / f"{side.value}_base.png")
+
+    h, w = card_image.shape[:2]
+    language = submission.language.value
+
     for category, analyzer in _ANALYZERS.items():
         result, extra = analyzer(card_image, dpi)
         image = _annotate_category(category, card_image, result, extra)
         image_path = reports_dir / f"{side.value}_{category.value}.png"
         image.save(image_path)
+
+        result["measurements"]["regions"] = regions.build_regions(
+            category, (h, w), dpi, language, result, extra
+        )
+        for region in result["measurements"]["regions"]:
+            if region["severity"] != "flag":
+                continue
+            x0, y0, x1, y1 = region["bbox_norm"]
+            bbox_px = (x0 * w, y0 * h, x1 * w, y1 * h)
+            crop = annotate.crop_region(card_image, bbox_px)
+            crop_path = reports_dir / f"{side.value}_{category.value}_{region['id']}_crop.png"
+            crop.save(crop_path)
 
         db.add(
             AnalysisResult(

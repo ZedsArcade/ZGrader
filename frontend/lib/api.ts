@@ -51,6 +51,18 @@ export interface AnalysisResult {
   flags: Record<string, unknown>;
 }
 
+// Lives inside a non-"combined" AnalysisResult's measurements.regions --
+// see backend/zgrader/analysis/regions.py for how these are built.
+export interface Region {
+  id: string;
+  kind: "corner" | "edge" | "frame" | "blob";
+  severity: "flag" | "ok";
+  score: number;
+  bbox_norm: [number, number, number, number];
+  anchor_norm: [number, number];
+  note: string | null;
+}
+
 export interface Comparison {
   company: "PSA" | "BGS" | "CGC" | "TAG";
   category: string;
@@ -215,12 +227,32 @@ export async function uploadScan(
   });
 }
 
-export async function downloadReport(token: string, code: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/submissions/${code}/report`, { headers: authHeaders(token) });
+// Every endpoint requires a Bearer token -- there's no cookie auth -- so a
+// plain <img src="..."> would 401. Every image consumer (report PDF, side
+// photos, region crops) fetches the bytes with this helper instead and
+// hands the caller a Blob to turn into an object URL.
+export async function fetchAuthedImage(
+  token: string,
+  url: string,
+  notFoundMessage = "Image not available"
+): Promise<Blob> {
+  const res = await fetch(url, { headers: authHeaders(token) });
   if (!res.ok) {
-    throw new ApiError(res.status, "Report not available yet");
+    throw new ApiError(res.status, notFoundMessage);
   }
   return res.blob();
+}
+
+export function sidePhotoUrl(code: string, side: ScanSide): string {
+  return `${API_BASE}/submissions/${code}/scans/${side}/photo`;
+}
+
+export function regionCropUrl(code: string, side: ScanSide, category: string, regionId: string): string {
+  return `${API_BASE}/submissions/${code}/scans/${side}/regions/${category}/${regionId}/crop`;
+}
+
+export async function downloadReport(token: string, code: string): Promise<Blob> {
+  return fetchAuthedImage(token, `${API_BASE}/submissions/${code}/report`, "Report not available yet");
 }
 
 export async function approveSubmission(token: string, code: string): Promise<SubmissionDetail> {
