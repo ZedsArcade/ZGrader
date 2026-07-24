@@ -63,5 +63,10 @@ class SubmissionDetail(BaseModel):
     auto_publish: bool | None
     card: CardOut | None
     scan_sides: list[str] = []
+    confirmed_sides: list[str] = []
     analysis_results: list[AnalysisResultOut] = []
     company_comparisons: list[ComparisonOut] = []
+
+
+class CropPointsIn(BaseModel):
+    points: list[tuple[float, float]]

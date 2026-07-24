@@ -130,6 +130,7 @@ export const en = {
     okChip: "OK",
     flaggedChip: "Flagged",
     noRegionsNote: "Nothing was flagged on this side.",
+    moreFlaggedNote: "more issue(s) detected but not shown here",
   },
   upload: {
     title: "Upload your card scans",
@@ -145,6 +146,14 @@ export const en = {
     uploadFailed: "Upload failed",
     invalidImage: "That doesn't look like a valid image. Try a JPEG, PNG, or TIFF.",
     fileTooLarge: "That image is too large.",
+  },
+  cropAdjust: {
+    title: "Confirm the card's corners",
+    instructions: "Drag the 4 handles onto the exact corners of the card, then confirm.",
+    confirmButton: "Confirm crop",
+    confirming: "Confirming…",
+    loadFailed: "Couldn't load the photo for cropping.",
+    confirmFailed: "Couldn't confirm the crop.",
   },
 } as const;
 

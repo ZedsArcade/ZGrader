@@ -81,8 +81,19 @@ export interface SubmissionDetail {
   auto_publish: boolean | null;
   card: Card | null;
   scan_sides: ScanSide[];
+  confirmed_sides: ScanSide[];
   analysis_results: AnalysisResult[];
   company_comparisons: Comparison[];
+}
+
+// A [x, y] pixel point in a scan's own raw-image coordinate space --
+// ScanImage.crop_points on the backend.
+export type CropPoint = [number, number];
+
+export interface CropSuggestion {
+  points: CropPoint[];
+  width_px: number;
+  height_px: number;
 }
 
 export interface SubmissionCreate {
@@ -249,6 +260,27 @@ export function sidePhotoUrl(code: string, side: ScanSide): string {
 
 export function regionCropUrl(code: string, side: ScanSide, category: string, regionId: string): string {
   return `${API_BASE}/submissions/${code}/scans/${side}/regions/${category}/${regionId}/crop`;
+}
+
+export function rawScanUrl(code: string, side: ScanSide): string {
+  return `${API_BASE}/submissions/${code}/scans/${side}/raw`;
+}
+
+export async function suggestCrop(token: string, code: string, side: ScanSide): Promise<CropSuggestion> {
+  return request(`/submissions/${code}/scans/${side}/suggest-crop`, { headers: authHeaders(token) });
+}
+
+export async function confirmCrop(
+  token: string,
+  code: string,
+  side: ScanSide,
+  points: CropPoint[]
+): Promise<SubmissionDetail> {
+  return request(`/submissions/${code}/scans/${side}/confirm-crop`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ points }),
+  });
 }
 
 export async function downloadReport(token: string, code: string): Promise<Blob> {

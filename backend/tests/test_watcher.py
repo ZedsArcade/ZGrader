@@ -183,6 +183,25 @@ def test_back_arriving_after_front_only_can_still_auto_publish(db_session, tmp_p
     assert len(completed.reports) == 1
 
 
+def test_operator_dropped_scans_are_auto_confirmed(db_session, tmp_path, sample_scan_paths):
+    # The flatbed-drop path is trusted, controlled input -- registration
+    # must auto-populate crop_points via boundary detection so this
+    # workflow stays exactly as zero-touch as before manual crop
+    # confirmation existed (registered == confirmed == analyzed).
+    _make_submission(db_session, "SUB-90011")
+    folder = tmp_path / "SUB-90011"
+    folder.mkdir()
+    shutil.copy(sample_scan_paths["pokemon_front"], folder / "scan_front.png")
+
+    result = process_submission_folder(db_session, "SUB-90011", folder)
+
+    assert result.confirmed_sides == ["front"]
+    assert result.status == SubmissionStatus.draft_ready
+    front_scan = next(s for s in result.scan_images if s.side.value == "front")
+    assert front_scan.crop_points is not None
+    assert len(front_scan.crop_points) == 4
+
+
 def test_published_submission_ignores_further_folder_changes(db_session, tmp_path, sample_scan_paths):
     _make_submission(db_session, "SUB-90010", auto_publish=True)
     folder = tmp_path / "SUB-90010"

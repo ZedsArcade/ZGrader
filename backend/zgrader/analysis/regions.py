@@ -20,6 +20,15 @@ from zgrader.models import AnalysisCategory
 
 MAX_SURFACE_REGIONS = 6
 MIN_BLOB_AREA_MM2 = 0.5
+# A scratch/scuff is either elongated (thin line -> high aspect ratio) or a
+# dense solid gouge (fills most of its own bounding box -> high fill
+# ratio). An individual text glyph's bounding box is close to square
+# (aspect ratio near 1) and mostly empty space around the ink strokes
+# (fill ratio well under these thresholds in practice) -- this heuristic
+# rejects glyph-shaped blobs (card rules text) while keeping scratch-shaped
+# ones. Tunable v1 starting point, like MIN_BLOB_AREA_MM2 above.
+_MIN_ASPECT_RATIO = 2.0
+_MIN_FILL_RATIO = 0.7
 
 # Matches annotate.py's _FLAG_COLOR/_OK_COLOR cutoff -- same "worth calling
 # out" threshold already used everywhere else in this pipeline.
@@ -188,11 +197,19 @@ def _build_surface_regions(
     px_per_mm = dpi / 25.4
     min_area_px = MIN_BLOB_AREA_MM2 * px_per_mm * px_per_mm
 
+    def _is_scratch_like(label: int) -> bool:
+        bw = stats[label, cv2.CC_STAT_WIDTH]
+        bh = stats[label, cv2.CC_STAT_HEIGHT]
+        area = stats[label, cv2.CC_STAT_AREA]
+        aspect_ratio = max(bw, bh) / max(1, min(bw, bh))
+        fill_ratio = area / max(1, bw * bh)
+        return aspect_ratio >= _MIN_ASPECT_RATIO or fill_ratio >= _MIN_FILL_RATIO
+
     # label 0 is always the background component -- skip it.
     blobs = [
         (label, stats[label, cv2.CC_STAT_AREA])
         for label in range(1, num_labels)
-        if stats[label, cv2.CC_STAT_AREA] >= min_area_px
+        if stats[label, cv2.CC_STAT_AREA] >= min_area_px and _is_scratch_like(label)
     ]
     blobs.sort(key=lambda item: item[1], reverse=True)
     blobs = blobs[:MAX_SURFACE_REGIONS]

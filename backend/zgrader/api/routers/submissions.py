@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
+from zgrader.analysis import preprocessing
 from zgrader.api.deps import get_current_user, require_operator
 from zgrader.config import config
 from zgrader.db import get_db
@@ -17,6 +18,8 @@ from zgrader.models import (
     AuditLog,
     Card,
     ReportStatus,
+    ScanImage,
+    ScanSide,
     Settings,
     Submission,
     SubmissionStatus,
@@ -24,9 +27,10 @@ from zgrader.models import (
     UserRole,
 )
 from zgrader.reports import builder
+from zgrader.scan_ingest import read_scan_metadata, sha256_file
 from zgrader.schemas.admin import AutoPublishUpdate
-from zgrader.schemas.submission import SubmissionCreate, SubmissionDetail, SubmissionSummary
-from zgrader.worker.watcher import _IMAGE_SUFFIXES, process_submission_folder
+from zgrader.schemas.submission import CropPointsIn, SubmissionCreate, SubmissionDetail, SubmissionSummary
+from zgrader.worker.watcher import _IMAGE_SUFFIXES, _advance_submission, _confirmed_sides, process_submission_folder
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
@@ -42,6 +46,7 @@ _PIL_FORMAT_TO_SUFFIX = {
     "TIFF": ".tiff",
 }
 _REGION_ID_RE = re.compile(r"^[a-z0-9_]+$")
+_SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff", ".tif": "image/tiff"}
 
 
 def _next_submission_code(db: Session) -> str:
@@ -119,9 +124,12 @@ async def upload_scan(
     """Self-serve counterpart to the operator manual-drop workflow: writes
     the uploaded image into the same scans_dir/<code>/ folder the watcher
     already watches, using the same front.<ext>/back.<ext> naming it already
-    matches on, then runs the same processing function the watcher uses so
-    the UI reflects the result immediately rather than waiting on a
-    filesystem event or the poll safety net."""
+    matches on, and registers a ScanImage row. Unlike the operator flatbed
+    path, this does NOT auto-confirm the crop or trigger analysis -- a
+    self-serve photo is inconsistent, untrusted input (handheld angle,
+    cluttered background), so the client must walk the user through the
+    crop-adjust UI (GET .../suggest-crop, then POST .../confirm-crop) before
+    analysis runs."""
     submission = _get_owned_submission(code, user, db)
 
     if submission.status not in _UPLOADABLE_STATUSES:
@@ -149,9 +157,105 @@ async def upload_scan(
 
     folder = Path(config.scans_dir) / code
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{side}{suffix}").write_bytes(content)
+    file_path = folder / f"{side}{suffix}"
+    file_path.write_bytes(content)
 
-    process_submission_folder(db, code, folder)
+    width, height, dpi = read_scan_metadata(file_path)
+    db.add(
+        ScanImage(
+            submission_id=submission.id,
+            side=ScanSide(side),
+            file_path=str(file_path),
+            original_filename=file.filename or file_path.name,
+            dpi=dpi,
+            width_px=width,
+            height_px=height,
+            checksum=sha256_file(file_path),
+        )
+    )
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
+def _get_scan(submission: Submission, side: str) -> ScanImage:
+    scan = next((s for s in submission.scan_images if s.side.value == side), None)
+    if scan is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No {side} scan uploaded yet")
+    return scan
+
+
+@router.get("/{code}/scans/{side}/raw")
+def get_side_raw(
+    code: str,
+    side: Literal["front", "back"],
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """The just-uploaded, not-yet-analyzed scan file, for the crop-adjust
+    UI to display before a crop is confirmed -- unlike /photo (which serves
+    the post-analysis deskewed base image and 404s until analysis runs)."""
+    submission = _get_owned_submission(code, user, db)
+    scan = _get_scan(submission, side)
+    media_type = _SUFFIX_TO_MEDIA_TYPE.get(Path(scan.file_path).suffix.lower(), "application/octet-stream")
+    return FileResponse(scan.file_path, media_type=media_type)
+
+
+@router.get("/{code}/scans/{side}/suggest-crop")
+def suggest_crop(
+    code: str,
+    side: Literal["front", "back"],
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """A starting suggestion for the manual crop-adjust UI: auto-detects
+    the card boundary in the raw upload and returns its 4 corner points
+    (raw pixel space) plus the image's own dimensions for normalization.
+    Never persists anything -- safe to call repeatedly. On detection
+    failure, falls back to the raw image's own 4 corners so the user still
+    has draggable handles to start from."""
+    submission = _get_owned_submission(code, user, db)
+    scan = _get_scan(submission, side)
+    try:
+        image = preprocessing.load_image(scan.file_path)
+        box, _info = preprocessing.detect_boundary(image)
+        points = box.tolist()
+    except Exception:
+        points = [[0, 0], [scan.width_px, 0], [scan.width_px, scan.height_px], [0, scan.height_px]]
+    return {"points": points, "width_px": scan.width_px, "height_px": scan.height_px}
+
+
+@router.post("/{code}/scans/{side}/confirm-crop", response_model=SubmissionDetail)
+def confirm_crop(
+    code: str,
+    side: Literal["front", "back"],
+    payload: CropPointsIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Submission:
+    """Persists the user-confirmed (or accepted-as-suggested) 4 crop points
+    for one side and advances the submission's processing state machine --
+    the self-serve counterpart to the operator flatbed path's automatic
+    boundary detection at registration time."""
+    submission = _get_owned_submission(code, user, db)
+    if submission.status not in _UPLOADABLE_STATUSES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Submission is '{submission.status.value}' -- crop can no longer be confirmed",
+        )
+    scan = _get_scan(submission, side)
+    if len(payload.points) != 4:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Exactly 4 points are required")
+    for x, y in payload.points:
+        if not (0 <= x <= scan.width_px and 0 <= y <= scan.height_px):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Points must be within the image bounds")
+
+    scan.crop_points = [list(point) for point in payload.points]
+    db.commit()
+    db.refresh(submission)
+
+    confirmed = _confirmed_sides(submission)
+    submission = _advance_submission(db, submission, confirmed, {ScanSide(side)}, code)
     db.refresh(submission)
     return submission
 

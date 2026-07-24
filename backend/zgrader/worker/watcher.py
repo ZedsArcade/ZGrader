@@ -1,18 +1,22 @@
 """Core, directly-testable folder-watching logic.
 
 `process_submission_folder` is the unit both the real watchdog-based worker
-(main.py), the self-serve scan upload endpoint, and tests call: given a
-submission code and its scan folder, it registers any new front/back scan
-files, and once a front scan is present, runs the Phase 1 analysis pipeline
-and applies the effective auto-publish setting (which requires both sides --
-a front-only "partial check" always lands in draft_ready, never auto-
-published). It's idempotent and safe to call repeatedly (e.g. once per
-watchdog event, or once per safety-net poll): it no-ops once a submission
-reaches a terminal or in-flight state, and no-ops on a draft_ready
-submission if nothing new has arrived since the draft was produced. A new
-side arriving after a draft already exists (typically the back scan,
-uploaded after an earlier front-only check) clears that draft's stale
-results and reruns analysis rather than duplicating rows.
+(main.py) and tests call: given a submission code and its scan folder, it
+registers any new front/back scan files -- auto-confirming their crop via
+boundary detection, since operator flatbed drops are trusted input -- and
+once a front scan is *confirmed*, runs the Phase 1 analysis pipeline and
+applies the effective auto-publish setting (which requires both sides -- a
+front-only "partial check" always lands in draft_ready, never auto-
+published). The self-serve upload endpoint registers a scan (crop_points
+NULL) without calling this function; analysis only starts once the user
+confirms a crop via POST .../confirm-crop, which calls the shared
+_advance_submission helper directly. It's idempotent and safe to call
+repeatedly (e.g. once per watchdog event, or once per safety-net poll): it
+no-ops once a submission reaches a terminal or in-flight state, and no-ops
+on a draft_ready submission if nothing newly confirmed has arrived since the
+draft was produced. A side newly confirmed after a draft already exists
+(typically the back scan) clears that draft's stale results and reruns
+analysis rather than duplicating rows.
 """
 
 import datetime
@@ -22,7 +26,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from zgrader.analysis import pipeline
+from zgrader.analysis import pipeline, preprocessing
 from zgrader.email.notifications import send_report_published
 from zgrader.models import (
     AnalysisResult,
@@ -89,6 +93,21 @@ def _register_new_scans(db: Session, submission: Submission, folder: Path) -> li
             continue  # don't duplicate a side already registered
 
         width, height, dpi = read_scan_metadata(path)
+        # Operator flatbed-drop scans are trusted, controlled input (unlike
+        # self-serve uploads, which start with crop_points=NULL and require
+        # the manual crop-adjust UI) -- auto-confirming here keeps this
+        # workflow exactly as zero-touch as before crop confirmation
+        # existed: registered == confirmed == immediately analyzable. A
+        # detection failure just leaves crop_points NULL, the same safe
+        # degraded fallback the migration backfill uses.
+        crop_points = None
+        try:
+            image = preprocessing.load_image(path)
+            box, _info = preprocessing.detect_boundary(image)
+            crop_points = box.tolist()
+        except Exception:
+            logger.warning("Boundary auto-detection failed for %s -- crop unconfirmed", path)
+
         db.add(
             ScanImage(
                 submission_id=submission.id,
@@ -99,11 +118,19 @@ def _register_new_scans(db: Session, submission: Submission, folder: Path) -> li
                 width_px=width,
                 height_px=height,
                 checksum=sha256_file(path),
+                crop_points=crop_points,
             )
         )
         existing_sides.add(side)
     db.flush()
     return warnings
+
+
+def _confirmed_sides(submission: Submission) -> set[ScanSide]:
+    """Sides with a confirmed crop (ScanImage.crop_points set) and
+    therefore eligible for analysis -- see ScanImage.crop_points and
+    Submission.confirmed_sides."""
+    return {s.side for s in submission.scan_images if s.crop_points is not None}
 
 
 def _effective_auto_publish(submission: Submission, settings: Settings | None) -> bool:
@@ -112,35 +139,22 @@ def _effective_auto_publish(submission: Submission, settings: Settings | None) -
     return settings.auto_publish_default if settings else False
 
 
-def process_submission_folder(db: Session, submission_code: str, folder: Path) -> Submission | None:
-    submission = db.query(Submission).filter(Submission.submission_code == submission_code).first()
-    if submission is None:
-        logger.warning("No submission found for folder %s (code %s)", folder, submission_code)
-        return None
-
-    # Terminal or mid-processing -- idempotent no-op.
-    if submission.status in _TERMINAL_OR_IN_FLIGHT_STATUSES:
-        return submission
-
-    if not folder.is_dir():
-        return submission
-
-    sides_before = {s.side for s in submission.scan_images}
-    warnings = _register_new_scans(db, submission, folder)
-    # _register_new_scans reads submission.scan_images (to dedupe) before
-    # adding new rows, which caches the pre-registration collection on the
-    # instance -- new rows added via db.add() don't retroactively appear in
-    # an already-loaded relationship, so it must be expired before the next
-    # access re-queries it.
-    db.expire(submission, ["scan_images"])
-    if warnings:
-        submission.notes = "\n".join(filter(None, [submission.notes, *warnings]))
-        db.commit()
-
-    sides_after = {s.side for s in submission.scan_images}
-    newly_added_sides = sides_after - sides_before
-    has_front = ScanSide.front in sides_after
-    has_back = ScanSide.back in sides_after
+def _advance_submission(
+    db: Session,
+    submission: Submission,
+    confirmed_sides: set[ScanSide],
+    newly_confirmed: set[ScanSide],
+    submission_code: str | None = None,
+) -> Submission:
+    """Run the has-front/draft_ready-rerun/analysis/auto-publish state
+    machine given which sides are currently confirmed and which just
+    became confirmed. Shared by process_submission_folder (operator
+    flatbed-drop, where registration auto-confirms) and the self-serve
+    confirm-crop endpoint (where a side becomes confirmed without any new
+    file being registered)."""
+    submission_code = submission_code or submission.submission_code
+    has_front = ScanSide.front in confirmed_sides
+    has_back = ScanSide.back in confirmed_sides
 
     if not has_front:
         if submission.status != SubmissionStatus.awaiting_scans:
@@ -149,12 +163,12 @@ def process_submission_folder(db: Session, submission_code: str, folder: Path) -
         return submission
 
     if submission.status == SubmissionStatus.draft_ready:
-        if not newly_added_sides:
+        if not newly_confirmed:
             # Nothing changed since the analysis that already produced this
             # draft (e.g. a routine safety-net poll) -- stay idempotent.
             return submission
-        # A side -- typically the back scan -- arrived after an earlier
-        # front-only "partial check" already ran. run_analysis and
+        # A side -- typically the back scan -- was confirmed after an
+        # earlier front-only "partial check" already ran. run_analysis and
         # rules_engine.evaluate always insert fresh rows rather than
         # upsert, so the prior draft's rows must be cleared first or the
         # rerun would duplicate them instead of replacing them.
@@ -194,3 +208,32 @@ def process_submission_folder(db: Session, submission_code: str, folder: Path) -
 
     db.commit()
     return submission
+
+
+def process_submission_folder(db: Session, submission_code: str, folder: Path) -> Submission | None:
+    submission = db.query(Submission).filter(Submission.submission_code == submission_code).first()
+    if submission is None:
+        logger.warning("No submission found for folder %s (code %s)", folder, submission_code)
+        return None
+
+    # Terminal or mid-processing -- idempotent no-op.
+    if submission.status in _TERMINAL_OR_IN_FLIGHT_STATUSES:
+        return submission
+
+    if not folder.is_dir():
+        return submission
+
+    sides_before = _confirmed_sides(submission)
+    warnings = _register_new_scans(db, submission, folder)
+    # _register_new_scans reads submission.scan_images (to dedupe) before
+    # adding new rows, which caches the pre-registration collection on the
+    # instance -- new rows added via db.add() don't retroactively appear in
+    # an already-loaded relationship, so it must be expired before the next
+    # access re-queries it.
+    db.expire(submission, ["scan_images"])
+    if warnings:
+        submission.notes = "\n".join(filter(None, [submission.notes, *warnings]))
+        db.commit()
+
+    sides_after = _confirmed_sides(submission)
+    return _advance_submission(db, submission, sides_after, sides_after - sides_before, submission_code)
