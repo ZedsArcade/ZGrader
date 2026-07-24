@@ -132,7 +132,9 @@ export const es: Dictionary = {
     okChip: "Correcto",
     flaggedChip: "Marcado",
     noRegionsNote: "No se marcó nada en este lado.",
-    moreFlaggedNote: "problema(s) más detectado(s) pero no mostrado(s) aquí",
+    showMore: "Mostrar {count} problema(s) más",
+    showLess: "Mostrar menos",
+    lowConfidenceNote: "El centrado no se pudo medir de forma fiable en esta carta.",
   },
   upload: {
     title: "Suba las fotos de su carta",
@@ -157,5 +159,9 @@ export const es: Dictionary = {
     confirming: "Confirmando…",
     loadFailed: "No se pudo cargar la foto para recortar.",
     confirmFailed: "No se pudo confirmar el recorte.",
+    snapButton: "Ajustar a los bordes detectados",
+    snapFailed: "No se pudo refinar el recorte.",
+    rotateLeft: "Girar a la izquierda",
+    rotateRight: "Girar a la derecha",
   },
 };

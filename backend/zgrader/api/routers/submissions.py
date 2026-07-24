@@ -225,6 +225,35 @@ def suggest_crop(
     return {"points": points, "width_px": scan.width_px, "height_px": scan.height_px}
 
 
+def _validate_points(payload: CropPointsIn, scan: ScanImage) -> None:
+    if len(payload.points) != 4:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Exactly 4 points are required")
+    for x, y in payload.points:
+        if not (0 <= x <= scan.width_px and 0 <= y <= scan.height_px):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Points must be within the image bounds")
+
+
+@router.post("/{code}/scans/{side}/snap-crop")
+def snap_crop(
+    code: str,
+    side: Literal["front", "back"],
+    payload: CropPointsIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Refine the user's current 4 crop corners toward the auto-detected
+    card boundary (each snaps only when it's already close), so an imperfect
+    manual placement gets cleaned up. Returns the snapped points in raw
+    pixel space; never persists -- the client updates its handles and the
+    user still confirms via confirm-crop."""
+    submission = _get_owned_submission(code, user, db)
+    scan = _get_scan(submission, side)
+    _validate_points(payload, scan)
+    image = preprocessing.load_image(scan.file_path)
+    points = preprocessing.snap_points_to_boundary(image, [list(p) for p in payload.points])
+    return {"points": points}
+
+
 @router.post("/{code}/scans/{side}/confirm-crop", response_model=SubmissionDetail)
 def confirm_crop(
     code: str,
@@ -244,11 +273,7 @@ def confirm_crop(
             f"Submission is '{submission.status.value}' -- crop can no longer be confirmed",
         )
     scan = _get_scan(submission, side)
-    if len(payload.points) != 4:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Exactly 4 points are required")
-    for x, y in payload.points:
-        if not (0 <= x <= scan.width_px and 0 <= y <= scan.height_px):
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Points must be within the image bounds")
+    _validate_points(payload, scan)
 
     scan.crop_points = [list(point) for point in payload.points]
     db.commit()

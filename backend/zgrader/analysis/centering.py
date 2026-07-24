@@ -15,10 +15,29 @@ from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.centering
 
+# A real printed border sits at nearly the same depth on every sample line
+# down a side, so the spread (std) of the per-line edge positions is tiny
+# relative to the search window. Holo/full-art surfaces with no clean
+# border scatter the argmax edge at random depths, giving a large spread.
+# If any side's spread exceeds this fraction of its search depth, the
+# centering result is marked lower_confidence.
+_MAX_BORDER_SPREAD_FRACTION = 0.15
+
+CENTERING_LOW_CONFIDENCE_FLAG = {
+    "lower_confidence": True,
+    "reason": (
+        "No clear printed border was found on one or more sides -- common on "
+        "full-art / holo cards where the artwork bleeds to the edge and the "
+        "whole surface is high-contrast. The centering split is a best-effort "
+        "estimate here and may not be reliable."
+    ),
+}
+
 
 def _first_strong_edge(strip: np.ndarray, skip_px: int = 3) -> float:
     """Index of the strongest gradient point in `strip`, skipping the first
-    `skip_px` samples (the physical cut edge itself, not the printed border)."""
+    `skip_px` samples (the physical cut edge itself, not the printed
+    border)."""
     if len(strip) <= skip_px + 1:
         return float(len(strip))
     usable = strip[skip_px:]
@@ -34,34 +53,38 @@ def _measure_border(
     search_fraction: float = 0.15,
     corner_margin_fraction: float = 0.1,
     num_samples: int = 20,
-) -> float:
+) -> tuple[float, float]:
+    """Returns (median_border_width_px, spread_fraction) for one side, where
+    spread_fraction is the std of the per-line edge positions divided by the
+    search depth -- small means a consistent real border, large means the
+    edge was scattered noise (see _MAX_BORDER_SPREAD_FRACTION)."""
     h, w = edge_map.shape
+    widths: list[float] = []
     if side in ("left", "right"):
         search_depth = max(4, int(w * search_fraction))
         margin = max(1, int(h * corner_margin_fraction))
-        sample_rows = np.linspace(margin, max(margin, h - margin - 1), num_samples).astype(int)
-        widths = []
-        for r in sample_rows:
+        samples = np.linspace(margin, max(margin, h - margin - 1), num_samples).astype(int)
+        for r in samples:
             strip = (
                 edge_map[r, 0:search_depth]
                 if side == "left"
                 else edge_map[r, w - search_depth : w][::-1]
             )
             widths.append(_first_strong_edge(strip))
-        return float(np.median(widths))
     else:
         search_depth = max(4, int(h * search_fraction))
         margin = max(1, int(w * corner_margin_fraction))
-        sample_cols = np.linspace(margin, max(margin, w - margin - 1), num_samples).astype(int)
-        widths = []
-        for c in sample_cols:
+        samples = np.linspace(margin, max(margin, w - margin - 1), num_samples).astype(int)
+        for c in samples:
             strip = (
                 edge_map[0:search_depth, c]
                 if side == "top"
                 else edge_map[h - search_depth : h, c][::-1]
             )
             widths.append(_first_strong_edge(strip))
-        return float(np.median(widths))
+
+    spread_fraction = float(np.std(widths) / max(1, search_depth))
+    return float(np.median(widths)), spread_fraction
 
 
 def _score_from_worse_pct(worse_pct: float) -> float:
@@ -74,10 +97,10 @@ def measure_centering(card_image: np.ndarray, dpi: int) -> dict:
     gray = cv2.cvtColor(card_image, cv2.COLOR_BGR2GRAY)
     edge_map = np.abs(cv2.Laplacian(gray, cv2.CV_64F))
 
-    left = _measure_border(edge_map, "left")
-    right = _measure_border(edge_map, "right")
-    top = _measure_border(edge_map, "top")
-    bottom = _measure_border(edge_map, "bottom")
+    left, left_spread = _measure_border(edge_map, "left")
+    right, right_spread = _measure_border(edge_map, "right")
+    top, top_spread = _measure_border(edge_map, "top")
+    bottom, bottom_spread = _measure_border(edge_map, "bottom")
 
     px_per_mm = dpi / 25.4
     lr_total = left + right
@@ -107,5 +130,10 @@ def measure_centering(card_image: np.ndarray, dpi: int) -> dict:
         "tb_ratio": tb_split,
         "worse_side_pct": round(worse_side_pct, 1),
     }
+    low_confidence = any(
+        spread > _MAX_BORDER_SPREAD_FRACTION
+        for spread in (left_spread, right_spread, top_spread, bottom_spread)
+    )
+    flags = dict(CENTERING_LOW_CONFIDENCE_FLAG) if low_confidence else {}
     raw_score = round(_score_from_worse_pct(worse_side_pct), 2)
-    return {"category": CATEGORY, "raw_score": raw_score, "measurements": measurements, "flags": {}}
+    return {"category": CATEGORY, "raw_score": raw_score, "measurements": measurements, "flags": flags}

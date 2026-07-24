@@ -431,6 +431,74 @@ def test_suggest_crop_returns_four_points_within_bounds(db_session, sample_scan_
         assert 0 <= y <= body["height_px"]
 
 
+def test_snap_crop_returns_four_points(db_session, sample_scan_paths):
+    token = _register_and_login("snapyes@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+    _upload(token, code, "front", sample_scan_paths["pokemon_front"])
+    suggestion = client.get(
+        f"/submissions/{code}/scans/front/suggest-crop", headers=_auth_headers(token)
+    ).json()
+
+    resp = client.post(
+        f"/submissions/{code}/scans/front/snap-crop",
+        json={"points": suggestion["points"]},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()["points"]) == 4
+
+
+def test_snap_crop_404_without_scan(db_session):
+    token = _register_and_login("snapnone@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    resp = client.post(
+        f"/submissions/{code}/scans/front/snap-crop",
+        json={"points": [[0, 0], [10, 0], [10, 10], [0, 10]]},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 404
+
+
+def test_snap_crop_400_for_wrong_point_count(db_session, sample_scan_paths):
+    token = _register_and_login("snapcount@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+    _upload(token, code, "front", sample_scan_paths["pokemon_front"])
+
+    resp = client.post(
+        f"/submissions/{code}/scans/front/snap-crop",
+        json={"points": [[0, 0], [10, 0]]},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 400
+
+
+def test_snap_crop_403_for_non_owner(db_session, sample_scan_paths):
+    token_a = _register_and_login("snapowner@example.com")
+    token_b = _register_and_login("snapintruder@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token_a)
+    )
+    code = create_resp.json()["submission_code"]
+    _upload(token_a, code, "front", sample_scan_paths["pokemon_front"])
+
+    resp = client.post(
+        f"/submissions/{code}/scans/front/snap-crop",
+        json={"points": [[0, 0], [10, 0], [10, 10], [0, 10]]},
+        headers=_auth_headers(token_b),
+    )
+    assert resp.status_code == 403
+
+
 def test_confirm_crop_404_without_scan(db_session):
     token = _register_and_login("confirmnone@example.com")
     create_resp = client.post(

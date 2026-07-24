@@ -28,6 +28,7 @@ export default function CropAdjustStep({
   const [dims, setDims] = useState<{ width_px: number; height_px: number } | null>(null);
   const [points, setPoints] = useState<NormPoint[] | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [snapping, setSnapping] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,12 +91,56 @@ export default function CropAdjustStep({
     dragIndex.current = null;
   }
 
+  function toPixels(pts: NormPoint[]): api.CropPoint[] {
+    return pts.map(([x, y]) => [x * dims!.width_px, y * dims!.height_px]);
+  }
+
+  // Rotate the 4 handles about their centroid in *pixel* space (rotating in
+  // normalized 0..1 space would shear the angle by the image's aspect
+  // ratio). Each nudge mutates the points, so it composes with dragging and
+  // snapping and needs no backend change -- the existing points -> warp
+  // pipeline straightens whatever quad we send.
+  function nudgeRotate(degrees: number) {
+    if (!dims) return;
+    const rad = (degrees * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    setPoints((prev) => {
+      if (!prev) return prev;
+      const px = prev.map(([x, y]) => [x * dims.width_px, y * dims.height_px] as [number, number]);
+      const cx = px.reduce((s, p) => s + p[0], 0) / px.length;
+      const cy = px.reduce((s, p) => s + p[1], 0) / px.length;
+      return px.map(([x, y]) => {
+        const dx = x - cx;
+        const dy = y - cy;
+        const rx = cx + dx * cos - dy * sin;
+        const ry = cy + dx * sin + dy * cos;
+        return [
+          Math.min(1, Math.max(0, rx / dims.width_px)),
+          Math.min(1, Math.max(0, ry / dims.height_px)),
+        ] as NormPoint;
+      });
+    });
+  }
+
+  async function handleSnap() {
+    if (!points || !dims) return;
+    setSnapping(true);
+    try {
+      const { points: snapped } = await api.snapCrop(token, code, side, toPixels(points));
+      setPoints(snapped.map(([x, y]) => [x / dims.width_px, y / dims.height_px] as NormPoint));
+    } catch (err) {
+      toastError(err instanceof api.ApiError ? err.message : t.cropAdjust.snapFailed);
+    } finally {
+      setSnapping(false);
+    }
+  }
+
   async function handleConfirm() {
     if (!points || !dims) return;
     setConfirming(true);
     try {
-      const pixelPoints: api.CropPoint[] = points.map(([x, y]) => [x * dims.width_px, y * dims.height_px]);
-      const updated = await api.confirmCrop(token, code, side, pixelPoints);
+      const updated = await api.confirmCrop(token, code, side, toPixels(points));
       onConfirmed(updated);
     } catch (err) {
       toastError(err instanceof api.ApiError ? err.message : t.cropAdjust.confirmFailed);
@@ -145,7 +190,30 @@ export default function CropAdjustStep({
           />
         ))}
       </div>
-      <Button variant="primary" onPress={handleConfirm} isDisabled={confirming}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onPress={handleSnap} isDisabled={snapping || confirming}>
+          {t.cropAdjust.snapButton}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={t.cropAdjust.rotateLeft}
+          onPress={() => nudgeRotate(-1)}
+          isDisabled={confirming}
+        >
+          ⟲
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={t.cropAdjust.rotateRight}
+          onPress={() => nudgeRotate(1)}
+          isDisabled={confirming}
+        >
+          ⟳
+        </Button>
+      </div>
+      <Button variant="primary" onPress={handleConfirm} isDisabled={confirming || snapping}>
         {confirming ? t.cropAdjust.confirming : t.cropAdjust.confirmButton}
       </Button>
     </div>

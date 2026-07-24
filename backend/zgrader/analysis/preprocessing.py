@@ -150,6 +150,35 @@ def detect_boundary(
     return box, info
 
 
+def snap_points_to_boundary(
+    image: np.ndarray, points: list[list[float]], tolerance_fraction: float = 0.06
+) -> list[list[float]]:
+    """Refine a user's 4 manual crop corners toward the auto-detected card
+    boundary: each corner snaps to the matching detected corner only when
+    it's within `tolerance_fraction * max(h, w)` pixels of it, so a
+    deliberately-placed corner is preserved and only sloppy near-misses get
+    cleaned up. Returns the 4 points (raw pixel space) in top-left,
+    top-right, bottom-right, bottom-left order. If no card boundary can be
+    detected, the input points are returned unchanged (ordered)."""
+    ordered_user = _order_points(np.array(points, dtype="float32"))
+    try:
+        box, _info = detect_boundary(image)
+    except ValueError:
+        return ordered_user.tolist()
+
+    ordered_detected = _order_points(box)
+    h, w = image.shape[:2]
+    tolerance = tolerance_fraction * max(h, w)
+
+    snapped = []
+    for user_pt, detected_pt in zip(ordered_user, ordered_detected):
+        if np.linalg.norm(user_pt - detected_pt) <= tolerance:
+            snapped.append(detected_pt.tolist())
+        else:
+            snapped.append(user_pt.tolist())
+    return snapped
+
+
 def locate_and_deskew(
     image: np.ndarray, min_area_fraction: float = 0.15, max_area_fraction: float = 0.95
 ) -> tuple[np.ndarray, dict]:

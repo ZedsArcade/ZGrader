@@ -27,13 +27,12 @@ function regionKey(region: CategoryRegion): string {
   return `${region.category}:${region.id}`;
 }
 
-// Caps how many breakout panels/leader-lines render at once -- a card with
-// a dozen-plus flagged regions (e.g. many small surface blobs) previously
-// produced a sprawling panel list with leader lines crossing all over the
-// photo. Worst-scoring regions are kept (most useful to the viewer), then
-// re-sorted top-to-bottom by photo position so panel order reads naturally
-// and lines cross each other less.
-const MAX_DISPLAYED_REGIONS = 6;
+// How many breakout panels/leader-lines show before the viewer expands the
+// rest -- a card with a dozen-plus flags previously sprawled with leader
+// lines crossing all over the photo. Worst-scoring regions come first (most
+// useful), and the visible set is re-sorted top-to-bottom by photo position
+// so panel order reads naturally and lines cross each other less.
+const COLLAPSED_COUNT = 3;
 
 export default function AnnotatedPhoto({
   token,
@@ -54,17 +53,21 @@ export default function AnnotatedPhoto({
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [cropUrls, setCropUrls] = useState<Record<string, string>>({});
   const [lines, setLines] = useState<Line[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
   const allRegions: CategoryRegion[] = results.flatMap((r) => {
     const list = (r.measurements?.regions as api.Region[] | undefined) ?? [];
     return list.map((region) => ({ ...region, category: r.category }));
   });
-  const allFlagged = allRegions.filter((r) => r.severity === "flag");
-  const flagged = [...allFlagged]
-    .sort((a, b) => a.score - b.score)
-    .slice(0, MAX_DISPLAYED_REGIONS)
-    .sort((a, b) => a.anchor_norm[1] - b.anchor_norm[1]);
-  const hiddenCount = allFlagged.length - flagged.length;
+  // Worst-scoring first for priority; the visible slice is re-sorted
+  // top-to-bottom below so leader lines stay tidy.
+  const ranked = allRegions
+    .filter((r) => r.severity === "flag")
+    .sort((a, b) => a.score - b.score);
+  const visible = (expanded ? ranked : ranked.slice(0, COLLAPSED_COUNT)).sort(
+    (a, b) => a.anchor_norm[1] - b.anchor_norm[1]
+  );
+  const hiddenCount = ranked.length - visible.length;
 
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +86,10 @@ export default function AnnotatedPhoto({
       }
 
       const entries = await Promise.all(
-        flagged.map(async (region) => {
+        // Fetch crops for every ranked region (not just the collapsed
+        // slice) so expanding reveals already-loaded panels with no new
+        // network round-trip. The set is bounded server-side.
+        ranked.map(async (region) => {
           try {
             const blob = await api.fetchAuthedImage(
               token,
@@ -121,7 +127,7 @@ export default function AnnotatedPhoto({
     const imgRect = img.getBoundingClientRect();
 
     const nextLines: Line[] = [];
-    for (const region of flagged) {
+    for (const region of visible) {
       const key = regionKey(region);
       const panel = panelRefs.current.get(key);
       if (!panel) continue;
@@ -137,7 +143,7 @@ export default function AnnotatedPhoto({
     }
     setLines(nextLines);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoUrl, cropUrls]);
+  }, [photoUrl, cropUrls, expanded]);
 
   useLayoutEffect(() => {
     recomputeLines();
@@ -187,6 +193,10 @@ export default function AnnotatedPhoto({
               {allRegions.map((region) => {
                 const [x0, y0, x1, y1] = region.bbox_norm;
                 const isFlag = region.severity === "flag";
+                // A low-confidence centering frame draws muted + dashed
+                // rather than asserting a precise (and likely misaligned)
+                // box -- honest about the holo/full-art limitation.
+                const muted = region.low_confidence;
                 return (
                   <rect
                     key={regionKey(region)}
@@ -195,13 +205,14 @@ export default function AnnotatedPhoto({
                     width={x1 - x0}
                     height={y1 - y0}
                     fill="none"
-                    stroke={isFlag ? "var(--neon-pink)" : "var(--grade-mint)"}
+                    stroke={muted ? "var(--muted)" : isFlag ? "var(--neon-pink)" : "var(--grade-mint)"}
                     strokeWidth={isFlag ? 0.006 : 0.003}
+                    strokeDasharray={muted ? "0.02 0.015" : undefined}
                   />
                 );
               })}
             </svg>
-            {flagged.map((region, i) => {
+            {visible.map((region, i) => {
               const [ax, ay] = region.anchor_norm;
               return (
                 <span
@@ -244,10 +255,10 @@ export default function AnnotatedPhoto({
       )}
 
       <div className="verdict-reveal flex flex-col gap-3">
-        {flagged.length === 0 ? (
+        {visible.length === 0 ? (
           <p className="text-sm text-muted">{t.breakout.noRegionsNote}</p>
         ) : (
-          flagged.map((region, i) => (
+          visible.map((region, i) => (
             <div
               key={regionKey(region)}
               ref={(el) => {
@@ -278,13 +289,23 @@ export default function AnnotatedPhoto({
                 />
               )}
               {region.note && <p className="text-sm text-muted">{region.note}</p>}
+              {region.low_confidence && (
+                <p className="text-xs italic text-muted">{t.breakout.lowConfidenceNote}</p>
+              )}
             </div>
           ))
         )}
-        {hiddenCount > 0 && (
-          <p className="text-sm text-muted">
-            +{hiddenCount} {t.breakout.moreFlaggedNote}
-          </p>
+        {(hiddenCount > 0 || (expanded && ranked.length > COLLAPSED_COUNT)) && (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            className="self-start text-sm font-semibold underline-offset-2 hover:underline"
+            style={{ color: "var(--neon-pink)" }}
+          >
+            {expanded
+              ? t.breakout.showLess
+              : t.breakout.showMore.replace("{count}", String(hiddenCount))}
+          </button>
         )}
       </div>
     </div>

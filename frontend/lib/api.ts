@@ -61,6 +61,10 @@ export interface Region {
   bbox_norm: [number, number, number, number];
   anchor_norm: [number, number];
   note: string | null;
+  // Set on a centering "frame" region when the measurement is unreliable
+  // (holo/full-art card with no clean printed border) -- the UI draws it
+  // muted/dashed instead of asserting a precise centering box.
+  low_confidence?: boolean;
 }
 
 export interface Comparison {
@@ -277,6 +281,19 @@ export async function confirmCrop(
   points: CropPoint[]
 ): Promise<SubmissionDetail> {
   return request(`/submissions/${code}/scans/${side}/confirm-crop`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ points }),
+  });
+}
+
+export async function snapCrop(
+  token: string,
+  code: string,
+  side: ScanSide,
+  points: CropPoint[]
+): Promise<{ points: CropPoint[] }> {
+  return request(`/submissions/${code}/scans/${side}/snap-crop`, {
     method: "POST",
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify({ points }),
