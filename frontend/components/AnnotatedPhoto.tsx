@@ -27,6 +27,14 @@ function regionKey(region: CategoryRegion): string {
   return `${region.category}:${region.id}`;
 }
 
+// Caps how many breakout panels/leader-lines render at once -- a card with
+// a dozen-plus flagged regions (e.g. many small surface blobs) previously
+// produced a sprawling panel list with leader lines crossing all over the
+// photo. Worst-scoring regions are kept (most useful to the viewer), then
+// re-sorted top-to-bottom by photo position so panel order reads naturally
+// and lines cross each other less.
+const MAX_DISPLAYED_REGIONS = 6;
+
 export default function AnnotatedPhoto({
   token,
   code,
@@ -51,7 +59,12 @@ export default function AnnotatedPhoto({
     const list = (r.measurements?.regions as api.Region[] | undefined) ?? [];
     return list.map((region) => ({ ...region, category: r.category }));
   });
-  const flagged = allRegions.filter((r) => r.severity === "flag");
+  const allFlagged = allRegions.filter((r) => r.severity === "flag");
+  const flagged = [...allFlagged]
+    .sort((a, b) => a.score - b.score)
+    .slice(0, MAX_DISPLAYED_REGIONS)
+    .sort((a, b) => a.anchor_norm[1] - b.anchor_norm[1]);
+  const hiddenCount = allFlagged.length - flagged.length;
 
   useEffect(() => {
     let cancelled = false;
@@ -267,6 +280,11 @@ export default function AnnotatedPhoto({
               {region.note && <p className="text-sm text-muted">{region.note}</p>}
             </div>
           ))
+        )}
+        {hiddenCount > 0 && (
+          <p className="text-sm text-muted">
+            +{hiddenCount} {t.breakout.moreFlaggedNote}
+          </p>
         )}
       </div>
     </div>

@@ -87,3 +87,13 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         (partial check)", and "both" without those being separate
         SubmissionStatus values."""
         return sorted({s.side.value for s in self.scan_images})
+
+    @property
+    def confirmed_sides(self) -> list[str]:
+        """Which sides have a *confirmed* crop (ScanImage.crop_points set)
+        and are therefore eligible for analysis. A self-serve upload is
+        registered (appears in scan_sides) before it's confirmed (appears
+        here) -- the manual crop-adjust UI is what sets crop_points.
+        Operator flatbed-drop scans get auto-confirmed at registration, so
+        for that path this is always identical to scan_sides."""
+        return sorted({s.side.value for s in self.scan_images if s.crop_points is not None})

@@ -163,6 +163,14 @@ def _persist_combined(
 
 def _load_deskewed_card(scan: ScanImage) -> np.ndarray:
     image = preprocessing.load_image(scan.file_path)
+    if scan.crop_points is not None:
+        points = np.array(scan.crop_points, dtype="float32")
+        return preprocessing.warp_to_points(image, points)
+    # Only reachable if boundary auto-detection failed at registration/
+    # migration-backfill time and crop_points stayed NULL -- run_analysis is
+    # otherwise only invoked once _advance_submission has confirmed this
+    # side via Submission.confirmed_sides, so crop_points is normally
+    # always set by this point.
     card_image, _info = preprocessing.locate_and_deskew(image)
     return card_image
 

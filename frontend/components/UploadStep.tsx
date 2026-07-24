@@ -3,6 +3,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { Card, ProgressBar } from "@heroui/react";
 import Button from "@/components/Button";
+import CropAdjustStep from "@/components/CropAdjustStep";
 import { toastError } from "@/lib/toast";
 import { useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
@@ -13,6 +14,7 @@ function ScanSlot({
   hint,
   token,
   code,
+  uploaded,
   onUploaded,
 }: {
   side: api.ScanSide;
@@ -20,11 +22,16 @@ function ScanSlot({
   hint?: string;
   token: string;
   code: string;
+  uploaded: boolean;
   onUploaded: (updated: api.SubmissionDetail) => void;
 }) {
   const t = useTranslations();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // A side already in scan_sides (e.g. after a page refresh mid-crop-
+  // confirm) skips straight to the crop-adjust UI instead of re-showing the
+  // file picker.
+  const [awaitingCrop, setAwaitingCrop] = useState(uploaded);
 
   async function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -32,13 +39,27 @@ function ScanSlot({
     if (!file) return;
     setUploading(true);
     try {
-      const updated = await api.uploadScan(token, code, side, file);
-      onUploaded(updated);
+      await api.uploadScan(token, code, side, file);
+      setAwaitingCrop(true);
     } catch (err) {
       toastError(err instanceof api.ApiError ? err.message : t.upload.uploadFailed);
     } finally {
       setUploading(false);
     }
+  }
+
+  if (awaitingCrop) {
+    return (
+      <CropAdjustStep
+        token={token}
+        code={code}
+        side={side}
+        onConfirmed={(updated) => {
+          setAwaitingCrop(false);
+          onUploaded(updated);
+        }}
+      />
+    );
   }
 
   return (
@@ -74,36 +95,46 @@ export default function UploadStep({
   code,
   token,
   scanSides,
+  confirmedSides,
   onUploaded,
 }: {
   code: string;
   token: string;
   scanSides: api.ScanSide[];
+  confirmedSides: api.ScanSide[];
   onUploaded: (updated: api.SubmissionDetail) => void;
 }) {
   const t = useTranslations();
-  const hasFront = scanSides.includes("front");
-  const hasBack = scanSides.includes("back");
+  const frontDone = confirmedSides.includes("front");
+  const backDone = confirmedSides.includes("back");
 
-  if (hasFront && hasBack) return null;
+  if (frontDone && backDone) return null;
 
   return (
     <Card>
       <Card.Header>
-        <Card.Title>{hasFront ? t.upload.frontUploadedTitle : t.upload.title}</Card.Title>
-        <Card.Description>{hasFront ? t.upload.frontUploadedNote : t.upload.subtitle}</Card.Description>
+        <Card.Title>{frontDone ? t.upload.frontUploadedTitle : t.upload.title}</Card.Title>
+        <Card.Description>{frontDone ? t.upload.frontUploadedNote : t.upload.subtitle}</Card.Description>
       </Card.Header>
-      <Card.Content className={hasFront ? undefined : "grid gap-4 sm:grid-cols-2"}>
-        {!hasFront && (
-          <ScanSlot side="front" label={t.upload.frontLabel} token={token} code={code} onUploaded={onUploaded} />
+      <Card.Content className={frontDone ? undefined : "grid gap-4 sm:grid-cols-2"}>
+        {!frontDone && (
+          <ScanSlot
+            side="front"
+            label={t.upload.frontLabel}
+            token={token}
+            code={code}
+            uploaded={scanSides.includes("front")}
+            onUploaded={onUploaded}
+          />
         )}
-        {!hasBack && (
+        {!backDone && (
           <ScanSlot
             side="back"
             label={t.upload.backLabel}
-            hint={hasFront ? undefined : t.upload.backHint}
+            hint={frontDone ? undefined : t.upload.backHint}
             token={token}
             code={code}
+            uploaded={scanSides.includes("back")}
             onUploaded={onUploaded}
           />
         )}

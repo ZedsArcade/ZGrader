@@ -2,7 +2,7 @@ import enum
 import uuid
 
 from sqlalchemy import Enum, ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from zgrader.db import Base
@@ -27,5 +27,11 @@ class ScanImage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     width_px: Mapped[int] = mapped_column(Integer, nullable=False)
     height_px: Mapped[int] = mapped_column(Integer, nullable=False)
     checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    # 4 [x, y] pixel points (TL/TR/BR/BL) in this scan's own raw-image
+    # coordinate space. NULL means "uploaded but not yet confirmed" --
+    # self-serve uploads start NULL and only get analyzed once a human (or
+    # auto-detection, for operator-dropped scans) sets this. See
+    # zgrader.worker.watcher._confirmed_sides.
+    crop_points: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     submission: Mapped["Submission"] = relationship(back_populates="scan_images")  # noqa: F821

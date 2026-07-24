@@ -8,6 +8,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# See detect_boundary's docstring for why this specific ratio distinguishes
+# genuine keystone perspective from local corner damage/noise.
+_QUAD_AREA_RATIO_THRESHOLD = 0.95
+
 
 def load_image(path: str | Path) -> np.ndarray:
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
@@ -35,7 +39,15 @@ def _order_points(pts: np.ndarray) -> np.ndarray:
     return rect
 
 
-def _warp_to_rect(image: np.ndarray, box: np.ndarray) -> np.ndarray:
+def warp_to_points(image: np.ndarray, box: np.ndarray) -> np.ndarray:
+    """Perspective-warp `image` so the quadrilateral `box` (4 points, any
+    order) becomes an axis-aligned rectangle. Point-agnostic: used both for
+    an auto-detected box (detect_boundary) and for a user-confirmed crop
+    (ScanImage.crop_points from the manual crop-adjust UI) -- the same
+    homography corrects in-plane rotation and true keystone/perspective
+    distortion together, so a separate "deskew"/"tilt" step is unnecessary
+    once real corner points are known.
+    """
     rect = _order_points(box)
     (tl, tr, br, bl) = rect
     width_a = np.linalg.norm(br - bl)
@@ -54,11 +66,12 @@ def _warp_to_rect(image: np.ndarray, box: np.ndarray) -> np.ndarray:
     return cv2.warpPerspective(image, matrix, (max_width, max_height))
 
 
-def locate_and_deskew(
+def detect_boundary(
     image: np.ndarray, min_area_fraction: float = 0.15, max_area_fraction: float = 0.95
 ) -> tuple[np.ndarray, dict]:
-    """Find the card's outer boundary and return a deskewed, cropped image
-    plus info about the detected contour, for annotation/debugging.
+    """Find the card's outer boundary and return its 4 corner points (any
+    order) plus info about the detected contour, for annotation/debugging
+    and as the starting suggestion for the manual crop-adjust UI.
 
     Tries both light-on-dark and dark-on-light thresholding since scanner
     backing (scanner lid open/closed, black backing sheet, etc.) varies. A
@@ -72,6 +85,12 @@ def locate_and_deskew(
     standard luma formula, which heavily weights green) even though neither
     is remotely as dark as true black scanner backing on every channel. Value
     keeps the whole card in one bright cluster against a near-zero backing.
+
+    Corner extraction tries cv2.approxPolyDP first, which can capture a
+    contour's true 4-point quadrilateral (including real perspective/keystone
+    distortion from a handheld photo, not just in-plane rotation); if the
+    contour doesn't simplify to exactly 4 points (noisy edges, rounded
+    corners), falls back to cv2.minAreaRect's best-fit rotated rectangle.
     """
     value_channel = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)[:, :, 2]
     blurred = cv2.GaussianBlur(value_channel, (5, 5), 0)
@@ -93,15 +112,51 @@ def locate_and_deskew(
         )
 
     _, contour = max(candidates, key=lambda c: c[0])
-    rect = cv2.minAreaRect(contour)
-    box = cv2.boxPoints(rect)
-    warped = _warp_to_rect(image, box)
+
+    rect_center, rect_size, rect_angle = cv2.minAreaRect(contour)
+    rect_area = rect_size[0] * rect_size[1]
+
+    perimeter = cv2.arcLength(contour, True)
+    approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
+    # Only trust the quad if it's a real trapezoid, not just minAreaRect's
+    # own rectangle with one corner nudged by local damage/noise. Genuine
+    # keystone perspective shrinks the quad's area well below its enclosing
+    # minAreaRect box (a photographed rectangle viewed at an angle is
+    # visibly smaller than the upright rectangle that bounds it); pure
+    # in-plane rotation, whitening, or even a small chipped/rounded corner
+    # all keep quad_area/rect_area close to 1.0 -- verified empirically
+    # against synthetic fixtures (rotation-only and whitened-corner cases
+    # land at ~0.997, a hard-clipped corner at ~0.986, a true keystoned
+    # photo at ~0.86). Falling back to minAreaRect in the near-1.0 cases
+    # preserves corner-damage detection (which relies on the deskewed crop
+    # still including the ideal corner tip, not one already traced tight
+    # around missing material).
+    quad_area = cv2.contourArea(approx) if len(approx) == 4 else 0.0
+    if len(approx) == 4 and rect_area > 0 and quad_area / rect_area < _QUAD_AREA_RATIO_THRESHOLD:
+        box = approx.reshape(4, 2).astype("float32")
+        method = "quad"
+    else:
+        box = cv2.boxPoints((rect_center, rect_size, rect_angle))
+        method = "min_area_rect"
 
     info = {
-        "rect_center": rect[0],
-        "rect_size": rect[1],
-        "rect_angle": rect[2],
+        "method": method,
+        "rect_center": rect_center,
+        "rect_size": rect_size,
+        "rect_angle": rect_angle,
         "box_points": box.tolist(),
         "contour_area_px": float(cv2.contourArea(contour)),
     }
-    return warped, info
+    return box, info
+
+
+def locate_and_deskew(
+    image: np.ndarray, min_area_fraction: float = 0.15, max_area_fraction: float = 0.95
+) -> tuple[np.ndarray, dict]:
+    """Convenience wrapper: detect the boundary and warp to it in one call.
+    Used by the migration backfill and the operator flatbed-drop path
+    (zgrader.worker.watcher._register_new_scans), which auto-confirm a
+    scan's crop_points at registration time rather than routing through the
+    manual crop-adjust UI."""
+    box, info = detect_boundary(image, min_area_fraction, max_area_fraction)
+    return warp_to_points(image, box), info

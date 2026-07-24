@@ -132,6 +132,7 @@ export const es: Dictionary = {
     okChip: "Correcto",
     flaggedChip: "Marcado",
     noRegionsNote: "No se marcó nada en este lado.",
+    moreFlaggedNote: "problema(s) más detectado(s) pero no mostrado(s) aquí",
   },
   upload: {
     title: "Suba las fotos de su carta",
@@ -148,5 +149,13 @@ export const es: Dictionary = {
     uploadFailed: "Error al subir la imagen",
     invalidImage: "Eso no parece una imagen válida. Pruebe con un JPEG, PNG o TIFF.",
     fileTooLarge: "Esa imagen es demasiado grande.",
+  },
+  cropAdjust: {
+    title: "Confirme las esquinas de la carta",
+    instructions: "Arrastre los 4 controles hasta las esquinas exactas de la carta y confirme.",
+    confirmButton: "Confirmar recorte",
+    confirming: "Confirmando…",
+    loadFailed: "No se pudo cargar la foto para recortar.",
+    confirmFailed: "No se pudo confirmar el recorte.",
   },
 };
