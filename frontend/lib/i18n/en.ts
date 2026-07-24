@@ -130,7 +130,9 @@ export const en = {
     okChip: "OK",
     flaggedChip: "Flagged",
     noRegionsNote: "Nothing was flagged on this side.",
-    moreFlaggedNote: "more issue(s) detected but not shown here",
+    showMore: "Show {count} more issue(s)",
+    showLess: "Show less",
+    lowConfidenceNote: "Centering could not be measured reliably on this card.",
   },
   upload: {
     title: "Upload your card scans",
@@ -154,6 +156,10 @@ export const en = {
     confirming: "Confirming…",
     loadFailed: "Couldn't load the photo for cropping.",
     confirmFailed: "Couldn't confirm the crop.",
+    snapButton: "Snap to detected edges",
+    snapFailed: "Couldn't refine the crop.",
+    rotateLeft: "Rotate left",
+    rotateRight: "Rotate right",
   },
 } as const;
 

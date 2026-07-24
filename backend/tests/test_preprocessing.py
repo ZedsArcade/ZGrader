@@ -63,3 +63,51 @@ def test_locate_and_deskew_still_works_as_a_thin_wrapper():
 
     assert warped.shape[0] > 0 and warped.shape[1] > 0
     assert "method" in info
+
+
+def test_snap_points_pulls_a_near_miss_onto_the_detected_corner():
+    scan = make_card_scan(63.0, 88.0)
+    box, _info = preprocessing.detect_boundary(scan)
+    true_corners = preprocessing._order_points(box)
+
+    # Nudge every corner ~1.5% of the image off the true boundary -- a
+    # sloppy-but-close manual placement -- and confirm snapping pulls each
+    # back onto the detected corner.
+    nudge = 0.015 * max(scan.shape[:2])
+    sloppy = [[float(x + nudge), float(y + nudge)] for x, y in true_corners]
+
+    snapped = preprocessing.snap_points_to_boundary(scan, sloppy)
+
+    snapped_ordered = preprocessing._order_points(np.array(snapped, dtype="float32"))
+    assert np.allclose(snapped_ordered, true_corners, atol=1.0)
+
+
+def test_snap_points_leaves_a_deliberate_far_placement_alone():
+    scan = make_card_scan(63.0, 88.0)
+    h, w = scan.shape[:2]
+    # A tight interior crop, far from the real card edges -- a deliberate
+    # choice the snap must respect rather than yank back to the boundary.
+    inset = [[w * 0.3, h * 0.3], [w * 0.7, h * 0.3], [w * 0.7, h * 0.7], [w * 0.3, h * 0.7]]
+
+    snapped = preprocessing.snap_points_to_boundary(scan, inset)
+
+    assert np.allclose(
+        preprocessing._order_points(np.array(snapped, dtype="float32")),
+        preprocessing._order_points(np.array(inset, dtype="float32")),
+        atol=1.0,
+    )
+
+
+def test_snap_points_returns_input_when_no_card_detectable():
+    # A uniform blank frame has no card-sized contour -- detect_boundary
+    # raises, and snapping must degrade to returning the points unchanged.
+    blank = np.zeros((400, 300, 3), dtype=np.uint8)
+    points = [[10, 10], [290, 10], [290, 390], [10, 390]]
+
+    snapped = preprocessing.snap_points_to_boundary(blank, points)
+
+    assert np.allclose(
+        preprocessing._order_points(np.array(snapped, dtype="float32")),
+        preprocessing._order_points(np.array(points, dtype="float32")),
+        atol=1.0,
+    )

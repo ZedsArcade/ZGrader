@@ -20,15 +20,19 @@ from zgrader.models import AnalysisCategory
 
 MAX_SURFACE_REGIONS = 6
 MIN_BLOB_AREA_MM2 = 0.5
-# A scratch/scuff is either elongated (thin line -> high aspect ratio) or a
-# dense solid gouge (fills most of its own bounding box -> high fill
-# ratio). An individual text glyph's bounding box is close to square
-# (aspect ratio near 1) and mostly empty space around the ink strokes
-# (fill ratio well under these thresholds in practice) -- this heuristic
-# rejects glyph-shaped blobs (card rules text) while keeping scratch-shaped
-# ones. Tunable v1 starting point, like MIN_BLOB_AREA_MM2 above.
-_MIN_ASPECT_RATIO = 2.0
-_MIN_FILL_RATIO = 0.7
+# A genuine scratch/print-line is elongated AND has a thin mean stroke.
+# Card text -- the dominant false positive on holo/full-art cards -- gets
+# grouped by connected-component analysis into per-word blobs; measured
+# with the real variance detector these come out at ~0.9-1.3mm mean stroke
+# thickness, whereas a real hairline scratch is ~0.6mm, so the thickness
+# gate is what actually rejects text. The modest aspect floor additionally
+# rejects near-round holo sparkles (a diagonal scratch's own bounding box
+# is "fat", ~2.1, so the floor is kept low). Both thresholds were tuned
+# against the real detector on rendered text vs. the scratch fixture;
+# still best-effort -- see the surface-analysis limitation note in
+# surface.py for why this whole category is lower-confidence.
+_MIN_ASPECT_RATIO = 1.8
+_MAX_SCRATCH_THICKNESS_MM = 0.85
 
 # Matches annotate.py's _FLAG_COLOR/_OK_COLOR cutoff -- same "worth calling
 # out" threshold already used everywhere else in this pipeline.
@@ -176,7 +180,14 @@ def _build_centering_regions(card_shape: tuple[int, int], language: str, result:
     box = (m["left_px"], m["top_px"], w - m["right_px"], h - m["bottom_px"])
     anchor = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
     note = _centering_note(m["worse_side_pct"], is_es)
-    return [_region("frame", "frame", "flag", score, box, anchor, w, h, note)]
+    region = _region("frame", "frame", "flag", score, box, anchor, w, h, note)
+    # Full-art / holo cards often have no clean printed border to measure
+    # against (see centering.py's CENTERING_LOW_CONFIDENCE_FLAG) -- when the
+    # measurement is flagged uncertain, mark the region so the UI can draw a
+    # muted/dashed box instead of asserting a precise centering frame.
+    if result.get("flags", {}).get("lower_confidence"):
+        region["low_confidence"] = True
+    return [region]
 
 
 def _build_surface_regions(
@@ -201,9 +212,15 @@ def _build_surface_regions(
         bw = stats[label, cv2.CC_STAT_WIDTH]
         bh = stats[label, cv2.CC_STAT_HEIGHT]
         area = stats[label, cv2.CC_STAT_AREA]
-        aspect_ratio = max(bw, bh) / max(1, min(bw, bh))
-        fill_ratio = area / max(1, bw * bh)
-        return aspect_ratio >= _MIN_ASPECT_RATIO or fill_ratio >= _MIN_FILL_RATIO
+        longest = max(bw, bh)
+        aspect_ratio = longest / max(1, min(bw, bh))
+        # Mean stroke thickness ~= filled pixel area / length. Orientation-
+        # robust (unlike min(bbox side), which is large for a *diagonal*
+        # hairline whose bounding box is big on both axes): a real scratch
+        # has a thin mean stroke at any angle, while a word's summed letter
+        # strokes give a much thicker mean.
+        mean_thickness_mm = (area / longest) / px_per_mm
+        return aspect_ratio >= _MIN_ASPECT_RATIO and mean_thickness_mm <= _MAX_SCRATCH_THICKNESS_MM
 
     # label 0 is always the background component -- skip it.
     blobs = [

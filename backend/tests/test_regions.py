@@ -128,22 +128,43 @@ def test_surface_regions_capped_at_max():
     ex_h, ex_w = int(h * 0.12), int(w * 0.12)
     face_h, face_w = h - 2 * ex_h, w - 2 * ex_w
 
-    # Ten well-separated, comfortably-above-threshold blobs -- more than
-    # MAX_SURFACE_REGIONS -- synthesized directly rather than relying on
-    # measure_surface's real detector, so this test is about build_regions's
-    # own capping/sorting logic, not surface.py's texture heuristic.
+    # Ten well-separated thin scratch-shaped bars -- more than
+    # MAX_SURFACE_REGIONS, each comfortably passing the thin+elongated
+    # filter -- synthesized directly rather than via measure_surface's real
+    # detector, so this test is about build_regions's own capping/sorting
+    # logic, not surface.py's texture heuristic.
     mask = np.zeros((face_h, face_w), dtype=bool)
-    blob_size = 30
     for i in range(10):
-        y = 10 + i * (blob_size + 5)
-        if y + blob_size >= face_h:
+        y = 10 + i * 12
+        if y + 4 >= face_h:
             break
-        mask[y : y + blob_size, 10 : 10 + blob_size] = True
+        mask[y : y + 4, 10:110] = True  # 100px x 4px -> thin, high aspect
 
     fake_result = {"raw_score": 5.0, "measurements": {"corner_exclusion_fraction": 0.12}}
     region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _DPI, "en", fake_result, mask)
 
     assert len(region_list) == regions.MAX_SURFACE_REGIONS
+
+
+def test_thick_word_shaped_blob_is_filtered_out():
+    card = _deskewed()
+    h, w = card.shape[:2]
+    ex_h, ex_w = int(h * 0.12), int(w * 0.12)
+    face_h, face_w = h - 2 * ex_h, w - 2 * ex_w
+
+    # A wide, solid bar that is elongated (high aspect) but whose mean stroke
+    # thickness is far above a hairline -- the profile a whole word of card
+    # text collapses to under connected-component analysis (~1mm+ mean
+    # thickness measured against the real detector). Aspect alone would keep
+    # it; the thickness gate is what rejects it. 120x30 -> mean thickness
+    # ~1.27mm at 600 DPI.
+    mask = np.zeros((face_h, face_w), dtype=bool)
+    mask[20:50, 10:130] = True
+
+    fake_result = {"raw_score": 5.0, "measurements": {"corner_exclusion_fraction": 0.12}}
+    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _DPI, "en", fake_result, mask)
+
+    assert region_list == []
 
 
 def test_glyph_shaped_blob_is_filtered_out_as_text_not_scratch():
@@ -175,9 +196,9 @@ def test_elongated_blob_is_kept_as_scratch_like():
     ex_h, ex_w = int(h * 0.12), int(w * 0.12)
     face_h, face_w = h - 2 * ex_h, w - 2 * ex_w
 
-    # A thin, solid, elongated blob -- high aspect ratio and high fill
-    # ratio, the real shape signature of a scratch -- must survive the
-    # shape filter that rejects glyph-shaped blobs above.
+    # A thin (~0.2mm mean stroke), elongated blob -- the real shape
+    # signature of a scratch -- must survive the filter that rejects the
+    # glyph- and word-shaped blobs above.
     mask = np.zeros((face_h, face_w), dtype=bool)
     mask[20:25, 10:110] = True
 

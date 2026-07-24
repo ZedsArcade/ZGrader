@@ -39,3 +39,23 @@ def test_worse_centering_scores_lower_than_better_centering():
     mild = centering.measure_centering(_deskewed(lr_offset_frac=0.1), dpi=600)
     severe = centering.measure_centering(_deskewed(lr_offset_frac=0.4), dpi=600)
     assert severe["raw_score"] < mild["raw_score"]
+
+
+def test_clean_card_is_measured_with_confidence():
+    # A synthetic card has a crisp printed border on every side, so the
+    # centering measurement must NOT be flagged lower_confidence.
+    result = centering.measure_centering(_deskewed(), dpi=600)
+    assert not result["flags"].get("lower_confidence")
+
+
+def test_borderless_image_is_flagged_lower_confidence():
+    import numpy as np
+
+    # Uniform noise with no printed border anywhere -- the argmax edge on
+    # each side is just noise, so no side clears the significance bar and
+    # the result must be flagged lower_confidence rather than asserting a
+    # confident (and meaningless) split.
+    rng = np.random.default_rng(0)
+    noise = rng.integers(90, 160, size=(800, 600, 3), dtype=np.uint8)
+    result = centering.measure_centering(noise, dpi=600)
+    assert result["flags"].get("lower_confidence") is True
