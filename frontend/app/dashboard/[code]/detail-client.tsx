@@ -99,7 +99,7 @@ function Detail({ code }: { code: string }) {
         <ProcessingState status={submission.status} locale={locale} />
       ) : (
         <div className="flex flex-col gap-5">
-          <SubmissionOverview submission={submission} locale={locale} />
+          <SubmissionOverview submission={submission} token={token!} locale={locale} />
           {UPLOAD_ALLOWED_STATUSES.has(submission.status) && !submission.scan_sides.includes("back") && (
             <UploadStep code={code} token={token!} scanSides={submission.scan_sides} onUploaded={setSubmission} />
           )}

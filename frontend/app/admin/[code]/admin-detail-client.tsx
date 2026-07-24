@@ -145,7 +145,7 @@ function AdminDetail({ code }: { code: string }) {
         {PENDING_STATUSES.has(submission.status) ? (
           <ProcessingState status={submission.status} />
         ) : (
-          <SubmissionOverview submission={submission} />
+          <SubmissionOverview submission={submission} token={token!} />
         )}
       </div>
     </>

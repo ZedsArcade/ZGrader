@@ -251,3 +251,111 @@ def test_cannot_upload_to_someone_elses_submission(db_session, sample_scan_paths
         )
 
     assert resp.status_code == 403
+
+
+def test_side_photo_404_before_analysis(db_session):
+    token = _register_and_login("photonone@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    resp = client.get(f"/submissions/{code}/scans/front/photo", headers=_auth_headers(token))
+    assert resp.status_code == 404
+
+
+def test_side_photo_available_after_analysis(db_session, sample_scan_paths):
+    token = _register_and_login("photoyes@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token),
+        )
+
+    resp = client.get(f"/submissions/{code}/scans/front/photo", headers=_auth_headers(token))
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert len(resp.content) > 0
+
+
+def test_side_photo_403_for_non_owner(db_session, sample_scan_paths):
+    token_a = _register_and_login("photoowner@example.com")
+    token_b = _register_and_login("photointruder@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token_a)
+    )
+    code = create_resp.json()["submission_code"]
+
+    resp = client.get(f"/submissions/{code}/scans/front/photo", headers=_auth_headers(token_b))
+    assert resp.status_code == 403
+
+
+def test_region_crop_available_for_flagged_region(db_session, sample_scan_paths):
+    # pokemon_front is generated with whiten_top_left_corner=True (see
+    # tests/fixtures/generate_samples.py's write_sample_set), so this
+    # corner is guaranteed to come back flagged with a real crop file.
+    token = _register_and_login("cropyes@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token),
+        )
+
+    resp = client.get(
+        f"/submissions/{code}/scans/front/regions/corners/top_left/crop", headers=_auth_headers(token)
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert len(resp.content) > 0
+
+
+def test_region_crop_404_for_region_that_was_never_flagged(db_session, sample_scan_paths):
+    token = _register_and_login("cropmissing@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    with open(sample_scan_paths["pokemon_front"], "rb") as f:
+        client.post(
+            f"/submissions/{code}/scans",
+            files={"file": ("front.png", f, "image/png")},
+            data={"side": "front"},
+            headers=_auth_headers(token),
+        )
+
+    # bottom_right isn't whitened/clipped by pokemon_front's fixture -- no
+    # crop file was ever generated for it.
+    resp = client.get(
+        f"/submissions/{code}/scans/front/regions/corners/bottom_right/crop", headers=_auth_headers(token)
+    )
+    assert resp.status_code == 404
+
+
+def test_region_crop_404_for_invalid_region_id(db_session):
+    token = _register_and_login("cropinvalid@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+
+    # Uppercase/hyphenated region_id doesn't match _REGION_ID_RE
+    # (^[a-z0-9_]+$) -- rejected before ever touching disk.
+    resp = client.get(
+        f"/submissions/{code}/scans/front/regions/corners/TOP-LEFT/crop", headers=_auth_headers(token)
+    )
+    assert resp.status_code == 404

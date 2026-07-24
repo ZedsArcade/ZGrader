@@ -1,7 +1,10 @@
 import { Card, Chip, Table } from "@heroui/react";
-import type { Comparison, SubmissionDetail } from "@/lib/api";
+import type { Comparison, ScanSide, SubmissionDetail } from "@/lib/api";
 import { getDictionary, type Locale } from "@/lib/i18n/context";
+import AnnotatedPhoto from "./AnnotatedPhoto";
 import StatusBadge from "./StatusBadge";
+
+const SIDES: ScanSide[] = ["front", "back"];
 
 const CATEGORY_ORDER = ["centering", "corners", "edges", "surface"] as const;
 const SEVERITY_COLOR: Record<string, "success" | "warning" | "danger"> = {
@@ -25,9 +28,11 @@ function gradeTierClass(score: number): string {
 
 export default function SubmissionOverview({
   submission,
+  token,
   locale = "en",
 }: {
   submission: SubmissionDetail;
+  token: string;
   locale?: Locale;
 }) {
   const t = getDictionary(locale);
@@ -40,6 +45,9 @@ export default function SubmissionOverview({
     list.push(comp);
     comparisonsByCategory.set(comp.category, list);
   }
+  const resultsBySide = new Map<ScanSide, typeof submission.analysis_results>(
+    SIDES.map((side) => [side, submission.analysis_results.filter((r) => r.side === side)])
+  );
 
   return (
     <>
@@ -90,6 +98,19 @@ export default function SubmissionOverview({
           )}
         </Card.Content>
       </Card>
+
+      {SIDES.filter((side) => (resultsBySide.get(side)?.length ?? 0) > 0).map((side) => (
+        <Card className="mt-5" key={side}>
+          <Card.Header>
+            <Card.Title>
+              {t.submissionDetail.photoTitle} — {t.breakout[side]}
+            </Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <AnnotatedPhoto token={token} code={submission.submission_code} side={side} results={resultsBySide.get(side)!} />
+          </Card.Content>
+        </Card>
+      ))}
 
       {comparisonsByCategory.size > 0 && (
         <Card className="mt-5">

@@ -123,6 +123,15 @@ export const es: Dictionary = {
     awaitingScansTitle: "Esperando a que se escanee su carta",
     processingTitle: "Analizando carta…",
     processingDescription: "Esto normalmente solo toma un momento.",
+    photoTitle: "Foto analizada",
+  },
+  breakout: {
+    front: "Frente",
+    back: "Reverso",
+    zoomedViewLabel: "Vista ampliada",
+    okChip: "Correcto",
+    flaggedChip: "Marcado",
+    noRegionsNote: "No se marcó nada en este lado.",
   },
   upload: {
     title: "Suba las fotos de su carta",
