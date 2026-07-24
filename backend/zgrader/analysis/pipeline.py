@@ -9,7 +9,17 @@ from pathlib import Path
 import numpy as np
 from sqlalchemy.orm import Session
 
-from zgrader.analysis import annotate, centering, corners, edges, preprocessing, regions, rules_engine, surface
+from zgrader.analysis import (
+    annotate,
+    centering,
+    corners,
+    edges,
+    preprocessing,
+    recompute,
+    regions,
+    rules_engine,
+    surface,
+)
 from zgrader.config import config
 from zgrader.models import (
     AnalysisCategory,
@@ -145,15 +155,23 @@ def _persist_combined(
                 measurements["worse_side_pct"] = round((front_worse + back_worse) / 2, 1)
             elif front_worse is not None:
                 measurements["worse_side_pct"] = front_worse
+            if "worse_side_pct" in measurements:
+                measurements["original_worse_side_pct"] = measurements["worse_side_pct"]
+
+        combined_score = _combine_score(
+            front_result["raw_score"], back_result["raw_score"] if back_result else None
+        )
+        # Pristine auto-detected value, preserved so the UI/report can show
+        # "was X.X" if the client later dismisses findings (recompute.py
+        # overwrites raw_score but never touches this).
+        measurements["original_raw_score"] = combined_score
 
         db.add(
             AnalysisResult(
                 submission_id=submission.id,
                 category=category,
                 side=AnalysisSide.combined,
-                raw_score=_combine_score(
-                    front_result["raw_score"], back_result["raw_score"] if back_result else None
-                ),
+                raw_score=combined_score,
                 measurements=measurements,
                 annotated_image_path=None,
                 flags=flags,
@@ -211,5 +229,14 @@ def run_analysis(db: Session, submission: Submission) -> None:
     db.flush()
 
     rules_engine.evaluate(db, submission)
+
+    # A re-analysis (e.g. a late back scan) rebuilds every row from scratch;
+    # re-apply any dismissals the client had already made so their
+    # adjustments aren't silently lost. Region ids are stable across
+    # re-analysis, so previously-dismissed keys still resolve.
+    if submission.dismissed_regions:
+        db.expire(submission, ["analysis_results", "company_comparisons"])
+        recompute.recompute_submission(db, submission)
+
     submission.status = SubmissionStatus.draft_ready
     db.flush()

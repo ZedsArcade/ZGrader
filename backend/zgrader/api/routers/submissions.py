@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
-from zgrader.analysis import preprocessing
+from zgrader.analysis import preprocessing, recompute
 from zgrader.api.deps import get_current_user, require_operator
 from zgrader.config import config
 from zgrader.db import get_db
@@ -29,7 +29,13 @@ from zgrader.models import (
 from zgrader.reports import builder
 from zgrader.scan_ingest import read_scan_metadata, sha256_file
 from zgrader.schemas.admin import AutoPublishUpdate
-from zgrader.schemas.submission import CropPointsIn, SubmissionCreate, SubmissionDetail, SubmissionSummary
+from zgrader.schemas.submission import (
+    CropPointsIn,
+    RegionToggleIn,
+    SubmissionCreate,
+    SubmissionDetail,
+    SubmissionSummary,
+)
 from zgrader.worker.watcher import _IMAGE_SUFFIXES, _advance_submission, _confirmed_sides, process_submission_folder
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
@@ -46,6 +52,7 @@ _PIL_FORMAT_TO_SUFFIX = {
     "TIFF": ".tiff",
 }
 _REGION_ID_RE = re.compile(r"^[a-z0-9_]+$")
+_REGION_KEY_RE = re.compile(r"^(front|back):(centering|corners|edges|surface):[a-z0-9_]+$")
 _SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff", ".tif": "image/tiff"}
 
 
@@ -281,6 +288,50 @@ def confirm_crop(
 
     confirmed = _confirmed_sides(submission)
     submission = _advance_submission(db, submission, confirmed, {ScanSide(side)}, code)
+    db.refresh(submission)
+    return submission
+
+
+@router.post("/{code}/regions/toggle", response_model=SubmissionDetail)
+def toggle_region(
+    code: str,
+    payload: RegionToggleIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Submission:
+    """Dismiss (or restore) a single auto-detected finding the client
+    believes is mistaken, then recompute the whole assessment (category
+    scores + company comparisons) ignoring the dismissed findings. The
+    dismissal flows into the published report, which is clearly marked
+    client-adjusted -- see zgrader.reports.builder."""
+    submission = _get_owned_submission(code, user, db)
+    if submission.status != SubmissionStatus.draft_ready:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Submission is '{submission.status.value}' -- findings can only be adjusted while the draft is under review",
+        )
+    if not _REGION_KEY_RE.match(payload.region_key):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid region key")
+
+    current = list(submission.dismissed_regions or [])
+    if payload.dismissed:
+        if payload.region_key not in current:
+            current.append(payload.region_key)
+    else:
+        current = [k for k in current if k != payload.region_key]
+    submission.dismissed_regions = current
+
+    db.add(
+        AuditLog(
+            submission_id=submission.id,
+            user_id=user.id,
+            action="region_dismissed" if payload.dismissed else "region_restored",
+            detail={"region_key": payload.region_key},
+        )
+    )
+    db.flush()
+    recompute.recompute_submission(db, submission)
+    db.commit()
     db.refresh(submission)
     return submission
 

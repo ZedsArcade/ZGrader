@@ -231,8 +231,15 @@ def _build_surface_regions(
     blobs.sort(key=lambda item: item[1], reverse=True)
     blobs = blobs[:MAX_SURFACE_REGIONS]
 
+    # anomaly_fraction (surface.py) is mean(anomaly_mask), i.e.
+    # anomaly_px / mask.size -- so a blob's contribution to that fraction is
+    # its own pixel count over the same denominator. Storing it per blob
+    # lets recompute.py subtract a dismissed blob and re-derive the surface
+    # score without reprocessing the image.
+    face_area_px = anomaly_mask.size
+
     regions = []
-    for i, (label, _area) in enumerate(blobs):
+    for i, (label, blob_area_px) in enumerate(blobs):
         # anomaly_mask is computed on the cropped `face` sub-image (see
         # surface.py's measure_surface), so every coordinate here needs the
         # same (ex_w, ex_h) offset applied to land on the full card_image.
@@ -246,7 +253,9 @@ def _build_surface_regions(
         length_mm = max(w_px, h_px) / px_per_mm
         note = _surface_note(length_mm, is_es)
         box = (x, y, x + w_px, y + h_px)
-        regions.append(_region(f"blob_{i}", "blob", "flag", result["raw_score"], box, (cx, cy), w, h, note))
+        region = _region(f"blob_{i}", "blob", "flag", result["raw_score"], box, (cx, cy), w, h, note)
+        region["area_fraction"] = round(float(blob_area_px) / max(1, face_area_px), 6)
+        regions.append(region)
     return regions
 
 

@@ -2,16 +2,21 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>{{ strings.report_title }} {{ submission.code }}</title>
+<title>{{ strings.report_title }}{% if client_adjusted %} {{ strings.adjusted_title_suffix }}{% endif %} {{ submission.code }}</title>
 <link rel="stylesheet" href="report.css">
 </head>
-<body>
+<body{% if client_adjusted %} class="is-adjusted"{% endif %}>
+  {% if client_adjusted %}
+  <div class="adjusted-watermark">{{ strings.adjusted_watermark }}</div>
+  <div class="adjusted-banner">{{ strings.adjusted_banner.format(count=dismissed_count) }}</div>
+  {% endif %}
   <header class="report-header">
     {% if business.logo_path %}
     <img class="logo" src="{{ business.logo_path | file_uri }}" alt="logo">
     {% endif %}
     <div class="business-info">
       <h1>{{ business.name }}</h1>
+      {% if client_adjusted %}<p class="adjusted-title-tag">{{ strings.report_title }} {{ strings.adjusted_title_suffix }}</p>{% endif %}
       {% if business.contact %}<p class="contact">{{ business.contact }}</p>{% endif %}
     </div>
     <div class="submission-info">
@@ -43,7 +48,11 @@
           </td>
           <td>{{ '%.1f' % row.front_score if row.front_score is not none else '—' }}</td>
           <td>{{ '%.1f' % row.back_score if row.back_score is not none else '—' }}</td>
-          <td class="combined-score">{{ '%.1f' % row.combined_score if row.combined_score is not none else '—' }}</td>
+          <td class="combined-score">
+            {%- if row.adjusted %}<span class="original-score">{{ strings.adjusted_original_prefix }} {{ '%.1f' % row.original_combined_score }}</span> {% endif -%}
+            {{ '%.1f' % row.combined_score if row.combined_score is not none else '—' }}
+            {%- if row.adjusted %} <span class="adjusted-tag">{{ strings.adjusted_title_suffix }}</span>{% endif -%}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -85,6 +94,22 @@
     {% endfor %}
   </section>
 
+  {% if client_adjusted %}
+  <section class="adjustments">
+    <h2>{{ strings.adjustments_title }}</h2>
+    <p class="comparison-intro">{{ strings.adjustments_intro }}</p>
+    <ul>
+      {% for finding in dismissed_findings %}
+      <li>
+        <strong>{{ finding.category_label }}{% if finding.location %} &mdash; {{ finding.location }}{% endif %}</strong>
+        ({{ strings[finding.side ~ '_caption'] if (finding.side ~ '_caption') in strings else finding.side }})
+        {%- if finding.note %}: {{ finding.note }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   <section class="limitations">
     <h2>{{ strings.limitations_title }}</h2>
     <ul>
@@ -96,6 +121,7 @@
 
   <footer class="report-footer">
     <p>{{ disclaimer }}</p>
+    {% if client_adjusted %}<p class="adjusted-disclaimer">{{ strings.adjusted_disclaimer }}</p>{% endif %}
     <p class="meta">{{ strings.generated_label }} {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
   </footer>
 </body>

@@ -30,12 +30,15 @@ export default function SubmissionOverview({
   submission,
   token,
   locale = "en",
+  onToggleRegion,
 }: {
   submission: SubmissionDetail;
   token: string;
   locale?: Locale;
+  onToggleRegion: (regionKey: string, dismissed: boolean) => void;
 }) {
   const t = getDictionary(locale);
+  const dismissedRegions = new Set(submission.dismissed_regions ?? []);
   const combinedByCategory = new Map(
     submission.analysis_results.filter((r) => r.side === "combined").map((r) => [r.category, r])
   );
@@ -51,6 +54,18 @@ export default function SubmissionOverview({
 
   return (
     <>
+      {dismissedRegions.size > 0 && (
+        <Card className="mb-5 border-2" style={{ borderColor: "var(--neon-pink)" }}>
+          <Card.Content>
+            <p className="text-sm font-semibold" style={{ color: "var(--neon-pink)" }}>
+              ⚠ {t.submissionDetail.adjustedBannerTitle}
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              {t.submissionDetail.adjustedBannerBody.replace("{count}", String(dismissedRegions.size))}
+            </p>
+          </Card.Content>
+        </Card>
+      )}
       <Card>
         <Card.Content>
           <div className="flex items-start justify-between gap-4">
@@ -73,23 +88,38 @@ export default function SubmissionOverview({
               {CATEGORY_ORDER.filter((c) => combinedByCategory.has(c)).map((category) => {
                 const result = combinedByCategory.get(category)!;
                 const lowerConfidence = Boolean(result.flags?.lower_confidence);
+                const original = (result.measurements?.original_raw_score as number | undefined) ?? null;
+                const adjusted =
+                  original !== null && Math.round(original * 10) !== Math.round(result.raw_score * 10);
                 return (
                   <div
                     key={category}
                     className="interactive-card verdict-reveal rounded-xl border border-border bg-surface-secondary p-3"
                   >
-                    <div className="flex items-center gap-1.5 text-xs text-muted">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
                       {t.category[category]}
                       {lowerConfidence && (
                         <Chip color="warning" variant="soft" size="sm">
                           {t.submissionDetail.lowerConfidence}
                         </Chip>
                       )}
+                      {adjusted && (
+                        <Chip color="danger" variant="soft" size="sm">
+                          {t.submissionDetail.adjustedChip}
+                        </Chip>
+                      )}
                     </div>
-                    <div
-                      className={`mt-1 inline-flex rounded-lg px-2 py-0.5 text-2xl font-semibold ${gradeTierClass(result.raw_score)}`}
-                    >
-                      {result.raw_score.toFixed(1)}
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <div
+                        className={`inline-flex rounded-lg px-2 py-0.5 text-2xl font-semibold ${gradeTierClass(result.raw_score)}`}
+                      >
+                        {result.raw_score.toFixed(1)}
+                      </div>
+                      {adjusted && (
+                        <span className="text-xs text-muted line-through">
+                          {t.submissionDetail.originalScorePrefix} {original!.toFixed(1)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -107,7 +137,14 @@ export default function SubmissionOverview({
             </Card.Title>
           </Card.Header>
           <Card.Content>
-            <AnnotatedPhoto token={token} code={submission.submission_code} side={side} results={resultsBySide.get(side)!} />
+            <AnnotatedPhoto
+              token={token}
+              code={submission.submission_code}
+              side={side}
+              results={resultsBySide.get(side)!}
+              dismissedRegions={dismissedRegions}
+              onToggle={onToggleRegion}
+            />
           </Card.Content>
         </Card>
       ))}

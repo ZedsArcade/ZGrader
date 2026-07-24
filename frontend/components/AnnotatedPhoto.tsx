@@ -27,6 +27,12 @@ function regionKey(region: CategoryRegion): string {
   return `${region.category}:${region.id}`;
 }
 
+// The persisted dismissal key includes the side (front/back), matching
+// Submission.dismissed_regions and the toggle endpoint.
+function dismissKey(side: api.ScanSide, region: CategoryRegion): string {
+  return `${side}:${region.category}:${region.id}`;
+}
+
 // How many breakout panels/leader-lines show before the viewer expands the
 // rest -- a card with a dozen-plus flags previously sprawled with leader
 // lines crossing all over the photo. Worst-scoring regions come first (most
@@ -39,11 +45,15 @@ export default function AnnotatedPhoto({
   code,
   side,
   results,
+  dismissedRegions,
+  onToggle,
 }: {
   token: string;
   code: string;
   side: api.ScanSide;
   results: api.AnalysisResult[];
+  dismissedRegions: Set<string>;
+  onToggle: (regionKey: string, dismissed: boolean) => void;
 }) {
   const t = useTranslations();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -193,10 +203,10 @@ export default function AnnotatedPhoto({
               {allRegions.map((region) => {
                 const [x0, y0, x1, y1] = region.bbox_norm;
                 const isFlag = region.severity === "flag";
-                // A low-confidence centering frame draws muted + dashed
-                // rather than asserting a precise (and likely misaligned)
-                // box -- honest about the holo/full-art limitation.
-                const muted = region.low_confidence;
+                // A low-confidence centering frame, or a region the client
+                // dismissed, draws muted + dashed rather than asserting a
+                // solid finding box.
+                const muted = region.low_confidence || dismissedRegions.has(dismissKey(side, region));
                 return (
                   <rect
                     key={regionKey(region)}
@@ -258,42 +268,63 @@ export default function AnnotatedPhoto({
         {visible.length === 0 ? (
           <p className="text-sm text-muted">{t.breakout.noRegionsNote}</p>
         ) : (
-          visible.map((region, i) => (
-            <div
-              key={regionKey(region)}
-              ref={(el) => {
-                if (el) panelRefs.current.set(regionKey(region), el);
-                else panelRefs.current.delete(regionKey(region));
-              }}
-              className="interactive-card flex flex-col gap-2 rounded-xl border border-border bg-surface-secondary p-3"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-                  style={{ backgroundColor: "var(--neon-pink)", color: "var(--neon-foreground)" }}
-                >
-                  {i + 1}
-                </span>
-                <span className="text-sm font-semibold text-foreground">
-                  {t.category[region.category as keyof typeof t.category]}
-                </span>
-                <Chip size="sm" color={SEVERITY_CHIP_COLOR[region.severity]} variant="soft">
-                  {region.severity === "flag" ? t.breakout.flaggedChip : t.breakout.okChip}
-                </Chip>
+          visible.map((region, i) => {
+            const dKey = dismissKey(side, region);
+            const isDismissed = dismissedRegions.has(dKey);
+            return (
+              <div
+                key={regionKey(region)}
+                ref={(el) => {
+                  if (el) panelRefs.current.set(regionKey(region), el);
+                  else panelRefs.current.delete(regionKey(region));
+                }}
+                className={`interactive-card flex flex-col gap-2 rounded-xl border border-border bg-surface-secondary p-3 ${
+                  isDismissed ? "opacity-55" : ""
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                    style={{ backgroundColor: "var(--neon-pink)", color: "var(--neon-foreground)" }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span
+                    className={`text-sm font-semibold text-foreground ${isDismissed ? "line-through" : ""}`}
+                  >
+                    {t.category[region.category as keyof typeof t.category]}
+                  </span>
+                  <Chip size="sm" color={SEVERITY_CHIP_COLOR[region.severity]} variant="soft">
+                    {region.severity === "flag" ? t.breakout.flaggedChip : t.breakout.okChip}
+                  </Chip>
+                  {isDismissed && (
+                    <Chip size="sm" color="default" variant="soft">
+                      {t.breakout.dismissedBadge}
+                    </Chip>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onToggle(dKey, !isDismissed)}
+                    className="ml-auto text-xs font-semibold underline-offset-2 hover:underline"
+                    style={{ color: "var(--neon-pink)" }}
+                  >
+                    {isDismissed ? t.breakout.restore : t.breakout.dismiss}
+                  </button>
+                </div>
+                {cropUrls[regionKey(region)] && (
+                  <img
+                    src={cropUrls[regionKey(region)]}
+                    alt={t.breakout.zoomedViewLabel}
+                    className="h-40 w-full rounded-lg border border-border object-cover"
+                  />
+                )}
+                {region.note && <p className="text-sm text-muted">{region.note}</p>}
+                {region.low_confidence && (
+                  <p className="text-xs italic text-muted">{t.breakout.lowConfidenceNote}</p>
+                )}
               </div>
-              {cropUrls[regionKey(region)] && (
-                <img
-                  src={cropUrls[regionKey(region)]}
-                  alt={t.breakout.zoomedViewLabel}
-                  className="h-40 w-full rounded-lg border border-border object-cover"
-                />
-              )}
-              {region.note && <p className="text-sm text-muted">{region.note}</p>}
-              {region.low_confidence && (
-                <p className="text-xs italic text-muted">{t.breakout.lowConfidenceNote}</p>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
         {(hiddenCount > 0 || (expanded && ranked.length > COLLAPSED_COUNT)) && (
           <button

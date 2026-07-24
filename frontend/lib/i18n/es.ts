@@ -124,6 +124,11 @@ export const es: Dictionary = {
     processingTitle: "Analizando carta…",
     processingDescription: "Esto normalmente solo toma un momento.",
     photoTitle: "Foto analizada",
+    adjustedChip: "Ajustado",
+    originalScorePrefix: "era",
+    adjustedBannerTitle: "Ha ajustado esta evaluación",
+    adjustedBannerBody:
+      "{count} hallazgo(s) detectado(s) automáticamente descartado(s). Las puntuaciones reflejan sus cambios, y el informe se etiquetará claramente como ajustado por el cliente.",
   },
   breakout: {
     front: "Frente",
@@ -135,6 +140,10 @@ export const es: Dictionary = {
     showMore: "Mostrar {count} problema(s) más",
     showLess: "Mostrar menos",
     lowConfidenceNote: "El centrado no se pudo medir de forma fiable en esta carta.",
+    dismiss: "Descartar",
+    restore: "Restaurar",
+    dismissedBadge: "Descartado",
+    toggleFailed: "No se pudo actualizar la evaluación.",
   },
   upload: {
     title: "Suba las fotos de su carta",

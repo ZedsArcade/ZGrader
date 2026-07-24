@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from zgrader.models import SubmissionLanguage, SubmissionStatus
 
@@ -64,9 +64,22 @@ class SubmissionDetail(BaseModel):
     card: CardOut | None
     scan_sides: list[str] = []
     confirmed_sides: list[str] = []
+    dismissed_regions: list[str] = []
     analysis_results: list[AnalysisResultOut] = []
     company_comparisons: list[ComparisonOut] = []
+
+    @field_validator("dismissed_regions", mode="before")
+    @classmethod
+    def _none_to_empty(cls, value: object) -> object:
+        # The column is nullable JSONB (NULL == none dismissed); coerce to []
+        # so the API always returns a list.
+        return value or []
 
 
 class CropPointsIn(BaseModel):
     points: list[tuple[float, float]]
+
+
+class RegionToggleIn(BaseModel):
+    region_key: str
+    dismissed: bool

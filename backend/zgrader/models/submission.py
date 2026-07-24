@@ -2,7 +2,7 @@ import enum
 import uuid
 
 from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from zgrader.db import Base
@@ -56,6 +56,12 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     auto_publish: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Findings the client dismissed as mistaken auto-detections, as
+    # "{side}:{category}:{region_id}" keys (e.g. "front:surface:blob_2").
+    # The assessment (category scores + company comparisons) is recomputed
+    # ignoring these -- see zgrader.analysis.recompute. NULL == none
+    # dismissed.
+    dismissed_regions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     language: Mapped[SubmissionLanguage] = mapped_column(
         Enum(SubmissionLanguage, name="submission_language"),
         default=SubmissionLanguage.en,
@@ -87,6 +93,12 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         (partial check)", and "both" without those being separate
         SubmissionStatus values."""
         return sorted({s.side.value for s in self.scan_images})
+
+    @property
+    def client_adjusted(self) -> bool:
+        """True when the client has dismissed at least one auto-detected
+        finding, so the assessment (and report) must be marked adjusted."""
+        return bool(self.dismissed_regions)
 
     @property
     def confirmed_sides(self) -> list[str]:

@@ -60,6 +60,15 @@ function Detail({ code }: { code: string }) {
     }
   }
 
+  async function handleToggleRegion(regionKey: string, dismissed: boolean) {
+    if (!token) return;
+    try {
+      setSubmission(await api.toggleRegion(token, code, regionKey, dismissed));
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : t.breakout.toggleFailed);
+    }
+  }
+
   if (error) {
     return <ErrorState message={error} onRetry={load} retryLabel={t.common.retry} />;
   }
@@ -105,7 +114,12 @@ function Detail({ code }: { code: string }) {
         <ProcessingState status={submission.status} locale={locale} />
       ) : (
         <div className="flex flex-col gap-5">
-          <SubmissionOverview submission={submission} token={token!} locale={locale} />
+          <SubmissionOverview
+            submission={submission}
+            token={token!}
+            locale={locale}
+            onToggleRegion={handleToggleRegion}
+          />
           {UPLOAD_ALLOWED_STATUSES.has(submission.status) && !submission.confirmed_sides.includes("back") && (
             <UploadStep
               code={code}

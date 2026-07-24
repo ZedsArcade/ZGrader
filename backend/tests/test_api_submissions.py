@@ -587,3 +587,114 @@ def test_confirm_crop_409_once_published(db_session, sample_scan_paths):
         headers=_auth_headers(token),
     )
     assert resp.status_code == 409
+
+
+def _combined_score(body: dict, category: str) -> float:
+    for r in body["analysis_results"]:
+        if r["side"] == "combined" and r["category"] == category:
+            return float(r["raw_score"])
+    raise AssertionError(f"no combined {category} result")
+
+
+def _draft_ready_front(token: str, code: str, sample_scan_paths) -> dict:
+    _upload(token, code, "front", sample_scan_paths["pokemon_front"])
+    return _confirm_crop(token, code, "front").json()
+
+
+def test_toggle_region_dismiss_raises_score_and_reverts(db_session, sample_scan_paths):
+    # pokemon_front is generated with a whitened top-left corner, so that
+    # corner comes back flagged and low-scoring; dismissing it must raise
+    # the corners combined score, and restoring it must revert exactly.
+    token = _register_and_login("toggle1@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    body = _draft_ready_front(token, code, sample_scan_paths)
+    assert body["status"] == "draft_ready"
+    before = _combined_score(body, "corners")
+
+    resp = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 200
+    adjusted = resp.json()
+    assert adjusted["dismissed_regions"] == ["front:corners:top_left"]
+    assert _combined_score(adjusted, "corners") > before
+
+    restored = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": False},
+        headers=_auth_headers(token),
+    ).json()
+    assert restored["dismissed_regions"] == []
+    assert _combined_score(restored, "corners") == before
+
+
+def test_toggle_region_preserves_original_score_for_display(db_session, sample_scan_paths):
+    token = _register_and_login("toggle2@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _draft_ready_front(token, code, sample_scan_paths)
+
+    adjusted = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token),
+    ).json()
+
+    combined_corners = next(
+        r for r in adjusted["analysis_results"] if r["side"] == "combined" and r["category"] == "corners"
+    )
+    # the pristine auto-detected score is preserved for the "was X.X" display
+    original = combined_corners["measurements"]["original_raw_score"]
+    assert float(original) < float(combined_corners["raw_score"])
+
+
+def test_toggle_region_400_for_bad_key(db_session, sample_scan_paths):
+    token = _register_and_login("toggle3@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _draft_ready_front(token, code, sample_scan_paths)
+
+    resp = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:TOP-LEFT", "dismissed": True},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 400
+
+
+def test_toggle_region_409_when_not_draft_ready(db_session):
+    # A freshly-created submission (no scans) is in 'created', not
+    # 'draft_ready' -- findings can't be adjusted yet.
+    token = _register_and_login("toggle4@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+
+    resp = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 409
+
+
+def test_toggle_region_403_for_non_owner(db_session, sample_scan_paths):
+    token_a = _register_and_login("toggleowner@example.com")
+    token_b = _register_and_login("toggleintruder@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token_a)
+    ).json()["submission_code"]
+    _draft_ready_front(token_a, code, sample_scan_paths)
+
+    resp = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token_b),
+    )
+    assert resp.status_code == 403

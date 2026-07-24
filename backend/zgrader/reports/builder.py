@@ -11,7 +11,12 @@ from weasyprint import HTML
 
 from zgrader.config import config
 from zgrader.models import AnalysisSide, GradingCompany, Report, ReportStatus, Settings, Submission
-from zgrader.reports.strings import CATEGORY_LABELS, REPORT_STRINGS, SEVERITY_LABELS
+from zgrader.reports.strings import (
+    CATEGORY_LABELS,
+    REGION_LOCATION_LABELS,
+    REPORT_STRINGS,
+    SEVERITY_LABELS,
+)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 CATEGORY_ORDER = ["centering", "corners", "edges", "surface"]
@@ -36,6 +41,53 @@ def _severity_rank(severity) -> int:
     return _SEVERITY_SORT_RANK.get(value, 99)
 
 
+def _region_location(category: str, region_id: str, language: str) -> str:
+    if category == "surface" and region_id.startswith("blob_"):
+        try:
+            n = int(region_id.split("_", 1)[1]) + 1
+        except (ValueError, IndexError):
+            n = region_id
+        return REPORT_STRINGS[language]["surface_finding_label"].format(n=n)
+    return REGION_LOCATION_LABELS[language].get(region_id, region_id)
+
+
+def _build_dismissed_findings(submission, language: str) -> list[dict]:
+    """Itemise every client-dismissed finding (side, category, human
+    location, and the original finding note) by resolving each
+    dismissed_regions key against the stored per-side regions -- powers the
+    report's transparent 'Client Adjustments' section."""
+    keys = submission.dismissed_regions or []
+    if not keys:
+        return []
+
+    region_index: dict[tuple[str, str, str], dict] = {}
+    for result in submission.analysis_results:
+        if result.side == AnalysisSide.combined:
+            continue
+        side = result.side.value
+        category = result.category.value if hasattr(result.category, "value") else str(result.category)
+        for region in (result.measurements or {}).get("regions", []):
+            region_index[(side, category, region["id"])] = region
+
+    labels = CATEGORY_LABELS[language]
+    findings = []
+    for key in keys:
+        parts = key.split(":")
+        if len(parts) != 3:
+            continue
+        side, category, region_id = parts
+        region = region_index.get((side, category, region_id))
+        findings.append(
+            {
+                "side": side,
+                "category_label": labels.get(category, category),
+                "location": _region_location(category, region_id, language),
+                "note": (region or {}).get("note"),
+            }
+        )
+    return findings
+
+
 def build_report_context(submission: Submission, settings: Settings) -> dict:
     card = submission.card
 
@@ -56,10 +108,20 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
         back = sides.get(AnalysisSide.back)
         if combined and combined.flags.get("lower_confidence"):
             lower_confidence_categories.append(category)
+        combined_score = float(combined.raw_score) if combined else None
+        # Pristine auto-detected score, stashed by pipeline._persist_combined
+        # -- shown struck-through beside the adjusted score when the client
+        # dismissed findings that changed this category.
+        original = (combined.measurements or {}).get("original_raw_score") if combined else None
+        original_score = float(original) if original is not None else None
         scorecard.append(
             {
                 "category": category,
-                "combined_score": float(combined.raw_score) if combined else None,
+                "combined_score": combined_score,
+                "original_combined_score": original_score,
+                "adjusted": original_score is not None
+                and combined_score is not None
+                and round(original_score, 2) != round(combined_score, 2),
                 "front_score": float(front.raw_score) if front else None,
                 "back_score": float(back.raw_score) if back else None,
                 "front_image": front.annotated_image_path if front else None,
@@ -74,6 +136,7 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
         comparisons.sort(key=lambda c: (_severity_rank(c.severity), c.company.value))
 
     language = submission.language.value
+    dismissed_findings = _build_dismissed_findings(submission, language)
     return {
         "strings": REPORT_STRINGS[language],
         "category_labels": CATEGORY_LABELS[language],
@@ -100,6 +163,9 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
         "comparisons_by_category": comparisons_by_category,
         "companies": [c.value for c in GradingCompany],
         "lower_confidence_categories": lower_confidence_categories,
+        "client_adjusted": bool(dismissed_findings),
+        "dismissed_count": len(dismissed_findings),
+        "dismissed_findings": dismissed_findings,
         "generated_at": datetime.datetime.now(datetime.timezone.utc),
     }
 
@@ -127,7 +193,10 @@ def generate_report(db: Session, submission: Submission) -> Report:
     version = max(existing_versions, default=0) + 1
 
     reports_dir = Path(config.reports_dir) / submission.submission_code
-    pdf_path = reports_dir / f"report_v{version}.pdf"
+    # Even the saved filename is labelled when the client adjusted the
+    # assessment, so an adjusted report can't be mistaken for a pristine one.
+    suffix = "_client_adjusted" if context["client_adjusted"] else ""
+    pdf_path = reports_dir / f"report_v{version}{suffix}.pdf"
     build_pdf(context, pdf_path)
 
     report = Report(

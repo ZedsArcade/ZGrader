@@ -62,6 +62,15 @@ function AdminDetail({ code }: { code: string }) {
     }
   }
 
+  async function handleToggleRegion(regionKey: string, dismissed: boolean) {
+    if (!token) return;
+    try {
+      setSubmission(await api.toggleRegion(token, code, regionKey, dismissed));
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Couldn't update the assessment");
+    }
+  }
+
   async function handleAutoPublishChange(option: string) {
     if (!token) return;
     setBusy(true);
@@ -145,7 +154,7 @@ function AdminDetail({ code }: { code: string }) {
         {PENDING_STATUSES.has(submission.status) ? (
           <ProcessingState status={submission.status} />
         ) : (
-          <SubmissionOverview submission={submission} token={token!} />
+          <SubmissionOverview submission={submission} token={token!} onToggleRegion={handleToggleRegion} />
         )}
       </div>
     </>
