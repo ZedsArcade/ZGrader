@@ -145,11 +145,22 @@ export const en = {
     showMore: "Show {count} more issue(s)",
     showLess: "Show less",
     lowConfidenceNote: "Centering could not be measured reliably on this card.",
+    lowConfidenceGenericNote:
+      "Lower-confidence detection -- flat scan light catches only pronounced defects here. Dismiss it if you disagree.",
     dismiss: "Dismiss",
     restore: "Restore",
     dismissedBadge: "Dismissed",
     toggleFailed: "Couldn't update the assessment.",
     aiObservationsTitle: "AI observations (assistive, lower confidence)",
+  },
+  inspector: {
+    inspect: "Inspect photo",
+    close: "Close",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    resetZoom: "Fit",
+    hideMarkers: "Hide markings",
+    showMarkers: "Show markings",
   },
   upload: {
     title: "Upload your card scans",

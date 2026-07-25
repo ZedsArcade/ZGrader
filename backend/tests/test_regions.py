@@ -7,7 +7,9 @@ from tests.fixtures.generate_samples import make_card_scan
 from zgrader.analysis import centering, corners, edges, preprocessing, regions, surface
 from zgrader.models import AnalysisCategory
 
-_DPI = 600
+# The synthetic fixtures are rendered at 600 DPI, so this is their true
+# pixels-per-mm (see analysis/scale.py -- measurement no longer reads DPI).
+_PX_PER_MM = 600 / 25.4
 
 
 def _deskewed(**kwargs):
@@ -20,7 +22,7 @@ def _deskewed(**kwargs):
 
 
 def _regions_for(category, card_image, result, extra, language="en"):
-    return regions.build_regions(category, card_image.shape[:2], _DPI, language, result, extra)
+    return regions.build_regions(category, card_image.shape[:2], _PX_PER_MM, language, result, extra)
 
 
 def test_pristine_corners_are_all_ok_with_no_notes():
@@ -82,7 +84,7 @@ def test_whitened_edge_produces_flag_with_note():
 
 def test_centered_card_has_no_centering_region():
     card = _deskewed()
-    result = centering.measure_centering(card, _DPI)
+    result = centering.measure_centering(card, _PX_PER_MM)
     region_list = _regions_for(AnalysisCategory.centering, card, result, None)
 
     assert region_list == []
@@ -90,7 +92,7 @@ def test_centered_card_has_no_centering_region():
 
 def test_off_center_card_produces_one_frame_region():
     card = _deskewed(lr_offset_frac=0.4)
-    result = centering.measure_centering(card, _DPI)
+    result = centering.measure_centering(card, _PX_PER_MM)
     region_list = _regions_for(AnalysisCategory.centering, card, result, None)
 
     assert len(region_list) == 1
@@ -141,7 +143,7 @@ def test_surface_regions_capped_at_max():
         mask[y : y + 4, 10:110] = True  # 100px x 4px -> thin, high aspect
 
     fake_result = {"raw_score": 5.0, "measurements": {"corner_exclusion_fraction": 0.12}}
-    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _DPI, "en", fake_result, mask)
+    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _PX_PER_MM, "en", fake_result, mask)
 
     assert len(region_list) == regions.MAX_SURFACE_REGIONS
 
@@ -162,7 +164,7 @@ def test_thick_word_shaped_blob_is_filtered_out():
     mask[20:50, 10:130] = True
 
     fake_result = {"raw_score": 5.0, "measurements": {"corner_exclusion_fraction": 0.12}}
-    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _DPI, "en", fake_result, mask)
+    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _PX_PER_MM, "en", fake_result, mask)
 
     assert region_list == []
 
@@ -185,7 +187,7 @@ def test_glyph_shaped_blob_is_filtered_out_as_text_not_scratch():
     mask[45:50, 0:50] = True
 
     fake_result = {"raw_score": 5.0, "measurements": {"corner_exclusion_fraction": 0.12}}
-    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _DPI, "en", fake_result, mask)
+    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _PX_PER_MM, "en", fake_result, mask)
 
     assert region_list == []
 
@@ -203,6 +205,6 @@ def test_elongated_blob_is_kept_as_scratch_like():
     mask[20:25, 10:110] = True
 
     fake_result = {"raw_score": 5.0, "measurements": {"corner_exclusion_fraction": 0.12}}
-    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _DPI, "en", fake_result, mask)
+    region_list = regions.build_regions(AnalysisCategory.surface, (h, w), _PX_PER_MM, "en", fake_result, mask)
 
     assert len(region_list) == 1

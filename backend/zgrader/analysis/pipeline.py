@@ -22,6 +22,7 @@ from zgrader.analysis import (
     recompute,
     regions,
     rules_engine,
+    scale,
     surface,
 )
 
@@ -42,15 +43,15 @@ class PipelineError(Exception):
     pass
 
 
-def _analyze_centering(card_image: np.ndarray, dpi: int) -> tuple[dict, None]:
-    return centering.measure_centering(card_image, dpi), None
+def _analyze_centering(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, None]:
+    return centering.measure_centering(card_image, px_per_mm), None
 
 
-def _analyze_corners(card_image: np.ndarray, dpi: int) -> tuple[dict, None]:
+def _analyze_corners(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, None]:
     return corners.measure_corners(card_image), None
 
 
-def _analyze_edges(card_image: np.ndarray, dpi: int) -> tuple[dict, None]:
+def _analyze_edges(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, None]:
     return edges.measure_edges(card_image), None
 
 
@@ -58,7 +59,7 @@ _ANALYZERS = {
     AnalysisCategory.centering: _analyze_centering,
     AnalysisCategory.corners: _analyze_corners,
     AnalysisCategory.edges: _analyze_edges,
-    AnalysisCategory.surface: lambda card_image, dpi: surface.measure_surface(card_image),
+    AnalysisCategory.surface: lambda card_image, px_per_mm: surface.measure_surface(card_image),
 }
 
 
@@ -93,7 +94,7 @@ def _persist_side(
     reports_dir: Path,
     side: ScanSide,
     card_image: np.ndarray,
-    dpi: int,
+    px_per_mm: float,
 ) -> dict[AnalysisCategory, dict]:
     reports_dir.mkdir(parents=True, exist_ok=True)
     results: dict[AnalysisCategory, dict] = {}
@@ -112,20 +113,20 @@ def _persist_side(
     ai_observations = _run_ai_analysis(card_image, side.value, language, submission.submission_code)
 
     for category, analyzer in _ANALYZERS.items():
-        result, extra = analyzer(card_image, dpi)
+        result, extra = analyzer(card_image, px_per_mm)
         image = _annotate_category(category, card_image, result, extra)
         image_path = reports_dir / f"{side.value}_{category.value}.png"
         image.save(image_path)
 
         result["measurements"]["regions"] = regions.build_regions(
-            category, (h, w), dpi, language, result, extra
+            category, (h, w), px_per_mm, language, result, extra
         )
         if category == AnalysisCategory.surface:
             # Crease candidates ride along the surface side's regions so they
             # reuse crops/overlay/dismiss; flag-only (no score effect).
-            crease_lines = creases.detect_creases(card_image, dpi)
+            crease_lines = creases.detect_creases(card_image, px_per_mm)
             result["measurements"]["regions"].extend(
-                regions.build_crease_regions((h, w), dpi, language, crease_lines)
+                regions.build_crease_regions((h, w), language, crease_lines)
             )
             if ai_observations:
                 result["measurements"]["ai_observations"] = ai_observations
@@ -134,7 +135,15 @@ def _persist_side(
                 continue
             x0, y0, x1, y1 = region["bbox_norm"]
             bbox_px = (x0 * w, y0 * h, x1 * w, y1 * h)
-            crop = annotate.crop_region(card_image, bbox_px)
+            # A crease's bbox spans most of the card, so the crop alone shows
+            # "somewhere in here" -- draw the actual segment inside it.
+            line_norm = region.get("line_norm")
+            line_px = (
+                (line_norm[0] * w, line_norm[1] * h, line_norm[2] * w, line_norm[3] * h)
+                if line_norm
+                else None
+            )
+            crop = annotate.crop_region(card_image, bbox_px, line_px=line_px)
             crop_path = reports_dir / f"{side.value}_{category.value}_{region['id']}_crop.png"
             crop.save(crop_path)
 
@@ -244,11 +253,22 @@ def run_analysis(db: Session, submission: Submission) -> None:
 
     reports_dir = Path(config.reports_dir) / submission.submission_code
 
+    # Physical card size drives the pixel->mm scale (see analysis/scale.py);
+    # the image file's DPI metadata is meaningless for a phone photo.
+    width_mm, height_mm = scale.dimensions_for(db, submission.card.game if submission.card else None)
+
     try:
         front_card = _load_deskewed_card(front_scan)
     except ValueError as exc:
         raise PipelineError(f"Front scan preprocessing failed: {exc}") from exc
-    front_results = _persist_side(db, submission, reports_dir, ScanSide.front, front_card, front_scan.dpi)
+    front_results = _persist_side(
+        db,
+        submission,
+        reports_dir,
+        ScanSide.front,
+        front_card,
+        scale.px_per_mm(front_card.shape[:2], width_mm, height_mm),
+    )
 
     back_results = None
     if back_scan is not None:
@@ -256,7 +276,14 @@ def run_analysis(db: Session, submission: Submission) -> None:
             back_card = _load_deskewed_card(back_scan)
         except ValueError as exc:
             raise PipelineError(f"Back scan preprocessing failed: {exc}") from exc
-        back_results = _persist_side(db, submission, reports_dir, ScanSide.back, back_card, back_scan.dpi)
+        back_results = _persist_side(
+            db,
+            submission,
+            reports_dir,
+            ScanSide.back,
+            back_card,
+            scale.px_per_mm(back_card.shape[:2], width_mm, height_mm),
+        )
 
     _persist_combined(db, submission, front_results, back_results)
     db.flush()

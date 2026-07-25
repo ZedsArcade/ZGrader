@@ -65,6 +65,10 @@ export interface Region {
   // (holo/full-art card with no clean printed border) -- the UI draws it
   // muted/dashed instead of asserting a precise centering box.
   low_confidence?: boolean;
+  // [x0, y0, x1, y1] normalized: an elongated defect's actual segment (a
+  // crease). Its bounding box spans most of the card, so the line is what
+  // shows where it really runs.
+  line_norm?: [number, number, number, number];
 }
 
 export interface Comparison {
