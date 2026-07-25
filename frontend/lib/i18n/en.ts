@@ -127,6 +127,13 @@ export const en = {
     adjustedBannerTitle: "You've adjusted this assessment",
     adjustedBannerBody:
       "{count} auto-detected finding(s) dismissed. Scores below reflect your changes, and the report will be clearly labelled as client-adjusted.",
+    deleteButton: "Delete submission",
+    deleteTitle: "Delete this submission?",
+    deleteBody:
+      "This permanently deletes the submission, its scans, analysis, and any report. This cannot be undone.",
+    deleteConfirm: "Delete permanently",
+    deleteCancel: "Cancel",
+    deleteFailed: "Couldn't delete the submission.",
   },
   breakout: {
     front: "Front",
@@ -142,6 +149,7 @@ export const en = {
     restore: "Restore",
     dismissedBadge: "Dismissed",
     toggleFailed: "Couldn't update the assessment.",
+    aiObservationsTitle: "AI observations (assistive, lower confidence)",
   },
   upload: {
     title: "Upload your card scans",

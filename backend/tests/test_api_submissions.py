@@ -698,3 +698,72 @@ def test_toggle_region_403_for_non_owner(db_session, sample_scan_paths):
         headers=_auth_headers(token_b),
     )
     assert resp.status_code == 403
+
+
+def test_delete_submission_removes_rows_and_files(db_session, sample_scan_paths):
+    from pathlib import Path
+
+    from zgrader.config import config
+
+    token = _register_and_login("del1@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _draft_ready_front(token, code, sample_scan_paths)
+
+    scans_dir = Path(config.scans_dir) / code
+    reports_dir = Path(config.reports_dir) / code
+    assert scans_dir.exists()
+    assert reports_dir.exists()
+
+    resp = client.delete(f"/submissions/{code}", headers=_auth_headers(token))
+    assert resp.status_code == 204
+
+    assert client.get(f"/submissions/{code}", headers=_auth_headers(token)).status_code == 404
+    assert not scans_dir.exists()
+    assert not reports_dir.exists()
+
+
+def test_delete_submission_writes_audit_and_detaches_old_rows(db_session, sample_scan_paths):
+    from zgrader.models import AuditLog
+
+    token = _register_and_login("del2@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _draft_ready_front(token, code, sample_scan_paths)
+    # Create a prior audit row tied to this submission by adjusting a finding.
+    client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token),
+    )
+
+    client.delete(f"/submissions/{code}", headers=_auth_headers(token))
+
+    # A deletion audit row exists (submission_id null, code in detail).
+    deletion = db_session.query(AuditLog).filter(AuditLog.action == "submission_deleted").all()
+    assert any(r.detail.get("deleted_code") == code for r in deletion)
+    # The earlier toggle audit row survived, with its submission_id nulled so
+    # it no longer dangles against the deleted submission.
+    toggles = db_session.query(AuditLog).filter(AuditLog.action == "region_dismissed").all()
+    assert toggles and all(r.submission_id is None for r in toggles)
+
+
+def test_delete_submission_403_for_non_owner(db_session, sample_scan_paths):
+    token_a = _register_and_login("delowner@example.com")
+    token_b = _register_and_login("delintruder@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Secret"}, headers=_auth_headers(token_a)
+    ).json()["submission_code"]
+
+    resp = client.delete(f"/submissions/{code}", headers=_auth_headers(token_b))
+    assert resp.status_code == 403
+    # still there for the owner
+    assert client.get(f"/submissions/{code}", headers=_auth_headers(token_a)).status_code == 200
+
+
+def test_delete_submission_404_for_missing(db_session):
+    token = _register_and_login("delmissing@example.com")
+    resp = client.delete("/submissions/SUB-99999", headers=_auth_headers(token))
+    assert resp.status_code == 404

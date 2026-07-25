@@ -80,6 +80,12 @@ def _centering_note(worse_side_pct: float, is_es: bool) -> str:
     return f"Card is off-center ({worse_side_pct:.0f}/{better_side_pct:.0f})."
 
 
+def _crease_note(length_mm: float, is_es: bool) -> str:
+    if is_es:
+        return f"Posible pliegue, aprox. {length_mm:.0f}mm."
+    return f"Possible crease, approx. {length_mm:.0f}mm."
+
+
 def _surface_note(length_mm: float, is_es: bool) -> str:
     # Deliberately no fabricated per-blob "impact" number here (e.g. no
     # "Subgrade impact: -1.0") -- there's no real per-blob scoring formula
@@ -257,6 +263,28 @@ def _build_surface_regions(
         region["area_fraction"] = round(float(blob_area_px) / max(1, face_area_px), 6)
         regions.append(region)
     return regions
+
+
+def build_crease_regions(
+    card_shape: tuple[int, int], dpi: int, language: str, crease_lines: list[dict]
+) -> list[dict]:
+    """Turn detected crease line segments (see creases.detect_creases) into
+    flagged, lower-confidence regions. These are appended to the surface
+    side's regions so they reuse the crop/annotation/dismiss machinery, but
+    carry no `area_fraction` and no score, so they never change the numeric
+    grade -- a v1 flag-only treatment (recompute.py ignores them)."""
+    h, w = card_shape
+    is_es = language == "es"
+    out = []
+    for i, line in enumerate(crease_lines):
+        (x1, y1), (x2, y2) = line["p1"], line["p2"]
+        box = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+        anchor = ((x1 + x2) / 2, (y1 + y2) / 2)
+        note = _crease_note(line["length_mm"], is_es)
+        region = _region(f"crease_{i}", "crease", "flag", 0.0, box, anchor, w, h, note)
+        region["low_confidence"] = True
+        out.append(region)
+    return out
 
 
 def build_regions(

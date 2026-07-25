@@ -79,6 +79,12 @@ export default function AnnotatedPhoto({
   );
   const hiddenCount = ranked.length - visible.length;
 
+  // Optional "AI-assisted" observations (present only when an external model
+  // is configured server-side); descriptive second opinion, not scored.
+  const aiObservations = results.flatMap(
+    (r) => (r.measurements?.ai_observations as { note: string }[] | undefined) ?? []
+  );
+
   useEffect(() => {
     let cancelled = false;
     const createdUrls: string[] = [];
@@ -337,6 +343,16 @@ export default function AnnotatedPhoto({
               ? t.breakout.showLess
               : t.breakout.showMore.replace("{count}", String(hiddenCount))}
           </button>
+        )}
+        {aiObservations.length > 0 && (
+          <div className="rounded-xl border border-dashed border-border bg-surface-secondary p-3">
+            <p className="text-xs font-semibold text-muted">{t.breakout.aiObservationsTitle}</p>
+            <ul className="mt-1 list-disc pl-4 text-sm text-muted">
+              {aiObservations.map((obs, i) => (
+                <li key={i}>{obs.note}</li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
     </div>

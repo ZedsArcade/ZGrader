@@ -227,6 +227,10 @@ export async function getSubmission(token: string, code: string): Promise<Submis
   return request(`/submissions/${code}`, { headers: authHeaders(token) });
 }
 
+export async function deleteSubmission(token: string, code: string): Promise<void> {
+  await request(`/submissions/${code}`, { method: "DELETE", headers: authHeaders(token) });
+}
+
 export async function uploadScan(
   token: string,
   code: string,

@@ -1,6 +1,7 @@
 import datetime
 import io
 import re
+import shutil
 from pathlib import Path
 from typing import Literal
 
@@ -118,6 +119,44 @@ def list_submissions(user: User = Depends(get_current_user), db: Session = Depen
 @router.get("/{code}", response_model=SubmissionDetail)
 def get_submission(code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Submission:
     return _get_owned_submission(code, user, db)
+
+
+@router.delete("/{code}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_submission(
+    code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> None:
+    """Permanently delete a submission and everything belonging to it. The
+    client owns their data, so this is allowed in any status -- the
+    irreversibility is surfaced by a confirmation dialog in the UI."""
+    submission = _get_owned_submission(code, user, db)
+    submission_id = submission.id
+
+    # Record that the deletion happened, but with no submission FK (the row
+    # is about to vanish); the code lives in `detail` for the audit trail.
+    db.add(
+        AuditLog(
+            submission_id=None,
+            user_id=user.id,
+            action="submission_deleted",
+            detail={"deleted_code": code, "status": submission.status.value},
+        )
+    )
+    # AuditLog.submission_id is a nullable FK with no ON DELETE cascade, so
+    # any prior audit rows for this submission must be detached first or the
+    # delete would violate the constraint. Nulling (not deleting) keeps the
+    # history.
+    db.query(AuditLog).filter(AuditLog.submission_id == submission_id).update(
+        {AuditLog.submission_id: None}, synchronize_session=False
+    )
+    # The ORM cascade (cascade="all, delete-orphan") removes card, scans,
+    # analysis results, comparisons, and reports; the on-disk folders are
+    # not part of the DB and must be removed explicitly.
+    db.delete(submission)
+    db.commit()
+
+    for base in (config.scans_dir, config.reports_dir):
+        shutil.rmtree(Path(base) / code, ignore_errors=True)
+    return None
 
 
 @router.post("/{code}/scans", response_model=SubmissionDetail)
