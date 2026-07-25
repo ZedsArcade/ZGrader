@@ -51,6 +51,25 @@ REPORT_STRINGS = {
             "refined over time against real submitted-grade outcomes."
         ),
         "generated_label": "Report generated",
+        "adjusted_watermark": "CLIENT-ADJUSTED",
+        "adjusted_title_suffix": "(Client-Adjusted)",
+        "adjusted_banner": (
+            "⚠ THIS ASSESSMENT WAS ADJUSTED BY THE CLIENT. {count} auto-detected finding(s) were "
+            "dismissed at the client's request; the scores below reflect those manual changes, not "
+            "the unaltered automated analysis."
+        ),
+        "adjusted_original_prefix": "was",
+        "adjustments_title": "Client Adjustments",
+        "adjustments_intro": (
+            "The following auto-detected findings were dismissed by the client and are excluded "
+            "from the scores above:"
+        ),
+        "adjusted_disclaimer": (
+            "IMPORTANT: This assessment was modified by the client, who dismissed one or more "
+            "auto-detected findings. It does not represent the unaltered output of the automated "
+            "analysis."
+        ),
+        "surface_finding_label": "surface finding #{n}",
     },
     "es": {
         "report_title": "Informe de Pre-Calificación",
@@ -97,6 +116,53 @@ REPORT_STRINGS = {
             "de calificaciones enviadas."
         ),
         "generated_label": "Informe generado",
+        "adjusted_watermark": "AJUSTADO POR EL CLIENTE",
+        "adjusted_title_suffix": "(Ajustado por el Cliente)",
+        "adjusted_banner": (
+            "⚠ ESTA EVALUACIÓN FUE AJUSTADA POR EL CLIENTE. El cliente descartó {count} hallazgo(s) "
+            "detectado(s) automáticamente; las puntuaciones a continuación reflejan esos cambios "
+            "manuales, no el análisis automatizado sin alterar."
+        ),
+        "adjusted_original_prefix": "era",
+        "adjustments_title": "Ajustes del Cliente",
+        "adjustments_intro": (
+            "El cliente descartó los siguientes hallazgos detectados automáticamente, que quedan "
+            "excluidos de las puntuaciones anteriores:"
+        ),
+        "adjusted_disclaimer": (
+            "IMPORTANTE: Esta evaluación fue modificada por el cliente, quien descartó uno o más "
+            "hallazgos detectados automáticamente. No representa el resultado sin alterar del "
+            "análisis automatizado."
+        ),
+        "surface_finding_label": "hallazgo de superficie n.º {n}",
+    },
+}
+
+
+# Human-readable location for a dismissed region, per language (surface uses
+# the "surface_finding_label" template above since it's index-based).
+REGION_LOCATION_LABELS = {
+    "en": {
+        "top_left": "top-left corner",
+        "top_right": "top-right corner",
+        "bottom_left": "bottom-left corner",
+        "bottom_right": "bottom-right corner",
+        "top": "top edge",
+        "bottom": "bottom edge",
+        "left": "left edge",
+        "right": "right edge",
+        "frame": "centering",
+    },
+    "es": {
+        "top_left": "esquina superior izquierda",
+        "top_right": "esquina superior derecha",
+        "bottom_left": "esquina inferior izquierda",
+        "bottom_right": "esquina inferior derecha",
+        "top": "borde superior",
+        "bottom": "borde inferior",
+        "left": "borde izquierdo",
+        "right": "borde derecho",
+        "frame": "centrado",
     },
 }
 

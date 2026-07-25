@@ -4,12 +4,28 @@ per-side and combined AnalysisResult rows with annotated images, then hand
 off to the multi-company rules engine.
 """
 
+import io
+import logging
 from pathlib import Path
 
 import numpy as np
 from sqlalchemy.orm import Session
 
-from zgrader.analysis import annotate, centering, corners, edges, preprocessing, regions, rules_engine, surface
+from zgrader.analysis import (
+    ai,
+    annotate,
+    centering,
+    corners,
+    creases,
+    edges,
+    preprocessing,
+    recompute,
+    regions,
+    rules_engine,
+    surface,
+)
+
+logger = logging.getLogger(__name__)
 from zgrader.config import config
 from zgrader.models import (
     AnalysisCategory,
@@ -58,6 +74,19 @@ def _annotate_category(category: AnalysisCategory, card_image: np.ndarray, resul
     raise ValueError(f"Unknown analysis category: {category}")
 
 
+def _run_ai_analysis(card_image: np.ndarray, side: str, language: str, code: str) -> list[dict]:
+    analyzer = ai.get_analyzer()
+    if analyzer is None:
+        return []
+    try:
+        buffer = io.BytesIO()
+        annotate.to_pil(card_image).save(buffer, format="PNG")
+        return analyzer.analyze(buffer.getvalue(), side, language)
+    except Exception:  # noqa: BLE001 -- an unavailable model must not fail analysis
+        logger.warning("AI analyzer failed for %s %s -- skipping", code, side)
+        return []
+
+
 def _persist_side(
     db: Session,
     submission: Submission,
@@ -77,6 +106,11 @@ def _persist_side(
     h, w = card_image.shape[:2]
     language = submission.language.value
 
+    # Optional external AI "second opinion" for this side -- off unless a
+    # model is configured, and never allowed to break analysis. Attached to
+    # the surface result's measurements below (surface is always present).
+    ai_observations = _run_ai_analysis(card_image, side.value, language, submission.submission_code)
+
     for category, analyzer in _ANALYZERS.items():
         result, extra = analyzer(card_image, dpi)
         image = _annotate_category(category, card_image, result, extra)
@@ -86,6 +120,15 @@ def _persist_side(
         result["measurements"]["regions"] = regions.build_regions(
             category, (h, w), dpi, language, result, extra
         )
+        if category == AnalysisCategory.surface:
+            # Crease candidates ride along the surface side's regions so they
+            # reuse crops/overlay/dismiss; flag-only (no score effect).
+            crease_lines = creases.detect_creases(card_image, dpi)
+            result["measurements"]["regions"].extend(
+                regions.build_crease_regions((h, w), dpi, language, crease_lines)
+            )
+            if ai_observations:
+                result["measurements"]["ai_observations"] = ai_observations
         for region in result["measurements"]["regions"]:
             if region["severity"] != "flag":
                 continue
@@ -145,15 +188,23 @@ def _persist_combined(
                 measurements["worse_side_pct"] = round((front_worse + back_worse) / 2, 1)
             elif front_worse is not None:
                 measurements["worse_side_pct"] = front_worse
+            if "worse_side_pct" in measurements:
+                measurements["original_worse_side_pct"] = measurements["worse_side_pct"]
+
+        combined_score = _combine_score(
+            front_result["raw_score"], back_result["raw_score"] if back_result else None
+        )
+        # Pristine auto-detected value, preserved so the UI/report can show
+        # "was X.X" if the client later dismisses findings (recompute.py
+        # overwrites raw_score but never touches this).
+        measurements["original_raw_score"] = combined_score
 
         db.add(
             AnalysisResult(
                 submission_id=submission.id,
                 category=category,
                 side=AnalysisSide.combined,
-                raw_score=_combine_score(
-                    front_result["raw_score"], back_result["raw_score"] if back_result else None
-                ),
+                raw_score=combined_score,
                 measurements=measurements,
                 annotated_image_path=None,
                 flags=flags,
@@ -211,5 +262,14 @@ def run_analysis(db: Session, submission: Submission) -> None:
     db.flush()
 
     rules_engine.evaluate(db, submission)
+
+    # A re-analysis (e.g. a late back scan) rebuilds every row from scratch;
+    # re-apply any dismissals the client had already made so their
+    # adjustments aren't silently lost. Region ids are stable across
+    # re-analysis, so previously-dismissed keys still resolve.
+    if submission.dismissed_regions:
+        db.expire(submission, ["analysis_results", "company_comparisons"])
+        recompute.recompute_submission(db, submission)
+
     submission.status = SubmissionStatus.draft_ready
     db.flush()

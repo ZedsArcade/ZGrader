@@ -122,6 +122,18 @@ export const en = {
     processingTitle: "Analysing card…",
     processingDescription: "This usually only takes a moment.",
     photoTitle: "Analyzed photo",
+    adjustedChip: "Adjusted",
+    originalScorePrefix: "was",
+    adjustedBannerTitle: "You've adjusted this assessment",
+    adjustedBannerBody:
+      "{count} auto-detected finding(s) dismissed. Scores below reflect your changes, and the report will be clearly labelled as client-adjusted.",
+    deleteButton: "Delete submission",
+    deleteTitle: "Delete this submission?",
+    deleteBody:
+      "This permanently deletes the submission, its scans, analysis, and any report. This cannot be undone.",
+    deleteConfirm: "Delete permanently",
+    deleteCancel: "Cancel",
+    deleteFailed: "Couldn't delete the submission.",
   },
   breakout: {
     front: "Front",
@@ -133,6 +145,11 @@ export const en = {
     showMore: "Show {count} more issue(s)",
     showLess: "Show less",
     lowConfidenceNote: "Centering could not be measured reliably on this card.",
+    dismiss: "Dismiss",
+    restore: "Restore",
+    dismissedBadge: "Dismissed",
+    toggleFailed: "Couldn't update the assessment.",
+    aiObservationsTitle: "AI observations (assistive, lower confidence)",
   },
   upload: {
     title: "Upload your card scans",

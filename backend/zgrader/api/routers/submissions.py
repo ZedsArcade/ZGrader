@@ -1,6 +1,7 @@
 import datetime
 import io
 import re
+import shutil
 from pathlib import Path
 from typing import Literal
 
@@ -9,7 +10,7 @@ from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
-from zgrader.analysis import preprocessing
+from zgrader.analysis import preprocessing, recompute
 from zgrader.api.deps import get_current_user, require_operator
 from zgrader.config import config
 from zgrader.db import get_db
@@ -29,7 +30,13 @@ from zgrader.models import (
 from zgrader.reports import builder
 from zgrader.scan_ingest import read_scan_metadata, sha256_file
 from zgrader.schemas.admin import AutoPublishUpdate
-from zgrader.schemas.submission import CropPointsIn, SubmissionCreate, SubmissionDetail, SubmissionSummary
+from zgrader.schemas.submission import (
+    CropPointsIn,
+    RegionToggleIn,
+    SubmissionCreate,
+    SubmissionDetail,
+    SubmissionSummary,
+)
 from zgrader.worker.watcher import _IMAGE_SUFFIXES, _advance_submission, _confirmed_sides, process_submission_folder
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
@@ -46,6 +53,7 @@ _PIL_FORMAT_TO_SUFFIX = {
     "TIFF": ".tiff",
 }
 _REGION_ID_RE = re.compile(r"^[a-z0-9_]+$")
+_REGION_KEY_RE = re.compile(r"^(front|back):(centering|corners|edges|surface):[a-z0-9_]+$")
 _SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff", ".tif": "image/tiff"}
 
 
@@ -111,6 +119,44 @@ def list_submissions(user: User = Depends(get_current_user), db: Session = Depen
 @router.get("/{code}", response_model=SubmissionDetail)
 def get_submission(code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Submission:
     return _get_owned_submission(code, user, db)
+
+
+@router.delete("/{code}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_submission(
+    code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> None:
+    """Permanently delete a submission and everything belonging to it. The
+    client owns their data, so this is allowed in any status -- the
+    irreversibility is surfaced by a confirmation dialog in the UI."""
+    submission = _get_owned_submission(code, user, db)
+    submission_id = submission.id
+
+    # Record that the deletion happened, but with no submission FK (the row
+    # is about to vanish); the code lives in `detail` for the audit trail.
+    db.add(
+        AuditLog(
+            submission_id=None,
+            user_id=user.id,
+            action="submission_deleted",
+            detail={"deleted_code": code, "status": submission.status.value},
+        )
+    )
+    # AuditLog.submission_id is a nullable FK with no ON DELETE cascade, so
+    # any prior audit rows for this submission must be detached first or the
+    # delete would violate the constraint. Nulling (not deleting) keeps the
+    # history.
+    db.query(AuditLog).filter(AuditLog.submission_id == submission_id).update(
+        {AuditLog.submission_id: None}, synchronize_session=False
+    )
+    # The ORM cascade (cascade="all, delete-orphan") removes card, scans,
+    # analysis results, comparisons, and reports; the on-disk folders are
+    # not part of the DB and must be removed explicitly.
+    db.delete(submission)
+    db.commit()
+
+    for base in (config.scans_dir, config.reports_dir):
+        shutil.rmtree(Path(base) / code, ignore_errors=True)
+    return None
 
 
 @router.post("/{code}/scans", response_model=SubmissionDetail)
@@ -281,6 +327,50 @@ def confirm_crop(
 
     confirmed = _confirmed_sides(submission)
     submission = _advance_submission(db, submission, confirmed, {ScanSide(side)}, code)
+    db.refresh(submission)
+    return submission
+
+
+@router.post("/{code}/regions/toggle", response_model=SubmissionDetail)
+def toggle_region(
+    code: str,
+    payload: RegionToggleIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Submission:
+    """Dismiss (or restore) a single auto-detected finding the client
+    believes is mistaken, then recompute the whole assessment (category
+    scores + company comparisons) ignoring the dismissed findings. The
+    dismissal flows into the published report, which is clearly marked
+    client-adjusted -- see zgrader.reports.builder."""
+    submission = _get_owned_submission(code, user, db)
+    if submission.status != SubmissionStatus.draft_ready:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Submission is '{submission.status.value}' -- findings can only be adjusted while the draft is under review",
+        )
+    if not _REGION_KEY_RE.match(payload.region_key):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid region key")
+
+    current = list(submission.dismissed_regions or [])
+    if payload.dismissed:
+        if payload.region_key not in current:
+            current.append(payload.region_key)
+    else:
+        current = [k for k in current if k != payload.region_key]
+    submission.dismissed_regions = current
+
+    db.add(
+        AuditLog(
+            submission_id=submission.id,
+            user_id=user.id,
+            action="region_dismissed" if payload.dismissed else "region_restored",
+            detail={"region_key": payload.region_key},
+        )
+    )
+    db.flush()
+    recompute.recompute_submission(db, submission)
+    db.commit()
     db.refresh(submission)
     return submission
 

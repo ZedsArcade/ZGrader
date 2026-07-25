@@ -86,6 +86,9 @@ export interface SubmissionDetail {
   card: Card | null;
   scan_sides: ScanSide[];
   confirmed_sides: ScanSide[];
+  // "{side}:{category}:{region_id}" keys the client dismissed as mistaken
+  // auto-detections; the scores/comparisons here already reflect them.
+  dismissed_regions: string[];
   analysis_results: AnalysisResult[];
   company_comparisons: Comparison[];
 }
@@ -224,6 +227,10 @@ export async function getSubmission(token: string, code: string): Promise<Submis
   return request(`/submissions/${code}`, { headers: authHeaders(token) });
 }
 
+export async function deleteSubmission(token: string, code: string): Promise<void> {
+  await request(`/submissions/${code}`, { method: "DELETE", headers: authHeaders(token) });
+}
+
 export async function uploadScan(
   token: string,
   code: string,
@@ -297,6 +304,19 @@ export async function snapCrop(
     method: "POST",
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify({ points }),
+  });
+}
+
+export async function toggleRegion(
+  token: string,
+  code: string,
+  regionKey: string,
+  dismissed: boolean
+): Promise<SubmissionDetail> {
+  return request(`/submissions/${code}/regions/toggle`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ region_key: regionKey, dismissed }),
   });
 }
 

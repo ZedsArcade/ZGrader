@@ -587,3 +587,183 @@ def test_confirm_crop_409_once_published(db_session, sample_scan_paths):
         headers=_auth_headers(token),
     )
     assert resp.status_code == 409
+
+
+def _combined_score(body: dict, category: str) -> float:
+    for r in body["analysis_results"]:
+        if r["side"] == "combined" and r["category"] == category:
+            return float(r["raw_score"])
+    raise AssertionError(f"no combined {category} result")
+
+
+def _draft_ready_front(token: str, code: str, sample_scan_paths) -> dict:
+    _upload(token, code, "front", sample_scan_paths["pokemon_front"])
+    return _confirm_crop(token, code, "front").json()
+
+
+def test_toggle_region_dismiss_raises_score_and_reverts(db_session, sample_scan_paths):
+    # pokemon_front is generated with a whitened top-left corner, so that
+    # corner comes back flagged and low-scoring; dismissing it must raise
+    # the corners combined score, and restoring it must revert exactly.
+    token = _register_and_login("toggle1@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    body = _draft_ready_front(token, code, sample_scan_paths)
+    assert body["status"] == "draft_ready"
+    before = _combined_score(body, "corners")
+
+    resp = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 200
+    adjusted = resp.json()
+    assert adjusted["dismissed_regions"] == ["front:corners:top_left"]
+    assert _combined_score(adjusted, "corners") > before
+
+    restored = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": False},
+        headers=_auth_headers(token),
+    ).json()
+    assert restored["dismissed_regions"] == []
+    assert _combined_score(restored, "corners") == before
+
+
+def test_toggle_region_preserves_original_score_for_display(db_session, sample_scan_paths):
+    token = _register_and_login("toggle2@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _draft_ready_front(token, code, sample_scan_paths)
+
+    adjusted = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token),
+    ).json()
+
+    combined_corners = next(
+        r for r in adjusted["analysis_results"] if r["side"] == "combined" and r["category"] == "corners"
+    )
+    # the pristine auto-detected score is preserved for the "was X.X" display
+    original = combined_corners["measurements"]["original_raw_score"]
+    assert float(original) < float(combined_corners["raw_score"])
+
+
+def test_toggle_region_400_for_bad_key(db_session, sample_scan_paths):
+    token = _register_and_login("toggle3@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _draft_ready_front(token, code, sample_scan_paths)
+
+    resp = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:TOP-LEFT", "dismissed": True},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 400
+
+
+def test_toggle_region_409_when_not_draft_ready(db_session):
+    # A freshly-created submission (no scans) is in 'created', not
+    # 'draft_ready' -- findings can't be adjusted yet.
+    token = _register_and_login("toggle4@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+
+    resp = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 409
+
+
+def test_toggle_region_403_for_non_owner(db_session, sample_scan_paths):
+    token_a = _register_and_login("toggleowner@example.com")
+    token_b = _register_and_login("toggleintruder@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token_a)
+    ).json()["submission_code"]
+    _draft_ready_front(token_a, code, sample_scan_paths)
+
+    resp = client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token_b),
+    )
+    assert resp.status_code == 403
+
+
+def test_delete_submission_removes_rows_and_files(db_session, sample_scan_paths):
+    from pathlib import Path
+
+    from zgrader.config import config
+
+    token = _register_and_login("del1@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _draft_ready_front(token, code, sample_scan_paths)
+
+    scans_dir = Path(config.scans_dir) / code
+    reports_dir = Path(config.reports_dir) / code
+    assert scans_dir.exists()
+    assert reports_dir.exists()
+
+    resp = client.delete(f"/submissions/{code}", headers=_auth_headers(token))
+    assert resp.status_code == 204
+
+    assert client.get(f"/submissions/{code}", headers=_auth_headers(token)).status_code == 404
+    assert not scans_dir.exists()
+    assert not reports_dir.exists()
+
+
+def test_delete_submission_writes_audit_and_detaches_old_rows(db_session, sample_scan_paths):
+    from zgrader.models import AuditLog
+
+    token = _register_and_login("del2@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _draft_ready_front(token, code, sample_scan_paths)
+    # Create a prior audit row tied to this submission by adjusting a finding.
+    client.post(
+        f"/submissions/{code}/regions/toggle",
+        json={"region_key": "front:corners:top_left", "dismissed": True},
+        headers=_auth_headers(token),
+    )
+
+    client.delete(f"/submissions/{code}", headers=_auth_headers(token))
+
+    # A deletion audit row exists (submission_id null, code in detail).
+    deletion = db_session.query(AuditLog).filter(AuditLog.action == "submission_deleted").all()
+    assert any(r.detail.get("deleted_code") == code for r in deletion)
+    # The earlier toggle audit row survived, with its submission_id nulled so
+    # it no longer dangles against the deleted submission.
+    toggles = db_session.query(AuditLog).filter(AuditLog.action == "region_dismissed").all()
+    assert toggles and all(r.submission_id is None for r in toggles)
+
+
+def test_delete_submission_403_for_non_owner(db_session, sample_scan_paths):
+    token_a = _register_and_login("delowner@example.com")
+    token_b = _register_and_login("delintruder@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Secret"}, headers=_auth_headers(token_a)
+    ).json()["submission_code"]
+
+    resp = client.delete(f"/submissions/{code}", headers=_auth_headers(token_b))
+    assert resp.status_code == 403
+    # still there for the owner
+    assert client.get(f"/submissions/{code}", headers=_auth_headers(token_a)).status_code == 200
+
+
+def test_delete_submission_404_for_missing(db_session):
+    token = _register_and_login("delmissing@example.com")
+    resp = client.delete("/submissions/SUB-99999", headers=_auth_headers(token))
+    assert resp.status_code == 404

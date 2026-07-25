@@ -27,6 +27,20 @@ class ZGraderConfig(BaseSettings):
     # Fallback DPI used when a scan's image metadata doesn't declare one.
     default_scan_dpi: int = 600
 
+    # Optional first-operator bootstrap: when both are set, startup seeding
+    # creates an operator with these credentials (or promotes an existing
+    # client of the same email). Lets an admin account be created via env +
+    # redeploy, with no shell command or manual DB editing.
+    admin_email: str | None = None
+    admin_password: str | None = None
+
+    # Optional external vision-model hook for extra "AI-assisted" analysis
+    # observations. Off by default; when disabled the pipeline is unchanged.
+    ai_enabled: bool = False
+    ai_endpoint: str | None = None
+    ai_model: str | None = None
+    ai_timeout_seconds: float = 30.0
+
     smtp_host: str = "localhost"
     smtp_port: int = 1025
     smtp_user: str | None = None
