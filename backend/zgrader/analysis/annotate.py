@@ -30,11 +30,15 @@ def crop_region(
     min_output_px: int = 280,
     pad_fraction: float = 0.6,
     color: tuple[int, int, int] = _FLAG_COLOR,
+    line_px: tuple[float, float, float, float] | None = None,
 ) -> Image.Image:
     """Zoomed, bordered crop of an arbitrary defect region for a web
     breakout-box panel -- generalizes the per-corner crop+zoom+border
     pattern annotate_corners already does (for a fixed corner_fraction) to
-    any bbox from any category."""
+    any bbox from any category.
+
+    When `line_px` (x0, y0, x1, y1 in full-card pixels) is given, the segment
+    is drawn instead of the bounding box -- see the comment below."""
     h, w = card_image.shape[:2]
     x0, y0, x1, y1 = bbox_px
     box_w, box_h = x1 - x0, y1 - y0
@@ -58,6 +62,23 @@ def crop_region(
     pil_crop = _to_pil(crop).resize((out_w, out_h), Image.NEAREST)
     draw = ImageDraw.Draw(pil_crop)
 
+    line_width = max(2, out_w // 100)
+
+    if line_px is not None:
+        # An elongated defect (a crease) has a bounding box spanning most of
+        # the card, so the box alone says "somewhere in here" -- draw the
+        # segment itself instead, which is what actually locates it.
+        lx0, ly0, lx1, ly1 = line_px
+        draw.line(
+            [
+                ((lx0 - crop_x0) * scale, (ly0 - crop_y0) * scale),
+                ((lx1 - crop_x0) * scale, (ly1 - crop_y0) * scale),
+            ],
+            fill=color,
+            width=line_width,
+        )
+        return pil_crop
+
     # Draw the defect's own box within this (padded, zoomed) crop, so the
     # exact flagged region is still pinpointed, not just "somewhere in here".
     rel_box = [
@@ -66,7 +87,6 @@ def crop_region(
         (x1 - crop_x0) * scale,
         (y1 - crop_y0) * scale,
     ]
-    line_width = max(2, out_w // 100)
     draw.rectangle(rel_box, outline=color, width=line_width)
 
     return pil_crop

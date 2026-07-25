@@ -93,7 +93,7 @@ def _score_from_worse_pct(worse_pct: float) -> float:
     return float(np.clip(score, 0.0, 10.0))
 
 
-def measure_centering(card_image: np.ndarray, dpi: int) -> dict:
+def measure_centering(card_image: np.ndarray, px_per_mm: float) -> dict:
     gray = cv2.cvtColor(card_image, cv2.COLOR_BGR2GRAY)
     edge_map = np.abs(cv2.Laplacian(gray, cv2.CV_64F))
 
@@ -102,7 +102,6 @@ def measure_centering(card_image: np.ndarray, dpi: int) -> dict:
     top, top_spread = _measure_border(edge_map, "top")
     bottom, bottom_spread = _measure_border(edge_map, "bottom")
 
-    px_per_mm = dpi / 25.4
     lr_total = left + right
     tb_total = top + bottom
     lr_split = (

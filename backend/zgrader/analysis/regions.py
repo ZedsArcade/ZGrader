@@ -197,7 +197,11 @@ def _build_centering_regions(card_shape: tuple[int, int], language: str, result:
 
 
 def _build_surface_regions(
-    card_shape: tuple[int, int], dpi: int, language: str, result: dict, anomaly_mask: np.ndarray | None
+    card_shape: tuple[int, int],
+    px_per_mm: float,
+    language: str,
+    result: dict,
+    anomaly_mask: np.ndarray | None,
 ) -> list[dict]:
     h, w = card_shape
     is_es = language == "es"
@@ -211,7 +215,6 @@ def _build_surface_regions(
         anomaly_mask.astype(np.uint8), connectivity=8
     )
 
-    px_per_mm = dpi / 25.4
     min_area_px = MIN_BLOB_AREA_MM2 * px_per_mm * px_per_mm
 
     def _is_scratch_like(label: int) -> bool:
@@ -266,13 +269,19 @@ def _build_surface_regions(
 
 
 def build_crease_regions(
-    card_shape: tuple[int, int], dpi: int, language: str, crease_lines: list[dict]
+    card_shape: tuple[int, int], language: str, crease_lines: list[dict]
 ) -> list[dict]:
     """Turn detected crease line segments (see creases.detect_creases) into
     flagged, lower-confidence regions. These are appended to the surface
     side's regions so they reuse the crop/annotation/dismiss machinery, but
     carry no `area_fraction` and no score, so they never change the numeric
-    grade -- a v1 flag-only treatment (recompute.py ignores them)."""
+    grade -- a v1 flag-only treatment (recompute.py ignores them).
+
+    Each region also carries `line_norm` (the segment itself, normalized), so
+    the UI and the breakout crop can draw exactly where the crease runs -- a
+    crease's bounding box spans most of the card and pinpoints nothing on its
+    own.
+    """
     h, w = card_shape
     is_es = language == "es"
     out = []
@@ -283,6 +292,12 @@ def build_crease_regions(
         note = _crease_note(line["length_mm"], is_es)
         region = _region(f"crease_{i}", "crease", "flag", 0.0, box, anchor, w, h, note)
         region["low_confidence"] = True
+        region["line_norm"] = [
+            round(x1 / w, 4),
+            round(y1 / h, 4),
+            round(x2 / w, 4),
+            round(y2 / h, 4),
+        ]
         out.append(region)
     return out
 
@@ -290,12 +305,16 @@ def build_crease_regions(
 def build_regions(
     category: AnalysisCategory,
     card_shape: tuple[int, int],
-    dpi: int,
+    px_per_mm: float,
     language: str,
     result: dict,
     extra,
 ) -> list[dict]:
-    """card_shape is (height, width), matching np.ndarray.shape[:2]."""
+    """card_shape is (height, width), matching np.ndarray.shape[:2].
+
+    px_per_mm comes from the card's physical size (see analysis/scale.py),
+    not the image file's DPI metadata.
+    """
     if category == AnalysisCategory.corners:
         return _build_corner_regions(card_shape, language, result)
     if category == AnalysisCategory.edges:
@@ -303,5 +322,5 @@ def build_regions(
     if category == AnalysisCategory.centering:
         return _build_centering_regions(card_shape, language, result)
     if category == AnalysisCategory.surface:
-        return _build_surface_regions(card_shape, dpi, language, result, extra)
+        return _build_surface_regions(card_shape, px_per_mm, language, result, extra)
     raise ValueError(f"Unknown analysis category: {category}")

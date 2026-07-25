@@ -147,11 +147,22 @@ export const es: Dictionary = {
     showMore: "Mostrar {count} problema(s) más",
     showLess: "Mostrar menos",
     lowConfidenceNote: "El centrado no se pudo medir de forma fiable en esta carta.",
+    lowConfidenceGenericNote:
+      "Detección de menor confiabilidad: la luz difusa del escaneo solo capta defectos pronunciados. Descártela si no está de acuerdo.",
     dismiss: "Descartar",
     restore: "Restaurar",
     dismissedBadge: "Descartado",
     toggleFailed: "No se pudo actualizar la evaluación.",
     aiObservationsTitle: "Observaciones de IA (asistivas, menor confiabilidad)",
+  },
+  inspector: {
+    inspect: "Inspeccionar foto",
+    close: "Cerrar",
+    zoomIn: "Acercar",
+    zoomOut: "Alejar",
+    resetZoom: "Ajustar",
+    hideMarkers: "Ocultar marcas",
+    showMarkers: "Mostrar marcas",
   },
   upload: {
     title: "Suba las fotos de su carta",

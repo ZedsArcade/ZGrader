@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Chip } from "@heroui/react";
+import Button from "@/components/Button";
+import PhotoInspector from "@/components/PhotoInspector";
+import RegionOverlay, {
+  dismissKey,
+  regionKey,
+  type CategoryRegion,
+} from "@/components/RegionOverlay";
 import Skeleton from "@/components/Skeleton";
 import * as api from "@/lib/api";
 import { useTranslations } from "@/lib/i18n/context";
-
-interface CategoryRegion extends api.Region {
-  category: string;
-}
 
 interface Line {
   key: string;
@@ -22,16 +25,6 @@ const SEVERITY_CHIP_COLOR: Record<api.Region["severity"], "success" | "danger"> 
   ok: "success",
   flag: "danger",
 };
-
-function regionKey(region: CategoryRegion): string {
-  return `${region.category}:${region.id}`;
-}
-
-// The persisted dismissal key includes the side (front/back), matching
-// Submission.dismissed_regions and the toggle endpoint.
-function dismissKey(side: api.ScanSide, region: CategoryRegion): string {
-  return `${side}:${region.category}:${region.id}`;
-}
 
 // How many breakout panels/leader-lines show before the viewer expands the
 // rest -- a card with a dozen-plus flags previously sprawled with leader
@@ -64,6 +57,8 @@ export default function AnnotatedPhoto({
   const [cropUrls, setCropUrls] = useState<Record<string, string>>({});
   const [lines, setLines] = useState<Line[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [showMarkers, setShowMarkers] = useState(true);
+  const [inspecting, setInspecting] = useState(false);
 
   const allRegions: CategoryRegion[] = results.flatMap((r) => {
     const list = (r.measurements?.regions as api.Region[] | undefined) ?? [];
@@ -182,70 +177,49 @@ export default function AnnotatedPhoto({
       ref={wrapperRef}
       className="relative grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_320px]"
     >
-      <div className="relative">
+      <div>
+        {photoUrl && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onPress={() => setShowMarkers((s) => !s)}>
+              {showMarkers ? t.inspector.hideMarkers : t.inspector.showMarkers}
+            </Button>
+            <Button variant="outline" size="sm" onPress={() => setInspecting(true)}>
+              {t.inspector.inspect}
+            </Button>
+          </div>
+        )}
+        <div className="relative">
         {photoUrl ? (
           <img
             ref={photoImgRef}
             src={photoUrl}
             alt=""
-            className="w-full rounded-xl border border-border"
+            className="w-full cursor-zoom-in rounded-xl border border-border"
             onLoad={recomputeLines}
+            onClick={() => setInspecting(true)}
           />
         ) : (
           <Skeleton className="aspect-[3/4] w-full rounded-xl" />
         )}
+        {photoUrl && showMarkers && (
+          <RegionOverlay
+            regions={allRegions}
+            markers={visible}
+            side={side}
+            dismissedRegions={dismissedRegions}
+          />
+        )}
+        </div>
         {photoUrl && (
-          <>
-            {/* bbox outlines only -- SVG uses preserveAspectRatio="none" so
-                a 0..1 viewBox maps 1:1 onto the (non-square) card photo,
-                which is correct for axis-aligned rects but would visually
-                distort a circle into an ellipse, so the numbered markers
-                below are plain HTML instead, positioned by percentage. */}
-            <svg
-              viewBox="0 0 1 1"
-              preserveAspectRatio="none"
-              className="pointer-events-none absolute inset-0 h-full w-full"
-            >
-              {allRegions.map((region) => {
-                const [x0, y0, x1, y1] = region.bbox_norm;
-                const isFlag = region.severity === "flag";
-                // A low-confidence centering frame, or a region the client
-                // dismissed, draws muted + dashed rather than asserting a
-                // solid finding box.
-                const muted = region.low_confidence || dismissedRegions.has(dismissKey(side, region));
-                return (
-                  <rect
-                    key={regionKey(region)}
-                    x={x0}
-                    y={y0}
-                    width={x1 - x0}
-                    height={y1 - y0}
-                    fill="none"
-                    stroke={muted ? "var(--muted)" : isFlag ? "var(--neon-pink)" : "var(--grade-mint)"}
-                    strokeWidth={isFlag ? 0.006 : 0.003}
-                    strokeDasharray={muted ? "0.02 0.015" : undefined}
-                  />
-                );
-              })}
-            </svg>
-            {visible.map((region, i) => {
-              const [ax, ay] = region.anchor_norm;
-              return (
-                <span
-                  key={`marker-${regionKey(region)}`}
-                  className="absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-xs font-semibold"
-                  style={{
-                    left: `${ax * 100}%`,
-                    top: `${ay * 100}%`,
-                    backgroundColor: "var(--neon-pink)",
-                    color: "var(--neon-foreground)",
-                  }}
-                >
-                  {i + 1}
-                </span>
-              );
-            })}
-          </>
+          <PhotoInspector
+            open={inspecting}
+            photoUrl={photoUrl}
+            regions={allRegions}
+            markers={visible}
+            side={side}
+            dismissedRegions={dismissedRegions}
+            onClose={() => setInspecting(false)}
+          />
         )}
       </div>
 
@@ -253,7 +227,7 @@ export default function AnnotatedPhoto({
           panel list below carries matching numbered badges on all sizes, so
           mobile (no room for a literal diagram) still identifies each
           region via its number alone. */}
-      {lines.length > 0 && (
+      {showMarkers && lines.length > 0 && (
         <svg className="pointer-events-none absolute inset-0 hidden h-full w-full lg:block">
           {lines.map((line) => (
             <line
@@ -326,7 +300,14 @@ export default function AnnotatedPhoto({
                 )}
                 {region.note && <p className="text-sm text-muted">{region.note}</p>}
                 {region.low_confidence && (
-                  <p className="text-xs italic text-muted">{t.breakout.lowConfidenceNote}</p>
+                  <p className="text-xs italic text-muted">
+                    {/* Centering's caveat is specific ("couldn't be measured");
+                        every other low-confidence finding -- creases today --
+                        needs the generic one instead. */}
+                    {region.category === "centering"
+                      ? t.breakout.lowConfidenceNote
+                      : t.breakout.lowConfidenceGenericNote}
+                  </p>
                 )}
               </div>
             );
