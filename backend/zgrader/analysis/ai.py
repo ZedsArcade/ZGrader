@@ -13,8 +13,6 @@ import base64
 import logging
 from typing import Protocol
 
-import httpx
-
 from zgrader.config import config
 
 logger = logging.getLogger(__name__)
@@ -40,6 +38,13 @@ class OllamaAnalyzer:
         self.timeout = timeout
 
     def analyze(self, image_png: bytes, side: str, language: str) -> list[dict]:
+        # Imported lazily, at point of use, so this optional seam adds no
+        # import-time dependency to the app. The API imports this module
+        # transitively at startup (main -> routers -> watcher -> pipeline),
+        # so a module-level third-party import here would crash the whole
+        # backend on any deployment that doesn't ship the package.
+        import httpx
+
         b64 = base64.b64encode(image_png).decode("ascii")
         resp = httpx.post(
             self.endpoint,
