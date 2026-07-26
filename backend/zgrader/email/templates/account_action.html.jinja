@@ -1,0 +1,16 @@
+{% extends "base.html.jinja" %}
+{% block content %}
+  <p>{{ strings.greeting }}</p>
+  <p>{{ intro }}</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ action_url }}"
+       style="background: #c40064; color: #ffffff; padding: 12px 20px; border-radius: 8px; text-decoration: none; display: inline-block;">
+      {{ action_label }}
+    </a>
+  </p>
+  {# Not every mail client renders the button, and some strip links from the
+     anchor text -- so the URL is always visible as plain text too. #}
+  <p style="font-size: 12px; color: #667085; word-break: break-all;">{{ action_url }}</p>
+  <p style="font-size: 12px; color: #667085;">{{ expiry_note }}</p>
+  <p style="font-size: 12px; color: #667085;">{{ strings.ignore_if_not_you }}</p>
+{% endblock %}

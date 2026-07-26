@@ -63,7 +63,15 @@ export default function NavBar() {
                   {t.nav.dashboard}
                 </Link>
               )}
-              <span className="text-sm text-muted">{user.email}</span>
+              {/* The address doubles as the account link -- the bar is already
+                  at its width budget and a separate "Account" item wouldn't fit. */}
+              <Link
+                href="/account"
+                aria-label={t.nav.account}
+                className="text-sm text-muted hover:text-accent link-accent-hover"
+              >
+                {user.email}
+              </Link>
               <LocaleSwitch />
               <ThemeSwitch />
               <Button variant="outline" size="sm" onPress={handleLogout}>
@@ -107,7 +115,10 @@ export default function NavBar() {
                         {t.nav.dashboard}
                       </Link>
                     )}
-                    <div className="px-3 py-2 text-sm text-muted">{user.email}</div>
+                    <Link href="/account" onClick={close} className={DRAWER_LINK_CLASS}>
+                      {t.nav.account}
+                    </Link>
+                    <div className="px-3 py-2 text-xs text-muted">{user.email}</div>
                     <Button
                       variant="outline"
                       size="sm"

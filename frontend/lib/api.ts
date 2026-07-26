@@ -18,6 +18,9 @@ export interface User {
   email: string;
   is_verified: boolean;
   role: UserRole;
+  display_name: string | null;
+  marketing_consent: boolean;
+  terms_accepted_at: string | null;
 }
 
 export interface Card {
@@ -223,12 +226,71 @@ function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function register(email: string, password: string): Promise<User> {
+export async function register(
+  email: string,
+  password: string,
+  acceptTerms: boolean,
+  marketingConsent = false
+): Promise<User> {
   return request("/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email,
+      password,
+      accept_terms: acceptTerms,
+      marketing_consent: marketingConsent,
+    }),
   });
+}
+
+const jsonPost = (path: string, body: unknown, token?: string) =>
+  request<void>(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? authHeaders(token) : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  return jsonPost("/auth/forgot-password", { email });
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  return jsonPost("/auth/reset-password", { token, password });
+}
+
+export async function resendVerification(email: string): Promise<void> {
+  return jsonPost("/auth/verify/resend", { email });
+}
+
+export async function changePassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ access_token: string; token_type: string }> {
+  return request("/auth/change-password", {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+export async function updateProfile(
+  token: string,
+  updates: { display_name?: string | null; marketing_consent?: boolean }
+): Promise<User> {
+  return request("/auth/me", {
+    method: "PATCH",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteAccount(token: string): Promise<void> {
+  return request("/auth/me", { method: "DELETE", headers: authHeaders(token) });
 }
 
 export async function login(

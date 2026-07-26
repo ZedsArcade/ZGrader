@@ -152,7 +152,7 @@ def test_unknown_company_is_rejected(db_session, op_headers):
 
 
 def test_only_operators_can_toggle(db_session):
-    client.post("/auth/register", json={"email": "togclient@example.com", "password": "hunter2pass"})
+    client.post("/auth/register", json={"email": "togclient@example.com", "password": "hunter2pass", "accept_terms": True})
     token = client.post(
         "/auth/login", data={"username": "togclient@example.com", "password": "hunter2pass"}
     ).json()["access_token"]

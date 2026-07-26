@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI
 
 from zgrader.api.routers import admin, auth, catalog, submissions
+from zgrader.config import config
 from zgrader.db import SessionLocal
 from zgrader.seed import seed_all
 
@@ -23,7 +24,20 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Card Care Center API", version="0.1.0", lifespan=lifespan)
+# The interactive docs publish every route and schema, including the whole
+# admin surface, to anyone who can reach the app -- and Next.js proxies
+# /api/* straight through, so they'd be internet-facing. Useful in
+# development, so they're only switched off in production.
+_docs_enabled = config.env != "production"
+
+app = FastAPI(
+    title="Card Care Center API",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 
 app.include_router(auth.router)
 app.include_router(submissions.router)

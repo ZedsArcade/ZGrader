@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, Description, FieldError, Input, Label, TextField } from "@heroui/react";
+import { Card, Checkbox, Description, FieldError, Input, Label, TextField } from "@heroui/react";
 import Button from "@/components/Button";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
-import { toastError } from "@/lib/toast";
+import { toastError, toastSuccess } from "@/lib/toast";
 import { useTranslations } from "@/lib/i18n/context";
 
 export default function RegisterPage() {
@@ -15,13 +16,26 @@ export default function RegisterPage() {
   const t = useTranslations();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [marketing, setMarketing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [attempted, setAttempted] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    setAttempted(true);
+    // The backend rejects this too; checking here just gives a clearer
+    // message than a 422 would.
+    if (!acceptTerms) {
+      toastError(t.register.acceptTermsRequired);
+      return;
+    }
     setSubmitting(true);
     try {
-      await register(email, password);
+      await register(email, password, acceptTerms, marketing);
+      // Signed in, but not yet verified -- say so, because submitting a card
+      // will be refused until they click the link.
+      toastSuccess(t.register.checkInbox);
       router.push("/dashboard");
     } catch (err) {
       toastError(err instanceof ApiError ? err.message : t.register.failed);
@@ -55,6 +69,42 @@ export default function RegisterPage() {
             <Description>{t.register.passwordHint}</Description>
             <FieldError />
           </TextField>
+
+          {/* Recorded server-side with a timestamp and the terms version --
+              without that there's no evidence of what anyone agreed to. */}
+          {/* Not `isRequired`: that blocks submission with only a red ring
+              and no explanation of what's wrong. handleSubmit refuses instead,
+              and the message below says why. */}
+          <Checkbox.Root isSelected={acceptTerms} onChange={setAcceptTerms}>
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              <span className="text-sm">
+                {t.register.acceptTerms}{" "}
+                <Link href="/terms" target="_blank" className="underline text-accent">
+                  {t.register.termsLink}
+                </Link>
+                {" / "}
+                <Link href="/privacy" target="_blank" className="underline text-accent">
+                  {t.register.privacyLink}
+                </Link>
+              </span>
+            </Checkbox.Content>
+          </Checkbox.Root>
+          {attempted && !acceptTerms && (
+            <p className="text-sm text-danger">{t.register.acceptTermsRequired}</p>
+          )}
+
+          <Checkbox.Root isSelected={marketing} onChange={setMarketing}>
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              <span className="text-sm">{t.register.marketingOptIn}</span>
+            </Checkbox.Content>
+          </Checkbox.Root>
+
           <Button type="submit" variant="primary" isDisabled={submitting} fullWidth>
             {submitting ? t.register.submitting : t.register.submit}
           </Button>

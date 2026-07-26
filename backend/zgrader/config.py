@@ -1,7 +1,17 @@
+import logging
 from pathlib import Path
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+# The value shipped in this file. Production refuses to start on it -- see
+# _reject_insecure_production_defaults.
+INSECURE_SECRET_KEY = "dev-only-not-a-real-secret-32byte"
+_MIN_SECRET_KEY_LENGTH = 32
+_INSECURE_DB_CREDENTIALS = "zgrader:zgrader@"
 
 
 class ZGraderConfig(BaseSettings):
@@ -14,7 +24,17 @@ class ZGraderConfig(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="ZGRADER_", env_file=".env")
 
+    # Guards the checks below and switches off the interactive API docs.
+    # Defaults to development so the documented bare-uvicorn workflow and the
+    # test suite keep working; docker-compose sets ZGRADER_ENV=production.
+    env: Literal["development", "production"] = "development"
+
     database_url: str = "postgresql+psycopg://zgrader:zgrader@localhost:5432/zgrader"
+
+    # Public origin, used to build the links in verification and password
+    # reset emails. Must be the address a customer's browser can reach --
+    # behind Cloudflare that's the public hostname, not the container.
+    site_url: str = "http://localhost:3000"
 
     scans_dir: Path = Path("/data/scans")
     reports_dir: Path = Path("/data/reports")
@@ -25,11 +45,10 @@ class ZGraderConfig(BaseSettings):
     # that would be wrong the moment ZGRADER_REPORTS_DIR is overridden.
     public_media_dir: Path | None = None
 
-    # JWT signing key -- MUST be overridden via ZGRADER_SECRET_KEY in any
-    # non-local deployment. The default is 32 bytes (HS256's recommended
-    # minimum) purely so local dev doesn't trip PyJWT's short-key warning;
-    # it is not a secret.
-    secret_key: str = "dev-only-not-a-real-secret-32byte"
+    # JWT signing key. The default is publicly visible in this file, so
+    # anyone could forge an operator token with it -- production refuses to
+    # boot on it rather than trusting the operator to notice.
+    secret_key: str = INSECURE_SECRET_KEY
 
     # Fallback DPI used when a scan's image metadata doesn't declare one.
     default_scan_dpi: int = 600
@@ -60,6 +79,40 @@ class ZGraderConfig(BaseSettings):
     watcher_debounce_seconds: float = 5.0
     # Safety-net poll interval for submissions the watcher may have missed.
     worker_poll_interval_seconds: float = 30.0
+
+    @model_validator(mode="after")
+    def _reject_insecure_production_defaults(self) -> "ZGraderConfig":
+        """Refuse to start a production deployment on shipped-default secrets.
+
+        A silent fallback to the key printed in this file means anyone who can
+        read the repository can mint a token for any account, including the
+        operator. Crashing on boot is the only failure mode that can't be
+        missed. In development the same conditions only log a warning.
+        """
+        problems: list[str] = []
+        if self.secret_key == INSECURE_SECRET_KEY:
+            problems.append(
+                "ZGRADER_SECRET_KEY is still the built-in development value. "
+                'Generate one with: python3 -c "import secrets; print(secrets.token_urlsafe(32))"'
+            )
+        elif len(self.secret_key) < _MIN_SECRET_KEY_LENGTH:
+            problems.append(
+                f"ZGRADER_SECRET_KEY is shorter than {_MIN_SECRET_KEY_LENGTH} characters."
+            )
+        if _INSECURE_DB_CREDENTIALS in self.database_url:
+            problems.append(
+                "The database URL still uses the default zgrader/zgrader credentials."
+            )
+
+        if problems:
+            if self.env == "production":
+                raise ValueError(
+                    "Refusing to start with insecure defaults (ZGRADER_ENV=production):\n  - "
+                    + "\n  - ".join(problems)
+                )
+            for problem in problems:
+                logger.warning("Insecure default in use (fine for development): %s", problem)
+        return self
 
     @model_validator(mode="after")
     def _default_public_media_dir(self) -> "ZGraderConfig":

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Input, Label, TextField } from "@heroui/react";
 import Button from "@/components/Button";
@@ -48,6 +49,12 @@ export default function LoginPage() {
           <Button type="submit" variant="primary" isDisabled={submitting} fullWidth>
             {submitting ? t.login.submitting : t.login.submit}
           </Button>
+          <Link
+            href="/forgot-password"
+            className="text-center text-sm text-muted link-accent-hover hover:text-accent"
+          >
+            {t.login.forgotPassword}
+          </Link>
         </form>
       </Card.Content>
     </Card>

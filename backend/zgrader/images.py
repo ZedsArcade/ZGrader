@@ -72,6 +72,34 @@ def validate_upload(content: bytes) -> str:
     return suffix
 
 
+def strip_metadata(content: bytes, suffix: str) -> bytes:
+    """Re-encode an uploaded scan so it carries no embedded metadata.
+
+    Handheld phone photos routinely carry GPS coordinates and device
+    identifiers in EXIF. Storing them verbatim means holding location data
+    about a customer that the service has no use for. Pillow only copies
+    metadata across when explicitly asked, so a decode/encode round-trip
+    drops it.
+
+    Pixels are preserved exactly -- PNG and TIFF re-encode losslessly, and
+    JPEG is written at quality 95 with subsampling disabled, so the analysis
+    pipeline sees effectively the same image.
+    """
+    image = Image.open(io.BytesIO(content))
+    image.load()
+
+    out = io.BytesIO()
+    if suffix == ".jpg":
+        if image.mode not in ("RGB", "L"):
+            image = image.convert("RGB")
+        image.save(out, format="JPEG", quality=95, subsampling=0)
+    elif suffix == ".png":
+        image.save(out, format="PNG", optimize=True)
+    else:
+        image.save(out, format="TIFF")
+    return out.getvalue()
+
+
 def service_image_path(media_dir: Path, slug: str) -> Path:
     """Where a service tier's banner lives. Always .jpg -- store_service_image
     re-encodes, so the extension is ours to fix rather than the upload's."""

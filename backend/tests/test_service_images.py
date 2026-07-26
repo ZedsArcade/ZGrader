@@ -41,7 +41,7 @@ def _operator_token(db_session, email: str) -> str:
 
 
 def _client_token(email: str) -> str:
-    client.post("/auth/register", json={"email": email, "password": "hunter2pass"})
+    client.post("/auth/register", json={"email": email, "password": "hunter2pass", "accept_terms": True})
     return client.post(
         "/auth/login", data={"username": email, "password": "hunter2pass"}
     ).json()["access_token"]

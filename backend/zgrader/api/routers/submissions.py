@@ -1,6 +1,5 @@
 import datetime
 import re
-import shutil
 from pathlib import Path
 from typing import Literal
 
@@ -10,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from zgrader import images
 from zgrader.analysis import preprocessing, recompute
-from zgrader.api.deps import get_current_user, require_operator
+from zgrader.api.deps import get_current_user, require_operator, require_verified_user
 from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.email.notifications import send_report_published, send_submission_received
@@ -28,6 +27,7 @@ from zgrader.models import (
 )
 from zgrader.reports import builder
 from zgrader.scan_ingest import read_scan_metadata, sha256_file
+from zgrader.storage import purge_submission_files
 from zgrader.schemas.admin import AutoPublishUpdate
 from zgrader.schemas.submission import (
     CropPointsIn,
@@ -66,7 +66,9 @@ def _get_owned_submission(code: str, user: User, db: Session) -> Submission:
 
 @router.post("", response_model=SubmissionDetail, status_code=status.HTTP_201_CREATED)
 def create_submission(
-    payload: SubmissionCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    payload: SubmissionCreate,
+    user: User = Depends(require_verified_user),
+    db: Session = Depends(get_db),
 ) -> Submission:
     code = _next_submission_code(db)
     submission = Submission(
@@ -147,8 +149,7 @@ def delete_submission(
     db.delete(submission)
     db.commit()
 
-    for base in (config.scans_dir, config.reports_dir):
-        shutil.rmtree(Path(base) / code, ignore_errors=True)
+    purge_submission_files(code)
     return None
 
 
@@ -157,7 +158,7 @@ async def upload_scan(
     code: str,
     side: Literal["front", "back"] = Form(...),
     file: UploadFile = File(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_verified_user),
     db: Session = Depends(get_db),
 ) -> Submission:
     """Self-serve counterpart to the operator manual-drop workflow: writes
@@ -202,7 +203,10 @@ async def upload_scan(
     folder = Path(config.scans_dir) / code
     folder.mkdir(parents=True, exist_ok=True)
     file_path = folder / f"{side}{suffix}"
-    file_path.write_bytes(content)
+    # Re-encoded rather than written verbatim: a phone photo's EXIF can carry
+    # the GPS coordinates of the customer's home, which this service has no
+    # reason to hold. Pixels are preserved.
+    file_path.write_bytes(images.strip_metadata(content, suffix))
 
     width, height, dpi = read_scan_metadata(file_path)
     db.add(

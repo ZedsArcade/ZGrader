@@ -1,6 +1,7 @@
 import smtplib
 from unittest.mock import MagicMock, patch
 
+from tests.conftest import register_and_verify
 from zgrader.email.client import send_email
 from zgrader.email.notifications import send_report_published, send_submission_received
 from zgrader.models import Settings, SubmissionLanguage
@@ -77,10 +78,9 @@ def test_creating_a_submission_sends_a_received_email():
     from zgrader.api.main import app
 
     client = TestClient(app)
-    client.post("/auth/register", json={"email": "emailwire1@example.com", "password": "hunter2pass"})
-    token = client.post(
-        "/auth/login", data={"username": "emailwire1@example.com", "password": "hunter2pass"}
-    ).json()["access_token"]
+    # register_and_verify, not a bare register: creating a submission now
+    # requires a confirmed email address.
+    token = register_and_verify(client, "emailwire1@example.com")
 
     with patch("zgrader.api.routers.submissions.send_submission_received") as mock_send:
         resp = client.post(
@@ -103,10 +103,9 @@ def test_approving_a_submission_sends_a_published_email(db_session, tmp_path, sa
     from zgrader.worker.watcher import process_submission_folder
 
     client = TestClient(app)
-    client.post("/auth/register", json={"email": "emailwire2@example.com", "password": "hunter2pass"})
-    client_token = client.post(
-        "/auth/login", data={"username": "emailwire2@example.com", "password": "hunter2pass"}
-    ).json()["access_token"]
+    # register_and_verify, not a bare register: creating a submission now
+    # requires a confirmed email address.
+    client_token = register_and_verify(client, "emailwire2@example.com")
     resp = client.post(
         "/submissions",
         json={"game": "Pokemon", "card_name": "Wired Card 2"},

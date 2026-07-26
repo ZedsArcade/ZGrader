@@ -30,6 +30,22 @@ RUN pip install --no-cache-dir .
 # Bind mount targets for scans/reports -- see docker-compose.yml volumes.
 RUN mkdir -p /data/scans /data/reports
 
+# Run as a non-root user so customer scans don't land root-owned on the host.
+# UID/GID 99:100 is Unraid's `nobody:users`, which is what the bind-mounted
+# scans directory is owned by there -- override with a build arg on other
+# hosts, or the container won't be able to write to the mount.
+ARG APP_UID=99
+ARG APP_GID=100
+RUN groupadd -g "${APP_GID}" -o app \
+    && useradd -u "${APP_UID}" -g "${APP_GID}" -o -m -s /usr/sbin/nologin app \
+    && chown -R "${APP_UID}:${APP_GID}" /app /data
+USER app
+
 EXPOSE 8000
 
-CMD ["uvicorn", "zgrader.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --proxy-headers/--forwarded-allow-ips: behind Caddy and the Cloudflare
+# tunnel, every request otherwise appears to come from the proxy, which would
+# put all users in one rate-limit bucket. Safe only because the origin is not
+# directly reachable -- see infra/caddy/Caddyfile.
+CMD ["uvicorn", "zgrader.api.main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]
