@@ -1,7 +1,15 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Card } from "@heroui/react";
+import {
+  MailIcon,
+  MapPinIcon,
+  PeopleIcon,
+  StopwatchIcon,
+  WhatsAppIcon,
+  type IconProps,
+} from "@/components/icons";
 import PageHeader from "@/components/PageHeader";
 import { useBranding } from "@/lib/branding-context";
 import { useTranslations } from "@/lib/i18n/context";
@@ -42,7 +50,7 @@ export default function ContactClient() {
       ) : (
         <div className="verdict-reveal grid gap-5 sm:grid-cols-2">
           {contact_email && (
-            <ContactCard label={t.contact.emailLabel}>
+            <ContactCard label={t.contact.emailLabel} icon={MailIcon}>
               <a
                 href={`mailto:${contact_email}`}
                 className="text-sm font-medium text-accent link-accent-hover"
@@ -53,7 +61,7 @@ export default function ContactClient() {
           )}
 
           {social_whatsapp && (
-            <ContactCard label={t.contact.whatsappLabel}>
+            <ContactCard label={t.contact.whatsappLabel} icon={WhatsAppIcon}>
               {/* Built from the stored number rather than a stored URL, so no
                   operator-supplied scheme can end up in this href. */}
               <a
@@ -68,13 +76,13 @@ export default function ContactClient() {
           )}
 
           {contact_location && (
-            <ContactCard label={t.contact.locationLabel}>
+            <ContactCard label={t.contact.locationLabel} icon={MapPinIcon}>
               <p className="text-sm text-muted">{contact_location}</p>
             </ContactCard>
           )}
 
           {contact_response_days !== null && (
-            <ContactCard label={t.contact.responseLabel}>
+            <ContactCard label={t.contact.responseLabel} icon={StopwatchIcon}>
               <p className="text-sm text-muted">
                 {t.contact.responseBody.replace("{days}", String(contact_response_days))}
               </p>
@@ -82,7 +90,7 @@ export default function ContactClient() {
           )}
 
           {contact_in_person && (
-            <ContactCard label={t.contact.inPersonLabel}>
+            <ContactCard label={t.contact.inPersonLabel} icon={PeopleIcon}>
               <p className="text-sm text-muted">{t.contact.inPersonBody}</p>
             </ContactCard>
           )}
@@ -101,11 +109,24 @@ export default function ContactClient() {
   );
 }
 
-function ContactCard({ label, children }: { label: string; children: ReactNode }) {
+function ContactCard({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon: ComponentType<IconProps>;
+  children: ReactNode;
+}) {
   return (
     <Card className="interactive-card">
       <Card.Content>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+        <div className="flex items-center gap-2">
+          {/* Decorative: the label right next to it already says what this
+              is, so announcing the icon too would just be noise. */}
+          <Icon className="h-5 w-5 shrink-0 text-accent" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+        </div>
         <div className="mt-2">{children}</div>
       </Card.Content>
     </Card>

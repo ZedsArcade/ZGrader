@@ -26,7 +26,7 @@ class Settings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=(
             "This report is an independent pre-grade estimate produced by Card Care Center. "
             "It is not affiliated with, endorsed by, or a guarantee of the outcome from "
-            "PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party "
+            "PSA, Beckett Grading Services (BGS), CGC, TAG, ACE, or any other third-party "
             "grading company."
         ),
         nullable=False,

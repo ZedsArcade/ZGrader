@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +18,12 @@ class ZGraderConfig(BaseSettings):
 
     scans_dir: Path = Path("/data/scans")
     reports_dir: Path = Path("/data/reports")
+
+    # Operator-uploaded images served publicly (service tier banners).
+    # Defaults to a subdirectory of reports_dir -- see the validator below --
+    # so it follows wherever reports actually live rather than pinning a path
+    # that would be wrong the moment ZGRADER_REPORTS_DIR is overridden.
+    public_media_dir: Path | None = None
 
     # JWT signing key -- MUST be overridden via ZGRADER_SECRET_KEY in any
     # non-local deployment. The default is 32 bytes (HS256's recommended
@@ -53,6 +60,19 @@ class ZGraderConfig(BaseSettings):
     watcher_debounce_seconds: float = 5.0
     # Safety-net poll interval for submissions the watcher may have missed.
     worker_poll_interval_seconds: float = 30.0
+
+    @model_validator(mode="after")
+    def _default_public_media_dir(self) -> "ZGraderConfig":
+        """Put public media under the reports volume unless told otherwise.
+
+        The reports volume is already mounted read-write into the backend
+        container, so this needs no extra mount; and unlike scans_dir it
+        isn't walked by the watcher, so a folder here can't be mistaken for
+        a submission. ZGRADER_PUBLIC_MEDIA_DIR overrides it.
+        """
+        if self.public_media_dir is None:
+            self.public_media_dir = self.reports_dir / "public"
+        return self
 
 
 config = ZGraderConfig()

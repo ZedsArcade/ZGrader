@@ -37,7 +37,8 @@ REPORT_STRINGS = {
         "limitation_1": (
             "This is an independent pre-grade estimate produced by an automated image-analysis "
             "pipeline. It is not affiliated with, endorsed by, or a guarantee of the outcome from "
-            "PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company."
+            "PSA, Beckett Grading Services (BGS), CGC, TAG, ACE, or any other third-party "
+            "grading company."
         ),
         "limitation_2": (
             "Measurements are derived from flatbed scans. Surface analysis in particular is "
@@ -100,8 +101,8 @@ REPORT_STRINGS = {
         "limitation_1": (
             "Esta es una estimación independiente de pre-calificación producida por un proceso "
             "automatizado de análisis de imágenes. No está afiliada, respaldada ni garantiza el "
-            "resultado de PSA, Beckett Grading Services (BGS), CGC, TAG ni ninguna otra compañía "
-            "de calificación externa."
+            "resultado de PSA, Beckett Grading Services (BGS), CGC, TAG, ACE ni ninguna otra "
+            "compañía de calificación externa."
         ),
         "limitation_2": (
             "Las mediciones se derivan de escaneos planos. El análisis de superficie en particular "

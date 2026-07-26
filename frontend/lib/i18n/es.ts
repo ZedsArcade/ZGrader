@@ -57,7 +57,7 @@ export const es: Dictionary = {
       "Cree un envío, mándenos su carta y véala avanzar desde la recepción hasta un informe descargable, todo desde su panel.",
     noteTitle: "Nota importante",
     noteBody:
-      "Card Care Center es una estimación independiente, no está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG ni ninguna otra compañía de calificación externa. Los escaneos se capturan con un escáner plano, que utiliza luz difusa en lugar de luz rasante; el análisis de superficie en particular tiene menor confiabilidad que lo que puede detectar la fotografía especializada de una compañía de calificación.",
+      "Card Care Center es una estimación independiente, no está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG, ACE ni ninguna otra compañía de calificación externa. Los escaneos se capturan con un escáner plano, que utiliza luz difusa en lugar de luz rasante; el análisis de superficie en particular tiene menor confiabilidad que lo que puede detectar la fotografía especializada de una compañía de calificación.",
   },
   login: {
     title: "Iniciar sesión",
@@ -298,7 +298,7 @@ export const es: Dictionary = {
     faqTitle: "Preguntas frecuentes",
     faq1Q: "¿Es una calificación oficial?",
     faq1A:
-      "No. Es una estimación independiente para ayudarle a decidir si enviar la carta. No estamos afiliados a PSA, BGS, CGC, TAG ni a ninguna otra compañía, y nunca predecimos una calificación numérica en su nombre.",
+      "No. Es una estimación independiente para ayudarle a decidir si enviar la carta. No estamos afiliados a PSA, BGS, CGC, TAG, ACE ni a ninguna otra compañía, y nunca predecimos una calificación numérica en su nombre.",
     faq2Q: "¿Qué precisión tiene?",
     faq2A:
       "El centrado se mide y es el más fiable de los cuatro. Esquinas y bordes funcionan bien. La superficie es el punto débil: un escaneo plano usa luz difusa, mientras que una compañía de calificación usa luz rasante que proyecta sombras en los arañazos, así que pueden pasarse por alto defectos leves y a veces se marca la textura de impresión.",
@@ -344,7 +344,7 @@ export const es: Dictionary = {
       "Estos términos regulan su uso de Card Care Center. Al crear una cuenta o enviar una carta, los acepta. Lea en particular el aviso siguiente.",
     disclaimerTitle: "Aviso importante",
     disclaimerBody:
-      "Card Care Center es una estimación independiente. No está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG ni ninguna otra compañía de calificación externa. Nada de lo que producimos es una calificación, una predicción de calificación ni una promesa sobre lo que decidirá ninguna compañía. Una carta con buena puntuación aquí puede calificar por debajo de lo esperado, y al revés.",
+      "Card Care Center es una estimación independiente. No está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG, ACE ni ninguna otra compañía de calificación externa. Nada de lo que producimos es una calificación, una predicción de calificación ni una promesa sobre lo que decidirá ninguna compañía. Una carta con buena puntuación aquí puede calificar por debajo de lo esperado, y al revés.",
     s1Title: "1. Qué hace este servicio",
     s1Body:
       "Analizamos imágenes de sus cartas coleccionables y elaboramos un informe sobre centrado, esquinas, bordes y superficie, junto con notas sobre los puntos de discrepancia que podrían afectar al trato de la carta en distintas compañías. El informe es informativo y busca ayudarle a decidir si pagar un envío real de calificación.",

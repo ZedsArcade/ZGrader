@@ -250,6 +250,54 @@ export async function getBranding(): Promise<Branding> {
   return request("/catalog/branding");
 }
 
+/** Slugs identifying the six service tiers on /services. Must stay in step
+ *  with SERVICE_TIER_SLUGS in backend/zgrader/images.py -- the backend 404s
+ *  anything it doesn't recognise. */
+export type ServiceSlug =
+  | "analysis"
+  | "subscription"
+  | "personalised"
+  | "restoration"
+  | "packaging"
+  | "collection";
+
+/** Which tiers have a banner, mapped to a version (the file's mtime). */
+export type ServiceImageVersions = Partial<Record<ServiceSlug, number>>;
+
+export async function getServiceImages(): Promise<ServiceImageVersions> {
+  return request("/catalog/service-images");
+}
+
+/** Unlike every other image URL here, this one is public, so it can go
+ *  straight into an <img src> with no token and no blob dance. The version
+ *  makes a replaced image a new URL, so it can be cached hard and still
+ *  update the moment the operator uploads a new one. */
+export function serviceImageUrl(slug: ServiceSlug, version: number): string {
+  return `${API_BASE}/catalog/service-images/${slug}?v=${version}`;
+}
+
+export async function uploadServiceImage(
+  token: string,
+  slug: ServiceSlug,
+  file: File
+): Promise<void> {
+  const body = new FormData();
+  body.set("file", file);
+  // No Content-Type header -- the browser has to set the multipart boundary.
+  return request(`/admin/service-images/${slug}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body,
+  });
+}
+
+export async function deleteServiceImage(token: string, slug: ServiceSlug): Promise<void> {
+  return request(`/admin/service-images/${slug}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+}
+
 export async function createSubmission(token: string, payload: SubmissionCreate): Promise<SubmissionDetail> {
   return request("/submissions", {
     method: "POST",

@@ -1,5 +1,4 @@
 import datetime
-import io
 import re
 import shutil
 from pathlib import Path
@@ -7,9 +6,9 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
+from zgrader import images
 from zgrader.analysis import preprocessing, recompute
 from zgrader.api.deps import get_current_user, require_operator
 from zgrader.config import config
@@ -41,17 +40,11 @@ from zgrader.worker.watcher import _IMAGE_SUFFIXES, _advance_submission, _confir
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
-_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 _UPLOADABLE_STATUSES = (
     SubmissionStatus.created,
     SubmissionStatus.awaiting_scans,
     SubmissionStatus.draft_ready,
 )
-_PIL_FORMAT_TO_SUFFIX = {
-    "JPEG": ".jpg",
-    "PNG": ".png",
-    "TIFF": ".tiff",
-}
 _REGION_ID_RE = re.compile(r"^[a-z0-9_]+$")
 _REGION_KEY_RE = re.compile(r"^(front|back):(centering|corners|edges|surface):[a-z0-9_]+$")
 _SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff", ".tif": "image/tiff"}
@@ -186,20 +179,25 @@ async def upload_scan(
     if side in submission.scan_sides:
         raise HTTPException(status.HTTP_409_CONFLICT, f"A {side} scan has already been uploaded")
 
-    content = await file.read(_MAX_UPLOAD_BYTES + 1)
-    if len(content) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Image is too large")
-
+    # Read one byte past the cap so the limit holds regardless of what
+    # Content-Length claimed.
+    content = await file.read(images.MAX_UPLOAD_BYTES + 1)
     try:
-        image = Image.open(io.BytesIO(content))
-        image_format = image.format
-        image.verify()
-    except (UnidentifiedImageError, OSError):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a valid image") from None
-
-    suffix = _PIL_FORMAT_TO_SUFFIX.get(image_format or "")
-    if suffix is None or suffix not in _IMAGE_SUFFIXES:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unsupported image format -- use JPEG, PNG, or TIFF")
+        suffix = images.validate_upload(content)
+    except images.ImageTooLarge:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Image is too large"
+        ) from None
+    except images.UnsupportedImage:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Unsupported image format -- use JPEG, PNG, or TIFF"
+        ) from None
+    # The watcher only picks up files it recognises, so refuse anything it
+    # would silently ignore rather than writing an orphan into its folder.
+    if suffix not in _IMAGE_SUFFIXES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Unsupported image format -- use JPEG, PNG, or TIFF"
+        )
 
     folder = Path(config.scans_dir) / code
     folder.mkdir(parents=True, exist_ok=True)

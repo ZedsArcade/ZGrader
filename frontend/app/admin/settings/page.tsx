@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Card, Checkbox, Input, Label, TextArea, TextField } from "@heroui/react";
 import Button from "@/components/Button";
 import RequireAuth from "@/components/RequireAuth";
@@ -9,7 +9,105 @@ import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
 import { toastError, toastSuccess } from "@/lib/toast";
+import { useServiceImages } from "@/lib/use-service-images";
 import * as api from "@/lib/api";
+
+// Labels are hardcoded English like the rest of this operator-only screen --
+// the public pages are bilingual, the admin panel is not.
+const SERVICE_TIERS: { slug: api.ServiceSlug; label: string }[] = [
+  { slug: "analysis", label: "Image analysis & report" },
+  { slug: "subscription", label: "Unlimited subscription" },
+  { slug: "personalised", label: "Personalised pre-grading" },
+  { slug: "restoration", label: "Restorations" },
+  { slug: "packaging", label: "Pre-packaging for grading" },
+  { slug: "collection", label: "Collection & shipping point" },
+];
+
+function ServiceImageRow({
+  slug,
+  label,
+  version,
+  token,
+  onChanged,
+}: {
+  slug: api.ServiceSlug;
+  label: string;
+  version: number | undefined;
+  token: string;
+  onChanged: () => Promise<void>;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Reset first, so re-picking the same file after a failure still fires.
+    event.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    try {
+      await api.uploadServiceImage(token, slug, file);
+      await onChanged();
+      toastSuccess(`${label} image updated.`);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    setBusy(true);
+    try {
+      await api.deleteServiceImage(token, slug);
+      await onChanged();
+      toastSuccess(`${label} image removed.`);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Couldn't remove the image");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-secondary p-3">
+      {version === undefined ? (
+        <div className="flex h-14 w-24 shrink-0 items-center justify-center rounded border border-dashed border-border text-xs text-muted">
+          None
+        </div>
+      ) : (
+        <img
+          src={api.serviceImageUrl(slug, version)}
+          alt=""
+          className="h-14 w-24 shrink-0 rounded border border-border object-cover"
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{label}</p>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFile}
+        className="hidden"
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        isDisabled={busy}
+        onPress={() => inputRef.current?.click()}
+      >
+        {busy ? "Working…" : version === undefined ? "Add image" : "Replace"}
+      </Button>
+      {version !== undefined && (
+        <Button variant="danger-soft" size="sm" isDisabled={busy} onPress={handleRemove}>
+          Remove
+        </Button>
+      )}
+    </div>
+  );
+}
 
 /** Groups the form's fields so it doesn't read as one long undifferentiated
  *  column now that contact and social details live here too. */
@@ -25,6 +123,7 @@ function SectionHeading({ title, hint }: { title: string; hint: string }) {
 function SettingsForm() {
   const { token } = useAuth();
   const { refresh: refreshBranding } = useBranding();
+  const { images: serviceImages, refresh: refreshServiceImages } = useServiceImages();
   const [settings, setSettings] = useState<api.Settings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -228,6 +327,24 @@ function SettingsForm() {
             <Label>WhatsApp number (international, e.g. 35054000000)</Label>
             <Input />
           </TextField>
+
+          <SectionHeading
+            title="Service images"
+            hint="A banner shown on each card on the public Services page. These upload straight away — the Save button below does not apply to them."
+          />
+
+          <div className="flex flex-col gap-2">
+            {SERVICE_TIERS.map(({ slug, label }) => (
+              <ServiceImageRow
+                key={slug}
+                slug={slug}
+                label={label}
+                version={serviceImages[slug]}
+                token={token ?? ""}
+                onChanged={refreshServiceImages}
+              />
+            ))}
+          </div>
 
           <Button type="submit" variant="primary" isDisabled={saving} fullWidth>
             {saving ? "Saving…" : "Save settings"}

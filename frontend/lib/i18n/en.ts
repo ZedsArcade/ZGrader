@@ -55,7 +55,7 @@ export const en = {
       "Create a submission, ship us your card, and watch it move from received to a downloadable report -- all from your dashboard.",
     noteTitle: "An important note",
     noteBody:
-      "Card Care Center is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
+      "Card Care Center is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, ACE, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
   },
   login: {
     title: "Log in",
@@ -292,7 +292,7 @@ export const en = {
     faqTitle: "Common questions",
     faq1Q: "Is this an official grade?",
     faq1A:
-      "No. It's an independent estimate to help you decide whether to submit. We're not affiliated with PSA, BGS, CGC, TAG or any other grading company, and we never predict a numeric grade on their behalf.",
+      "No. It's an independent estimate to help you decide whether to submit. We're not affiliated with PSA, BGS, CGC, TAG, ACE or any other grading company, and we never predict a numeric grade on their behalf.",
     faq2Q: "How accurate is it?",
     faq2A:
       "Centering is measured and is the most reliable of the four. Corners and edges are good. Surface is the weakest: a flatbed scan uses diffuse light, while a grading company uses raking light that casts shadows along scratches, so faint surface defects can be missed and print texture can occasionally be flagged.",
@@ -338,7 +338,7 @@ export const en = {
       "These terms cover your use of Card Care Center. By creating an account or submitting a card, you agree to them. Please read the disclaimer below in particular.",
     disclaimerTitle: "Important disclaimer",
     disclaimerBody:
-      "Card Care Center is an independent estimate. It is not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, or any other third-party grading company. Nothing we produce is a grade, a prediction of a grade, or a promise about what any grading company will decide. A card that scores well here may still grade lower than you expect, and vice versa.",
+      "Card Care Center is an independent estimate. It is not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, ACE, or any other third-party grading company. Nothing we produce is a grade, a prediction of a grade, or a promise about what any grading company will decide. A card that scores well here may still grade lower than you expect, and vice versa.",
     s1Title: "1. What this service does",
     s1Body:
       "We analyse images of your trading cards and produce a report covering centering, corners, edges and surface, together with notes on the points of contention that could affect how different grading companies treat the card. The report is informational and is intended to help you decide whether to pay for a real grading submission.",

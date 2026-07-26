@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { Card, Chip, buttonVariants, cn } from "@heroui/react";
 import PageHeader from "@/components/PageHeader";
+import * as api from "@/lib/api";
 import { useTranslations } from "@/lib/i18n/context";
+import { useServiceImages } from "@/lib/use-service-images";
 
 type Availability = "available" | "soon" | "planned";
 
@@ -15,6 +17,7 @@ const STATUS_COLOR: Record<Availability, "success" | "warning" | "default"> = {
 
 export default function ServicesClient() {
   const t = useTranslations();
+  const { images } = useServiceImages();
 
   const statusLabel: Record<Availability, string> = {
     available: t.services.statusAvailable,
@@ -22,7 +25,11 @@ export default function ServicesClient() {
     planned: t.services.statusPlanned,
   };
 
+  // `slug` is the stable identity: it keys the React list and links the tier
+  // to its uploaded banner. The translated name can't do either job -- it
+  // changes when the locale does.
   const tiers: {
+    slug: api.ServiceSlug;
     name: string;
     body: string;
     points: string[];
@@ -30,6 +37,7 @@ export default function ServicesClient() {
     warning?: string;
   }[] = [
     {
+      slug: "analysis",
       name: t.services.tier1Name,
       body: t.services.tier1Body,
       points: [
@@ -41,18 +49,21 @@ export default function ServicesClient() {
       status: "available",
     },
     {
+      slug: "subscription",
       name: t.services.tier2Name,
       body: t.services.tier2Body,
       points: [t.services.tier2Point1, t.services.tier2Point2, t.services.tier2Point3],
       status: "soon",
     },
     {
+      slug: "personalised",
       name: t.services.tier3Name,
       body: t.services.tier3Body,
       points: [t.services.tier3Point1, t.services.tier3Point2, t.services.tier3Point3],
       status: "soon",
     },
     {
+      slug: "restoration",
       name: t.services.tier4Name,
       body: t.services.tier4Body,
       points: [t.services.tier4Point1, t.services.tier4Point2, t.services.tier4Point3],
@@ -60,12 +71,14 @@ export default function ServicesClient() {
       warning: t.services.tier4Warning,
     },
     {
+      slug: "packaging",
       name: t.services.tier5Name,
       body: t.services.tier5Body,
       points: [t.services.tier5Point1, t.services.tier5Point2, t.services.tier5Point3],
       status: "planned",
     },
     {
+      slug: "collection",
       name: t.services.tier6Name,
       body: t.services.tier6Body,
       points: [t.services.tier6Point1, t.services.tier6Point2, t.services.tier6Point3],
@@ -79,7 +92,21 @@ export default function ServicesClient() {
 
       <div className="verdict-reveal grid gap-5 sm:grid-cols-2">
         {tiers.map((tier) => (
-          <Card key={tier.name} className="interactive-card flex flex-col">
+          <Card key={tier.slug} className="interactive-card flex flex-col overflow-hidden">
+            {/* Only tiers the operator has given an image get one; the rest
+                render exactly as they did before, so a half-filled Services
+                page still looks deliberate.
+
+                A plain src, unlike every other image in this app: these are
+                marketing images on a public page, so there's no token to
+                attach and no need for the fetch-to-blob dance. */}
+            {images[tier.slug] !== undefined && (
+              <img
+                src={api.serviceImageUrl(tier.slug, images[tier.slug]!)}
+                alt=""
+                className="aspect-video w-full object-cover"
+              />
+            )}
             <Card.Header>
               <div className="flex flex-wrap items-center gap-2">
                 <Card.Title>{tier.name}</Card.Title>
