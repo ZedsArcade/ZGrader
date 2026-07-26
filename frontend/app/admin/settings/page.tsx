@@ -11,6 +11,17 @@ import { useBranding } from "@/lib/branding-context";
 import { toastError, toastSuccess } from "@/lib/toast";
 import * as api from "@/lib/api";
 
+/** Groups the form's fields so it doesn't read as one long undifferentiated
+ *  column now that contact and social details live here too. */
+function SectionHeading({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="mt-2 border-t border-border pt-4">
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <p className="text-xs text-muted">{hint}</p>
+    </div>
+  );
+}
+
 function SettingsForm() {
   const { token } = useAuth();
   const { refresh: refreshBranding } = useBranding();
@@ -73,7 +84,8 @@ function SettingsForm() {
       <Card.Header>
         <Card.Title>Business settings</Card.Title>
         <Card.Description>
-          Branding shown on reports and the default auto-publish behavior for new submissions.
+          Branding shown on reports, the contact details and social links published on the public
+          site, and the default auto-publish behavior for new submissions.
         </Card.Description>
       </Card.Header>
       <Card.Content>
@@ -116,6 +128,105 @@ function SettingsForm() {
           >
             <Label>Report disclaimer</Label>
             <TextArea rows={4} />
+          </TextField>
+
+          <SectionHeading
+            title="Contact details"
+            hint="Shown on the public contact page and in the site footer. Leave a field blank to hide it."
+          />
+
+          <TextField
+            value={settings.contact_email ?? ""}
+            onChange={(value) => setSettings({ ...settings, contact_email: value })}
+            type="email"
+            fullWidth
+          >
+            <Label>Public email address</Label>
+            <Input />
+          </TextField>
+
+          <TextField
+            value={settings.contact_location ?? ""}
+            onChange={(value) => setSettings({ ...settings, contact_location: value })}
+            fullWidth
+          >
+            <Label>Service area</Label>
+            <Input />
+          </TextField>
+
+          {/* A number rather than a sentence: the site is bilingual, and the
+              surrounding wording lives in the translation files so it stays
+              correct in both languages. Blank hides the line entirely. */}
+          <TextField
+            value={
+              settings.contact_response_days === null ? "" : String(settings.contact_response_days)
+            }
+            onChange={(value) =>
+              setSettings({
+                ...settings,
+                contact_response_days: value.trim() === "" ? null : Number(value),
+              })
+            }
+            type="number"
+            fullWidth
+          >
+            <Label>Usual reply time (working days)</Label>
+            <Input />
+          </TextField>
+
+          <Checkbox.Root
+            isSelected={settings.contact_in_person}
+            onChange={(checked) => setSettings({ ...settings, contact_in_person: checked })}
+          >
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              Offer handover in person by arrangement
+            </Checkbox.Content>
+          </Checkbox.Root>
+
+          <SectionHeading
+            title="Social links"
+            hint="Full https:// profile addresses. Anything left blank simply doesn't appear."
+          />
+
+          <TextField
+            value={settings.social_instagram ?? ""}
+            onChange={(value) => setSettings({ ...settings, social_instagram: value })}
+            fullWidth
+          >
+            <Label>Instagram URL</Label>
+            <Input />
+          </TextField>
+
+          <TextField
+            value={settings.social_facebook ?? ""}
+            onChange={(value) => setSettings({ ...settings, social_facebook: value })}
+            fullWidth
+          >
+            <Label>Facebook URL</Label>
+            <Input />
+          </TextField>
+
+          <TextField
+            value={settings.social_x ?? ""}
+            onChange={(value) => setSettings({ ...settings, social_x: value })}
+            fullWidth
+          >
+            <Label>X (Twitter) URL</Label>
+            <Input />
+          </TextField>
+
+          {/* A number, not a link -- the site builds the wa.me address from it,
+              which keeps a pasted URL out of the page's markup entirely. */}
+          <TextField
+            value={settings.social_whatsapp ?? ""}
+            onChange={(value) => setSettings({ ...settings, social_whatsapp: value })}
+            fullWidth
+          >
+            <Label>WhatsApp number (international, e.g. 35054000000)</Label>
+            <Input />
           </TextField>
 
           <Button type="submit" variant="primary" isDisabled={saving} fullWidth>

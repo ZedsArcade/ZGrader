@@ -121,12 +121,26 @@ export interface Game {
   verified: boolean;
 }
 
-export interface Branding {
+/** Public contact details shown in the nav, footer and contact page. Every
+ *  optional field is hidden by the UI when null, so an operator who hasn't
+ *  filled one in never ships a dead link. */
+export interface PublicContact {
+  contact_email: string | null;
+  contact_location: string | null;
+  contact_response_days: number | null;
+  contact_in_person: boolean;
+  social_instagram: string | null;
+  social_facebook: string | null;
+  social_x: string | null;
+  social_whatsapp: string | null;
+}
+
+export interface Branding extends PublicContact {
   business_name: string;
   business_contact: string | null;
 }
 
-export interface Settings {
+export interface Settings extends PublicContact {
   auto_publish_default: boolean;
   business_name: string;
   business_logo_path: string | null;
@@ -134,7 +148,7 @@ export interface Settings {
   disclaimer_text: string;
 }
 
-export interface SettingsUpdate {
+export interface SettingsUpdate extends Partial<PublicContact> {
   auto_publish_default?: boolean;
   business_name?: string;
   business_logo_path?: string | null;
@@ -157,13 +171,34 @@ export interface AuditLogEntry {
   user_email: string | null;
 }
 
+/** FastAPI reports most failures as a `detail` string, but validation errors
+ *  (422) send a list of `{loc, msg}` objects instead. Interpolating that
+ *  straight into a message produced "[object Object]" on screen, which tells
+ *  the user nothing -- so name the offending field and quote the reason. */
+function describeDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (!Array.isArray(detail)) return null;
+  const parts = detail
+    .map((item) => {
+      if (typeof item !== "object" || item === null) return null;
+      const { loc, msg } = item as { loc?: unknown[]; msg?: string };
+      if (!msg) return null;
+      // loc is like ["body", "social_x"]; the last entry is the field.
+      const field = Array.isArray(loc) ? loc[loc.length - 1] : undefined;
+      const label = typeof field === "string" && field !== "body" ? `${field}: ` : "";
+      return `${label}${msg.replace(/^Value error, /, "")}`;
+    })
+    .filter((p): p is string => Boolean(p));
+  return parts.length > 0 ? parts.join("; ") : null;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
     let message = res.statusText;
     try {
       const body = await res.json();
-      message = body.detail ?? message;
+      message = describeDetail(body.detail) ?? message;
     } catch {
       // response wasn't JSON -- fall back to statusText
     }
