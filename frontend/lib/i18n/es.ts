@@ -43,7 +43,7 @@ export const es: Dictionary = {
   landing: {
     title: "Sepa antes de enviar.",
     subtitle:
-      "Card Care Center es un servicio independiente de pre-calificación para juegos de cartas coleccionables. Envíenos sus cartas y analizaremos el centrado, las esquinas, los bordes y la superficie, para mostrarle exactamente cómo es probable que PSA, BGS, CGC, TAG y ACE traten cada una antes de que pague por un envío real.",
+      "Card Care Center es un servicio independiente de pre-calificación para juegos de cartas coleccionables. Envíenos sus cartas y analizaremos el centrado, las esquinas, los bordes y la superficie, para mostrarle exactamente cómo es probable que {companies} traten cada una antes de que pague por un envío real.",
     getStarted: "Comenzar",
     login: "Iniciar sesión",
     feature1Title: "Análisis automatizado",
@@ -51,10 +51,11 @@ export const es: Dictionary = {
       "Cada envío recibe una medición del centrado, detección de desgaste en esquinas y bordes, y un análisis de textura de superficie, con imágenes anotadas que muestran exactamente lo que se detectó.",
     feature2Title: "Comparación entre compañías",
     feature2Body:
-      "PSA, BGS, CGC, TAG y ACE no califican de la misma manera. Destacamos los puntos específicos de discrepancia que podrían influir en el trato de su carta en cada compañía, sin prometer nunca una calificación numérica.",
+      "{companies} no califican de la misma manera. Destacamos los puntos específicos de discrepancia que podrían influir en el trato de su carta en cada compañía, sin prometer nunca una calificación numérica.",
     feature3Title: "Siga cada envío",
     feature3Body:
       "Cree un envío, mándenos su carta y véala avanzar desde la recepción hasta un informe descargable, todo desde su panel.",
+    companiesFallback: "las principales compañías de calificación",
     noteTitle: "Nota importante",
     noteBody:
       "Card Care Center es una estimación independiente, no está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG, ACE ni ninguna otra compañía de calificación externa. Los escaneos se capturan con un escáner plano, que utiliza luz difusa en lugar de luz rasante; el análisis de superficie en particular tiene menor confiabilidad que lo que puede detectar la fotografía especializada de una compañía de calificación.",
@@ -160,6 +161,10 @@ export const es: Dictionary = {
     dismissedBadge: "Descartado",
     toggleFailed: "No se pudo actualizar la evaluación.",
     aiObservationsTitle: "Observaciones de IA (asistivas, menor confiabilidad)",
+    collapse: "Contraer",
+    expand: "Expandir",
+    collapseAll: "Contraer todo",
+    expandAll: "Expandir todo",
   },
   inspector: {
     inspect: "Inspeccionar foto",
@@ -243,7 +248,7 @@ export const es: Dictionary = {
     tier1Point1: "Análisis medido de centrado, esquinas, bordes y superficie",
     tier1Point2: "Imágenes anotadas que muestran exactamente qué se marcó y dónde",
     tier1Point3:
-      "Notas comparativas sobre cómo suelen tratar esos hallazgos PSA, BGS, CGC, TAG y ACE",
+      "Notas comparativas sobre cómo suelen tratar esos hallazgos {companies}",
     tier1Point4: "Un informe PDF descargable que puede conservar",
     tier2Name: "Suscripción ilimitada",
     tier2Body:

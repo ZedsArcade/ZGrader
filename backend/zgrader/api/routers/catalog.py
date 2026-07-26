@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from zgrader import images
 from zgrader.config import config
 from zgrader.db import get_db
-from zgrader.models import CardDimensionReference, Settings
+from zgrader.models import CardDimensionReference
+from zgrader.models.grading_comparison import GradingCompany, GradingCompanyToleranceRule
 from zgrader.models.settings import get_or_create_settings
 from zgrader.schemas.catalog import BrandingOut, GameOut
 
@@ -24,9 +25,35 @@ def list_games(db: Session = Depends(get_db)) -> list[CardDimensionReference]:
     return db.query(CardDimensionReference).order_by(CardDimensionReference.game).all()
 
 
+def _active_grading_companies(db: Session) -> list[str]:
+    """Companies with at least one active tolerance rule, in enum order.
+
+    Enum order rather than query order because this drives a sentence on the
+    landing page -- an unordered SQL result would reshuffle the names between
+    requests.
+    """
+    active = {
+        row.company
+        for row in db.query(GradingCompanyToleranceRule)
+        .filter(GradingCompanyToleranceRule.active.is_(True))
+        .all()
+    }
+    return [company.value for company in GradingCompany if company in active]
+
+
 @router.get("/branding", response_model=BrandingOut)
-def get_branding(db: Session = Depends(get_db)) -> Settings:
-    return get_or_create_settings(db)
+def get_branding(db: Session = Depends(get_db)) -> BrandingOut:
+    # Built field by field rather than returned as the ORM row: the company
+    # list comes from a different table, so from_attributes can't supply it.
+    settings = get_or_create_settings(db)
+    return BrandingOut(
+        **{
+            field: getattr(settings, field)
+            for field in BrandingOut.model_fields
+            if field != "grading_companies"
+        },
+        grading_companies=_active_grading_companies(db),
+    )
 
 
 @router.get("/service-images", response_model=dict[str, int])

@@ -5,6 +5,7 @@ import { Card, Chip, buttonVariants, cn } from "@heroui/react";
 import PageHeader from "@/components/PageHeader";
 import * as api from "@/lib/api";
 import { useTranslations } from "@/lib/i18n/context";
+import { useGradingCompanies, withCompanies } from "@/lib/use-grading-companies";
 import { useServiceImages } from "@/lib/use-service-images";
 
 type Availability = "available" | "soon" | "planned";
@@ -18,6 +19,7 @@ const STATUS_COLOR: Record<Availability, "success" | "warning" | "default"> = {
 export default function ServicesClient() {
   const t = useTranslations();
   const { images } = useServiceImages();
+  const companies = useGradingCompanies();
 
   const statusLabel: Record<Availability, string> = {
     available: t.services.statusAvailable,
@@ -43,7 +45,7 @@ export default function ServicesClient() {
       points: [
         t.services.tier1Point1,
         t.services.tier1Point2,
-        t.services.tier1Point3,
+        withCompanies(t.services.tier1Point3, companies),
         t.services.tier1Point4,
       ],
       status: "available",

@@ -17,6 +17,9 @@ const DEFAULT_BRANDING: api.Branding = {
   social_facebook: null,
   social_x: null,
   social_whatsapp: null,
+  // Empty until the backend answers. The copy falls back to a generic phrase
+  // rather than briefly naming companies that may not be enabled.
+  grading_companies: [],
 };
 
 interface BrandingContextValue extends api.Branding {

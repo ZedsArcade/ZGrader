@@ -138,6 +138,17 @@ export interface PublicContact {
 export interface Branding extends PublicContact {
   business_name: string;
   business_contact: string | null;
+  /** Companies currently taking part in the comparison, in a fixed order.
+   *  The public copy names these rather than a hardcoded list, so disabling
+   *  one in admin can't leave the site advertising a comparison it no longer
+   *  runs. */
+  grading_companies: string[];
+}
+
+export interface GradingCompanyStatus {
+  company: string;
+  active: boolean;
+  rule_count: number;
 }
 
 export interface Settings extends PublicContact {
@@ -295,6 +306,22 @@ export async function deleteServiceImage(token: string, slug: ServiceSlug): Prom
   return request(`/admin/service-images/${slug}`, {
     method: "DELETE",
     headers: authHeaders(token),
+  });
+}
+
+export async function getGradingCompanies(token: string): Promise<GradingCompanyStatus[]> {
+  return request("/admin/grading-companies", { headers: authHeaders(token) });
+}
+
+export async function setGradingCompanyActive(
+  token: string,
+  company: string,
+  active: boolean
+): Promise<GradingCompanyStatus> {
+  return request(`/admin/grading-companies/${company}`, {
+    method: "PATCH",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
   });
 }
 

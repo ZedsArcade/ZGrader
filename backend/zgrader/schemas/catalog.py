@@ -28,3 +28,7 @@ class BrandingOut(BaseModel):
     social_facebook: str | None
     social_x: str | None
     social_whatsapp: str | None
+    # The companies currently taking part in the comparison. Published so the
+    # public copy can name exactly those, rather than hardcoding a list that
+    # would start lying the moment an operator disables one.
+    grading_companies: list[str]

@@ -120,6 +120,67 @@ function SectionHeading({ title, hint }: { title: string; hint: string }) {
   );
 }
 
+function GradingCompanyRows({
+  token,
+  onChanged,
+}: {
+  token: string;
+  onChanged: () => Promise<void>;
+}) {
+  const [companies, setCompanies] = useState<api.GradingCompanyStatus[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getGradingCompanies(token).then(setCompanies).catch(() => setCompanies([]));
+  }, [token]);
+
+  async function toggle(company: string, active: boolean) {
+    setBusy(company);
+    try {
+      const updated = await api.setGradingCompanyActive(token, company, active);
+      setCompanies((prev) =>
+        (prev ?? []).map((c) => (c.company === company ? { ...c, active: updated.active } : c))
+      );
+      // The public copy names the enabled companies, so refresh branding or
+      // the landing page keeps the old list until a reload.
+      await onChanged();
+      toastSuccess(`${company} ${active ? "enabled" : "disabled"}.`);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Couldn't update the company");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (companies === null) return <Skeleton className="h-24 w-full" />;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {companies.map(({ company, active }) => (
+        <div
+          key={company}
+          className="flex items-center gap-3 rounded-lg border border-border bg-surface-secondary p-3"
+        >
+          <Checkbox.Root
+            isSelected={active}
+            isDisabled={busy === company}
+            onChange={(checked) => toggle(company, checked)}
+          >
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              {company}
+            </Checkbox.Content>
+          </Checkbox.Root>
+          {!active && <span className="ml-auto text-xs text-muted">Not compared</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SettingsForm() {
   const { token } = useAuth();
   const { refresh: refreshBranding } = useBranding();
@@ -345,6 +406,13 @@ function SettingsForm() {
               />
             ))}
           </div>
+
+          <SectionHeading
+            title="Grading companies"
+            hint="Which companies appear in the comparison. Applies immediately, and the public site names only the enabled ones. Reports already generated keep their existing companies until that card is re-analysed — which includes a client dismissing one of its findings."
+          />
+
+          <GradingCompanyRows token={token ?? ""} onChanged={refreshBranding} />
 
           <Button type="submit" variant="primary" isDisabled={saving} fullWidth>
             {saving ? "Saving…" : "Save settings"}

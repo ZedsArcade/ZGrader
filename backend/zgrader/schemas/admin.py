@@ -96,6 +96,23 @@ class SettingsUpdate(BaseModel):
         return value
 
 
+class GradingCompanyOut(BaseModel):
+    """A company's presence in the multi-company comparison.
+
+    `active` is stored per tolerance rule rather than per company (one rule
+    per category), so this is the aggregate: a company counts as active when
+    all of its rules are.
+    """
+
+    company: str
+    active: bool
+    rule_count: int
+
+
+class GradingCompanyUpdate(BaseModel):
+    active: bool
+
+
 class StatsOut(BaseModel):
     total_submissions: int
     by_status: dict[str, int]
