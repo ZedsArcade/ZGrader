@@ -14,6 +14,7 @@ class GradingCompany(str, enum.Enum):
     BGS = "BGS"
     CGC = "CGC"
     TAG = "TAG"
+    ACE = "ACE"
 
 
 class ToleranceSeverity(str, enum.Enum):

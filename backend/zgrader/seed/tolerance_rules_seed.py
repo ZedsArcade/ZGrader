@@ -42,6 +42,19 @@ _TAG_CENTERING_NOTE = (
     "measured-tolerance approach."
 )
 
+# ACE is a newer, UK-based grader with far less public grading history than
+# the other four, and no published tolerance table. Its thresholds here are
+# the least evidenced of the set -- deliberately placed mid-pack rather than
+# invented precisely -- and the note says so, so a client doesn't read a
+# firmer prediction into it than we can support.
+_ACE_CENTERING_NOTE = (
+    "ACE is a newer UK-based grader that reports centering as its own "
+    "subgrade. It has a shorter public track record than PSA, BGS or CGC and "
+    "publishes no tolerance table, so this is general guidance rather than a "
+    "measured cutoff. A {worse_side_pct:.0f}/{better_side_pct:.0f} split is "
+    "{severity_word} for ACE."
+)
+
 _PSA_CENTERING_NOTE_ES = (
     "PSA otorga una calificación holística única, sin subcalificaciones "
     "publicadas, y históricamente ha sido más indulgente con el centrado que "
@@ -69,6 +82,14 @@ _TAG_CENTERING_NOTE_ES = (
     "{severity_word} bajo el enfoque de tolerancia medida de TAG."
 )
 
+_ACE_CENTERING_NOTE_ES = (
+    "ACE es una compañía británica más reciente que reporta el centrado como "
+    "subcalificación propia. Tiene un historial público más corto que PSA, "
+    "BGS o CGC y no publica una tabla de tolerancias, así que esto es una "
+    "orientación general y no un umbral medido. Una división de "
+    "{worse_side_pct:.0f}/{better_side_pct:.0f} {severity_word} para ACE."
+)
+
 _CATEGORY_NOTE_TEMPLATES = {
     GradingCompany.PSA: (
         "PSA's single holistic grade is often capped by its weakest category; "
@@ -87,6 +108,12 @@ _CATEGORY_NOTE_TEMPLATES = {
         "TAG's computer-vision scoring flags {category} defects algorithmically "
         "and consistently; {raw_score:.1f}/10 is {severity_word} under TAG's "
         "DIG+ subscore approach."
+    ),
+    GradingCompany.ACE: (
+        "ACE reports {category} as its own subgrade, but publishes no tolerance "
+        "table and has a shorter public track record than the others, so treat "
+        "this as general guidance: {raw_score:.1f}/10 on {category} is "
+        "{severity_word} for ACE."
     ),
 }
 
@@ -111,6 +138,12 @@ _CATEGORY_NOTE_TEMPLATES_ES = {
         "El sistema de visión artificial de TAG señala defectos de "
         "{category} de forma algorítmica y consistente; {raw_score:.1f}/10 "
         "{severity_word} bajo el enfoque de subpuntuación DIG+ de TAG."
+    ),
+    GradingCompany.ACE: (
+        "ACE reporta {category} como subcalificación propia, pero no publica "
+        "una tabla de tolerancias y tiene un historial público más corto que "
+        "las demás, así que tómelo como orientación general: {raw_score:.1f}/10 "
+        "en {category} {severity_word} para ACE."
     ),
 }
 
@@ -148,6 +181,14 @@ TOLERANCE_RULES_SEED: list[dict] = [
         "note_template": _TAG_CENTERING_NOTE,
         "note_template_es": _TAG_CENTERING_NOTE_ES,
     },
+    {
+        "company": GradingCompany.ACE,
+        "category": "centering",
+        "metric_key": "worse_side_pct",
+        "thresholds": {"minor_at": 57, "major_at": 65},
+        "note_template": _ACE_CENTERING_NOTE,
+        "note_template_es": _ACE_CENTERING_NOTE_ES,
+    },
     # --- Corners: raw_score thresholds (10 = pristine, flags below) ---
     {
         "company": GradingCompany.PSA,
@@ -180,6 +221,14 @@ TOLERANCE_RULES_SEED: list[dict] = [
         "thresholds": {"minor_below": 8.7, "major_below": 7.5},
         "note_template": _CATEGORY_NOTE_TEMPLATES[GradingCompany.TAG],
         "note_template_es": _CATEGORY_NOTE_TEMPLATES_ES[GradingCompany.TAG],
+    },
+    {
+        "company": GradingCompany.ACE,
+        "category": "corners",
+        "metric_key": "raw_score",
+        "thresholds": {"minor_below": 8.7, "major_below": 7.5},
+        "note_template": _CATEGORY_NOTE_TEMPLATES[GradingCompany.ACE],
+        "note_template_es": _CATEGORY_NOTE_TEMPLATES_ES[GradingCompany.ACE],
     },
     # --- Edges: raw_score thresholds ---
     {
@@ -214,6 +263,14 @@ TOLERANCE_RULES_SEED: list[dict] = [
         "note_template": _CATEGORY_NOTE_TEMPLATES[GradingCompany.TAG],
         "note_template_es": _CATEGORY_NOTE_TEMPLATES_ES[GradingCompany.TAG],
     },
+    {
+        "company": GradingCompany.ACE,
+        "category": "edges",
+        "metric_key": "raw_score",
+        "thresholds": {"minor_below": 8.7, "major_below": 7.5},
+        "note_template": _CATEGORY_NOTE_TEMPLATES[GradingCompany.ACE],
+        "note_template_es": _CATEGORY_NOTE_TEMPLATES_ES[GradingCompany.ACE],
+    },
     # --- Surface: raw_score thresholds ---
     {
         "company": GradingCompany.PSA,
@@ -246,6 +303,14 @@ TOLERANCE_RULES_SEED: list[dict] = [
         "thresholds": {"minor_below": 8.5, "major_below": 7.5},
         "note_template": _CATEGORY_NOTE_TEMPLATES[GradingCompany.TAG],
         "note_template_es": _CATEGORY_NOTE_TEMPLATES_ES[GradingCompany.TAG],
+    },
+    {
+        "company": GradingCompany.ACE,
+        "category": "surface",
+        "metric_key": "raw_score",
+        "thresholds": {"minor_below": 8.5, "major_below": 7.5},
+        "note_template": _CATEGORY_NOTE_TEMPLATES[GradingCompany.ACE],
+        "note_template_es": _CATEGORY_NOTE_TEMPLATES_ES[GradingCompany.ACE],
     },
 ]
 

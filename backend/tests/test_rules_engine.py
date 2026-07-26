@@ -86,3 +86,86 @@ def test_never_emits_a_numeric_grade_prediction(db_session):
         # predicted grade value.
         assert "predicted grade" not in comp.contention_note.lower()
         assert "would score" not in comp.contention_note.lower()
+
+
+def test_ace_is_compared_alongside_the_other_companies(db_session):
+    """ACE participates in the comparison, and its note says plainly that the
+    guidance is softer than the others' -- it has no published tolerance
+    table, so a client shouldn't read a firm prediction into it."""
+    submission = _make_submission(db_session, "SUB-ACE1")
+    db_session.add(
+        AnalysisResult(
+            submission_id=submission.id,
+            category=AnalysisCategory.centering,
+            side=AnalysisSide.combined,
+            raw_score=6.4,
+            measurements={"worse_side_pct": 68.0, "lr_ratio": [68.0, 32.0], "tb_ratio": [50.0, 50.0]},
+            flags={},
+        )
+    )
+    db_session.flush()
+
+    by_company = {
+        c.company: c
+        for c in rules_engine.evaluate(db_session, submission)
+        if c.category == "centering"
+    }
+    assert GradingCompany.ACE in by_company
+    ace = by_company[GradingCompany.ACE]
+    assert ace.severity == ToleranceSeverity.major  # 68 clears ACE's major_at of 65
+    assert "68" in ace.contention_note
+    assert "general guidance" in ace.contention_note
+
+
+def test_every_company_is_evaluated_for_every_category(db_session):
+    """Adding a company must not leave gaps in the table -- a missing row
+    would render as a blank cell rather than an obvious error."""
+    submission = _make_submission(db_session, "SUB-ACE2")
+    for category in (
+        AnalysisCategory.centering,
+        AnalysisCategory.corners,
+        AnalysisCategory.edges,
+        AnalysisCategory.surface,
+    ):
+        db_session.add(
+            AnalysisResult(
+                submission_id=submission.id,
+                category=category,
+                side=AnalysisSide.combined,
+                raw_score=8.0,
+                measurements={"worse_side_pct": 55.0, "lr_ratio": [55.0, 45.0], "tb_ratio": [50.0, 50.0]},
+                flags={},
+            )
+        )
+    db_session.flush()
+
+    comparisons = rules_engine.evaluate(db_session, submission)
+    seen = {(c.company, c.category) for c in comparisons}
+    for company in GradingCompany:
+        for category in ("centering", "corners", "edges", "surface"):
+            assert (company, category) in seen, f"{company.value}/{category} missing"
+
+
+def test_ace_notes_are_translated(db_session):
+    from zgrader.models import SubmissionLanguage
+
+    submission = _make_submission(db_session, "SUB-ACE3")
+    submission.language = SubmissionLanguage.es
+    db_session.add(
+        AnalysisResult(
+            submission_id=submission.id,
+            category=AnalysisCategory.corners,
+            side=AnalysisSide.combined,
+            raw_score=6.0,
+            measurements={},
+            flags={},
+        )
+    )
+    db_session.flush()
+
+    ace = next(
+        c
+        for c in rules_engine.evaluate(db_session, submission)
+        if c.company == GradingCompany.ACE and c.category == "corners"
+    )
+    assert "orientación general" in ace.contention_note

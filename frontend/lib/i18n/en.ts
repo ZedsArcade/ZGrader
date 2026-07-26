@@ -41,7 +41,7 @@ export const en = {
   landing: {
     title: "Know before you submit.",
     subtitle:
-      "Card Care Center is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how PSA, BGS, CGC, and TAG are likely to treat each one before you pay to submit for real.",
+      "Card Care Center is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how PSA, BGS, CGC, TAG, and ACE are likely to treat each one before you pay to submit for real.",
     getStarted: "Get started",
     login: "Log in",
     feature1Title: "Automated analysis",
@@ -49,7 +49,7 @@ export const en = {
       "Every submission gets a measured centering ratio, corner and edge wear detection, and a surface texture pass -- with annotated images showing exactly what was flagged.",
     feature2Title: "Multi-company comparison",
     feature2Body:
-      "PSA, BGS, CGC, and TAG don't grade the same way. We highlight the specific points of contention that could sway your card's treatment differently at each company -- never a promised numeric grade.",
+      "PSA, BGS, CGC, TAG and ACE don't grade the same way. We highlight the specific points of contention that could sway your card's treatment differently at each company -- never a promised numeric grade.",
     feature3Title: "Track every submission",
     feature3Body:
       "Create a submission, ship us your card, and watch it move from received to a downloadable report -- all from your dashboard.",
@@ -239,7 +239,7 @@ export const en = {
       "The service running today, free to use with a limit on how many cards you can check. Upload a photo or send us the card, and get a full breakdown back.",
     tier1Point1: "Measured centering, corner, edge and surface analysis",
     tier1Point2: "Annotated images showing exactly what was flagged and where",
-    tier1Point3: "Side-by-side notes on how PSA, BGS, CGC and TAG each tend to treat those findings",
+    tier1Point3: "Side-by-side notes on how PSA, BGS, CGC, TAG and ACE each tend to treat those findings",
     tier1Point4: "A downloadable PDF report you can keep",
     tier2Name: "Unlimited subscription",
     tier2Body:
