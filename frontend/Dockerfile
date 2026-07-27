@@ -27,5 +27,12 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# Run as a non-root user. Unlike the backend this container has no bind mount,
+# so the UID doesn't have to match anything on the host -- the `node` user the
+# base image already ships (uid 1000) is enough. /app is chowned because the
+# Next server writes its runtime cache under .next/.
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3000
 CMD ["node", "server.js"]

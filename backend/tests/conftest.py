@@ -66,3 +66,41 @@ def sample_scan_paths() -> dict[str, Path]:
         "yugioh_front": FIXTURES_DIR / "yugioh_front.png",
         "yugioh_back": FIXTURES_DIR / "yugioh_back.png",
     }
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Clear the rate limiter between tests.
+
+    Its counters are process-global by design (one uvicorn worker in
+    production), so without this the sixth test to log in would get a 429
+    from attempts made by earlier tests.
+    """
+    from zgrader.api import ratelimit
+
+    ratelimit.reset()
+    yield
+    ratelimit.reset()
+
+
+def register_and_verify(client, email: str, password: str = "hunter2pass") -> str:
+    """Register a client account, confirm the email, and return a token.
+
+    Registration now issues an unverified account, and creating submissions
+    or uploading scans requires verification -- so almost every test needs
+    the confirmed state rather than the raw one.
+    """
+    from zgrader.db import SessionLocal
+    from zgrader.models import User
+
+    client.post(
+        "/auth/register",
+        json={"email": email, "password": password, "accept_terms": True},
+    )
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.email == email.strip().lower()).one()
+        token = user.verification_token
+    if token:
+        client.post(f"/auth/verify/{token}")
+    resp = client.post("/auth/login", data={"username": email, "password": password})
+    return resp.json()["access_token"]

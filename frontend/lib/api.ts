@@ -18,6 +18,9 @@ export interface User {
   email: string;
   is_verified: boolean;
   role: UserRole;
+  display_name: string | null;
+  marketing_consent: boolean;
+  terms_accepted_at: string | null;
 }
 
 export interface Card {
@@ -121,12 +124,37 @@ export interface Game {
   verified: boolean;
 }
 
-export interface Branding {
-  business_name: string;
-  business_contact: string | null;
+/** Public contact details shown in the nav, footer and contact page. Every
+ *  optional field is hidden by the UI when null, so an operator who hasn't
+ *  filled one in never ships a dead link. */
+export interface PublicContact {
+  contact_email: string | null;
+  contact_location: string | null;
+  contact_response_days: number | null;
+  contact_in_person: boolean;
+  social_instagram: string | null;
+  social_facebook: string | null;
+  social_x: string | null;
+  social_whatsapp: string | null;
 }
 
-export interface Settings {
+export interface Branding extends PublicContact {
+  business_name: string;
+  business_contact: string | null;
+  /** Companies currently taking part in the comparison, in a fixed order.
+   *  The public copy names these rather than a hardcoded list, so disabling
+   *  one in admin can't leave the site advertising a comparison it no longer
+   *  runs. */
+  grading_companies: string[];
+}
+
+export interface GradingCompanyStatus {
+  company: string;
+  active: boolean;
+  rule_count: number;
+}
+
+export interface Settings extends PublicContact {
   auto_publish_default: boolean;
   business_name: string;
   business_logo_path: string | null;
@@ -134,7 +162,7 @@ export interface Settings {
   disclaimer_text: string;
 }
 
-export interface SettingsUpdate {
+export interface SettingsUpdate extends Partial<PublicContact> {
   auto_publish_default?: boolean;
   business_name?: string;
   business_logo_path?: string | null;
@@ -157,13 +185,34 @@ export interface AuditLogEntry {
   user_email: string | null;
 }
 
+/** FastAPI reports most failures as a `detail` string, but validation errors
+ *  (422) send a list of `{loc, msg}` objects instead. Interpolating that
+ *  straight into a message produced "[object Object]" on screen, which tells
+ *  the user nothing -- so name the offending field and quote the reason. */
+function describeDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (!Array.isArray(detail)) return null;
+  const parts = detail
+    .map((item) => {
+      if (typeof item !== "object" || item === null) return null;
+      const { loc, msg } = item as { loc?: unknown[]; msg?: string };
+      if (!msg) return null;
+      // loc is like ["body", "social_x"]; the last entry is the field.
+      const field = Array.isArray(loc) ? loc[loc.length - 1] : undefined;
+      const label = typeof field === "string" && field !== "body" ? `${field}: ` : "";
+      return `${label}${msg.replace(/^Value error, /, "")}`;
+    })
+    .filter((p): p is string => Boolean(p));
+  return parts.length > 0 ? parts.join("; ") : null;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
     let message = res.statusText;
     try {
       const body = await res.json();
-      message = body.detail ?? message;
+      message = describeDetail(body.detail) ?? message;
     } catch {
       // response wasn't JSON -- fall back to statusText
     }
@@ -177,12 +226,71 @@ function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function register(email: string, password: string): Promise<User> {
+export async function register(
+  email: string,
+  password: string,
+  acceptTerms: boolean,
+  marketingConsent = false
+): Promise<User> {
   return request("/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email,
+      password,
+      accept_terms: acceptTerms,
+      marketing_consent: marketingConsent,
+    }),
   });
+}
+
+const jsonPost = (path: string, body: unknown, token?: string) =>
+  request<void>(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? authHeaders(token) : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  return jsonPost("/auth/forgot-password", { email });
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  return jsonPost("/auth/reset-password", { token, password });
+}
+
+export async function resendVerification(email: string): Promise<void> {
+  return jsonPost("/auth/verify/resend", { email });
+}
+
+export async function changePassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ access_token: string; token_type: string }> {
+  return request("/auth/change-password", {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+export async function updateProfile(
+  token: string,
+  updates: { display_name?: string | null; marketing_consent?: boolean }
+): Promise<User> {
+  return request("/auth/me", {
+    method: "PATCH",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteAccount(token: string): Promise<void> {
+  return request("/auth/me", { method: "DELETE", headers: authHeaders(token) });
 }
 
 export async function login(
@@ -213,6 +321,70 @@ export async function getGames(): Promise<Game[]> {
 
 export async function getBranding(): Promise<Branding> {
   return request("/catalog/branding");
+}
+
+/** Slugs identifying the six service tiers on /services. Must stay in step
+ *  with SERVICE_TIER_SLUGS in backend/zgrader/images.py -- the backend 404s
+ *  anything it doesn't recognise. */
+export type ServiceSlug =
+  | "analysis"
+  | "subscription"
+  | "personalised"
+  | "restoration"
+  | "packaging"
+  | "collection";
+
+/** Which tiers have a banner, mapped to a version (the file's mtime). */
+export type ServiceImageVersions = Partial<Record<ServiceSlug, number>>;
+
+export async function getServiceImages(): Promise<ServiceImageVersions> {
+  return request("/catalog/service-images");
+}
+
+/** Unlike every other image URL here, this one is public, so it can go
+ *  straight into an <img src> with no token and no blob dance. The version
+ *  makes a replaced image a new URL, so it can be cached hard and still
+ *  update the moment the operator uploads a new one. */
+export function serviceImageUrl(slug: ServiceSlug, version: number): string {
+  return `${API_BASE}/catalog/service-images/${slug}?v=${version}`;
+}
+
+export async function uploadServiceImage(
+  token: string,
+  slug: ServiceSlug,
+  file: File
+): Promise<void> {
+  const body = new FormData();
+  body.set("file", file);
+  // No Content-Type header -- the browser has to set the multipart boundary.
+  return request(`/admin/service-images/${slug}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body,
+  });
+}
+
+export async function deleteServiceImage(token: string, slug: ServiceSlug): Promise<void> {
+  return request(`/admin/service-images/${slug}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+}
+
+export async function getGradingCompanies(token: string): Promise<GradingCompanyStatus[]> {
+  return request("/admin/grading-companies", { headers: authHeaders(token) });
+}
+
+export async function setGradingCompanyActive(
+  token: string,
+  company: string,
+  active: boolean
+): Promise<GradingCompanyStatus> {
+  return request(`/admin/grading-companies/${company}`, {
+    method: "PATCH",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
+  });
 }
 
 export async function createSubmission(token: string, payload: SubmissionCreate): Promise<SubmissionDetail> {

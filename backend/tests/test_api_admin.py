@@ -7,13 +7,13 @@ from zgrader.auth.security import hash_password
 from zgrader.models import ReportStatus, Submission, SubmissionStatus, User, UserRole
 from zgrader.worker.watcher import process_submission_folder
 
+from tests.conftest import register_and_verify
+
 client = TestClient(app)
 
 
 def _register_and_login(email: str) -> str:
-    client.post("/auth/register", json={"email": email, "password": "hunter2pass"})
-    resp = client.post("/auth/login", data={"username": email, "password": "hunter2pass"})
-    return resp.json()["access_token"]
+    return register_and_verify(client, email)
 
 
 def _auth_headers(token: str) -> dict:

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Chip } from "@heroui/react";
 import Button from "@/components/Button";
 import PhotoInspector from "@/components/PhotoInspector";
@@ -33,6 +34,9 @@ const SEVERITY_CHIP_COLOR: Record<api.Region["severity"], "success" | "danger"> 
 // so panel order reads naturally and lines cross each other less.
 const COLLAPSED_COUNT = 3;
 
+// Which panels the viewer folded away, remembered per submission side.
+const COLLAPSE_STORAGE_PREFIX = "zgrader_collapsed_regions:";
+
 export default function AnnotatedPhoto({
   token,
   code,
@@ -59,6 +63,46 @@ export default function AnnotatedPhoto({
   const [expanded, setExpanded] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
   const [inspecting, setInspecting] = useState(false);
+  // Region keys whose detail (crop image + note) is folded away. Purely
+  // cosmetic -- a collapsed panel stays in `visible`, so the numbered markers
+  // on the photo and in the inspector are unaffected.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const storageKey = `${COLLAPSE_STORAGE_PREFIX}${code}:${side}`;
+
+  // Restore on mount rather than in the initial state, so the server render
+  // and the first client render agree -- the same guard locale-switch and
+  // theme-switch use for localStorage.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved) setCollapsed(new Set(JSON.parse(saved) as string[]));
+    } catch {
+      // Unparseable or unavailable storage just means nothing is collapsed.
+    }
+  }, [storageKey]);
+
+  const persistCollapsed = useCallback(
+    (next: Set<string>) => {
+      setCollapsed(next);
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify([...next]));
+      } catch {
+        // Private browsing or a full quota -- the view still works, it just
+        // won't be remembered.
+      }
+    },
+    [storageKey]
+  );
+
+  const toggleCollapsed = useCallback(
+    (key: string) => {
+      const next = new Set(collapsed);
+      if (!next.delete(key)) next.add(key);
+      persistCollapsed(next);
+    },
+    [collapsed, persistCollapsed]
+  );
 
   const allRegions: CategoryRegion[] = results.flatMap((r) => {
     const list = (r.measurements?.regions as api.Region[] | undefined) ?? [];
@@ -73,6 +117,7 @@ export default function AnnotatedPhoto({
     (a, b) => a.anchor_norm[1] - b.anchor_norm[1]
   );
   const hiddenCount = ranked.length - visible.length;
+  const allCollapsed = visible.length > 0 && visible.every((r) => collapsed.has(regionKey(r)));
 
   // Optional "AI-assisted" observations (present only when an external model
   // is configured server-side); descriptive second opinion, not scored.
@@ -153,8 +198,11 @@ export default function AnnotatedPhoto({
       });
     }
     setLines(nextLines);
+    // `collapsed` matters here: folding a panel changes its height, and the
+    // line is drawn to the panel's vertical midpoint. Without it the lines
+    // would keep pointing at where the panel used to be.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoUrl, cropUrls, expanded]);
+  }, [photoUrl, cropUrls, expanded, collapsed]);
 
   useLayoutEffect(() => {
     recomputeLines();
@@ -186,6 +234,19 @@ export default function AnnotatedPhoto({
             <Button variant="outline" size="sm" onPress={() => setInspecting(true)}>
               {t.inspector.inspect}
             </Button>
+            {visible.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() =>
+                  persistCollapsed(
+                    allCollapsed ? new Set() : new Set(visible.map((r) => regionKey(r)))
+                  )
+                }
+              >
+                {allCollapsed ? t.breakout.expandAll : t.breakout.collapseAll}
+              </Button>
+            )}
           </div>
         )}
         <div className="relative">
@@ -250,7 +311,10 @@ export default function AnnotatedPhoto({
         ) : (
           visible.map((region, i) => {
             const dKey = dismissKey(side, region);
+            const rKey = regionKey(region);
             const isDismissed = dismissedRegions.has(dKey);
+            const isCollapsed = collapsed.has(rKey);
+            const bodyId = `region-body-${side}-${rKey.replace(/[^a-z0-9]/gi, "-")}`;
             return (
               <div
                 key={regionKey(region)}
@@ -284,13 +348,48 @@ export default function AnnotatedPhoto({
                   )}
                   <button
                     type="button"
-                    onClick={() => onToggle(dKey, !isDismissed)}
+                    onClick={() => {
+                      // Once a finding is dismissed you've dealt with it, so
+                      // fold it away and give the space back.
+                      if (!isDismissed && !isCollapsed) {
+                        persistCollapsed(new Set(collapsed).add(rKey));
+                      }
+                      onToggle(dKey, !isDismissed);
+                    }}
                     className="ml-auto text-xs font-semibold underline-offset-2 hover:underline"
                     style={{ color: "var(--neon-pink)" }}
                   >
                     {isDismissed ? t.breakout.restore : t.breakout.dismiss}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapsed(rKey)}
+                    aria-expanded={!isCollapsed}
+                    aria-controls={bodyId}
+                    aria-label={isCollapsed ? t.breakout.expand : t.breakout.collapse}
+                    title={isCollapsed ? t.breakout.expand : t.breakout.collapse}
+                    className="shrink-0 rounded p-0.5 text-muted hover:text-accent"
+                  >
+                    {/* Instant, not animated: the leader lines recompute from a
+                        ResizeObserver on each panel, and a height transition
+                        would fire it every frame. */}
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      className={isCollapsed ? "" : "rotate-180"}
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
                 </div>
+                <div id={bodyId} hidden={isCollapsed} className="flex flex-col gap-2">
                 {cropUrls[regionKey(region)] && (
                   <img
                     src={cropUrls[regionKey(region)]}
@@ -309,6 +408,7 @@ export default function AnnotatedPhoto({
                       : t.breakout.lowConfidenceGenericNote}
                   </p>
                 )}
+                </div>
               </div>
             );
           })
@@ -334,6 +434,18 @@ export default function AnnotatedPhoto({
               ))}
             </ul>
           </div>
+        )}
+        {/* Once per side, under the list rather than on every panel: someone
+            doubting a finding is looking at it right now, and this is the
+            answer to "why did it say that?". Repeating it per panel would
+            just be noise. */}
+        {visible.length > 0 && (
+          <Link
+            href="/methodology"
+            className="self-start text-xs text-muted link-accent-hover hover:text-accent"
+          >
+            {t.breakout.whyFlagged} &rsaquo;
+          </Link>
         )}
       </div>
     </div>

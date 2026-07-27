@@ -1,12 +1,22 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from zgrader import images
 from zgrader.api.deps import require_operator
+from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.models import AuditLog, Report, ReportStatus, Settings, Submission, User
+from zgrader.models.grading_comparison import GradingCompany, GradingCompanyToleranceRule
 from zgrader.models.settings import get_or_create_settings
-from zgrader.schemas.admin import AuditLogOut, SettingsOut, SettingsUpdate, StatsOut
+from zgrader.schemas.admin import (
+    AuditLogOut,
+    GradingCompanyOut,
+    GradingCompanyUpdate,
+    SettingsOut,
+    SettingsUpdate,
+    StatsOut,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -70,3 +80,116 @@ def list_audit_log(
         )
         for entry in entries
     ]
+
+
+def _service_image_path(slug: str):
+    """Resolve a tier slug to its file, 404ing on anything unrecognised.
+
+    The slug is matched against a fixed tuple rather than a pattern, so the
+    path below is always built from a constant -- there is no way for a
+    request to steer it anywhere else on disk.
+    """
+    if slug not in images.SERVICE_TIER_SLUGS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown service")
+    return images.service_image_path(config.public_media_dir, slug)
+
+
+@router.put("/service-images/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_service_image(
+    slug: str,
+    file: UploadFile = File(...),
+    _operator: User = Depends(require_operator),
+) -> None:
+    """Set the banner shown for a service tier on the public /services page.
+
+    Idempotent by slug: uploading again replaces the existing image, which is
+    why this is a PUT. The stored file is re-encoded rather than saved as
+    received (see images.store_service_image).
+    """
+    path = _service_image_path(slug)
+    # One byte past the cap, so the limit doesn't depend on Content-Length.
+    content = await file.read(images.MAX_UPLOAD_BYTES + 1)
+    try:
+        images.store_service_image(content, path)
+    except images.ImageTooLarge:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Image is too large"
+        ) from None
+    except images.UnsupportedImage:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Unsupported image format -- use JPEG, PNG, or TIFF"
+        ) from None
+
+
+@router.delete("/service-images/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_service_image(slug: str, _operator: User = Depends(require_operator)) -> None:
+    """Remove a tier's banner. The card then renders without one, as it did
+    before any image was set."""
+    _service_image_path(slug).unlink(missing_ok=True)
+
+
+@router.get("/grading-companies", response_model=list[GradingCompanyOut])
+def list_grading_companies(
+    _operator: User = Depends(require_operator), db: Session = Depends(get_db)
+) -> list[GradingCompanyOut]:
+    """Which companies take part in the multi-company comparison.
+
+    Returned in enum order rather than query order so the admin list doesn't
+    reshuffle between loads.
+    """
+    rules = db.query(GradingCompanyToleranceRule).all()
+    return [
+        GradingCompanyOut(
+            company=company.value,
+            active=all(r.active for r in company_rules),
+            rule_count=len(company_rules),
+        )
+        for company in GradingCompany
+        if (company_rules := [r for r in rules if r.company == company])
+    ]
+
+
+@router.patch("/grading-companies/{company}", response_model=GradingCompanyOut)
+def set_grading_company_active(
+    company: str,
+    payload: GradingCompanyUpdate,
+    operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> GradingCompanyOut:
+    """Enable or disable a whole company.
+
+    `active` lives on each tolerance rule, so this updates every rule for the
+    company at once -- there's no unique key to target a company by.
+
+    Disabling takes effect for future analyses. Comparisons already stored on
+    a submission stay as they are until something re-runs the rules engine for
+    it, which includes a client dismissing a finding.
+    """
+    try:
+        target = GradingCompany(company)
+    except ValueError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown grading company") from None
+
+    rules = (
+        db.query(GradingCompanyToleranceRule)
+        .filter(GradingCompanyToleranceRule.company == target)
+        .all()
+    )
+    if not rules:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No tolerance rules for that company")
+
+    for rule in rules:
+        rule.active = payload.active
+
+    # This changes what every future report says, so it's worth a trail --
+    # the first audited action in this router.
+    db.add(
+        AuditLog(
+            submission_id=None,
+            user_id=operator.id,
+            action="grading_company_enabled" if payload.active else "grading_company_disabled",
+            detail={"company": target.value, "rules_updated": len(rules)},
+        )
+    )
+    db.commit()
+    return GradingCompanyOut(company=target.value, active=payload.active, rule_count=len(rules))

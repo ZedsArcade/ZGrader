@@ -1,17 +1,45 @@
 # The Next.js frontend already proxies /api/* to the backend internally
 # (see frontend/next.config.ts), so Caddy's only job is being the single
 # external entry point in front of it -- no path-based routing needed here.
+{
+	# Without these a slow client can hold a connection open indefinitely
+	# against the single uvicorn worker behind this. write is generous
+	# because report PDFs are generated on demand.
+	servers {
+		timeouts {
+			read_body 60s
+			read_header 10s
+			write 120s
+			idle 120s
+		}
+	}
+}
 
 # Homelab default: plain HTTP on port 80, LAN-only.
 #
 # To get real automatic HTTPS via Let's Encrypt instead, replace ":80" below
-# with your actual domain name (e.g. "zgrader.example.com"). Caddy handles
+# with your actual domain name (e.g. "cards.example.com"). Caddy handles
 # certificate issuance/renewal automatically, as long as ports 80 and 443
 # are reachable from the internet for the ACME challenge.
 #
-# For LAN-only HTTPS with no public domain, use Caddy's internal CA instead:
-# add a top-level `{ local_certs }` block and trust Caddy's root CA on your
-# devices (browsers will otherwise warn about it).
+# Behind a Cloudflare Tunnel, leave this as ":80" and point `cloudflared` at
+# it: TLS terminates at Cloudflare and the origin is never directly
+# reachable. That last part is load-bearing -- the backend trusts
+# CF-Connecting-IP for rate limiting, which is only safe while nothing can
+# reach the origin without going through the tunnel. Do not also publish
+# this port to the internet. See docs/deployment.md.
 :80 {
+	# Comfortably above the largest scan the API accepts and well below
+	# anything that would tie up a worker. Oversized requests are rejected
+	# here rather than being read to completion by the app.
+	request_body {
+		max_size 25MB
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
 	reverse_proxy frontend:3000
 }

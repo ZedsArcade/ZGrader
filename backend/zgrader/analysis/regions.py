@@ -31,6 +31,14 @@ MIN_BLOB_AREA_MM2 = 0.5
 # against the real detector on rendered text vs. the scratch fixture;
 # still best-effort -- see the surface-analysis limitation note in
 # surface.py for why this whole category is lower-confidence.
+#
+# These two are described in customer-facing terms on the public
+# /methodology page ("a scratch's stroke is about 0.6mm, printed text is
+# roughly twice that"), and its figures are generated from this code by
+# backend/scripts/generate_methodology_figures.py. Retune these and the
+# figures need regenerating, or the page starts describing behaviour the
+# software no longer has. tests/test_methodology_figures.py fails loudly if
+# the filter stops rejecting text at all.
 _MIN_ASPECT_RATIO = 1.8
 _MAX_SCRATCH_THICKNESS_MM = 0.85
 

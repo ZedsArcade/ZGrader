@@ -3,6 +3,7 @@ import shutil
 from zgrader.models import (
     AnalysisSide,
     Card,
+    GradingCompany,
     ReportStatus,
     Submission,
     SubmissionStatus,
@@ -57,8 +58,10 @@ def test_front_and_back_scans_trigger_analysis(db_session, tmp_path, sample_scan
     # every company should get a centering row, same as the other categories.
     comparison_categories = {c.category for c in result.company_comparisons}
     assert comparison_categories == {"centering", "corners", "edges", "surface"}
-    centering_companies = {c.company.value for c in result.company_comparisons if c.category == "centering"}
-    assert centering_companies == {"PSA", "BGS", "CGC", "TAG"}
+    centering_companies = {c.company for c in result.company_comparisons if c.category == "centering"}
+    # Derived from the enum rather than a hardcoded list, so adding a company
+    # extends the check instead of breaking it.
+    assert centering_companies == set(GradingCompany)
 
 
 def test_auto_publish_generates_and_publishes_report(db_session, tmp_path, sample_scan_paths):

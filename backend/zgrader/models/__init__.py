@@ -12,6 +12,7 @@ from zgrader.models.report import Report, ReportStatus
 from zgrader.models.scan_image import ScanImage, ScanSide
 from zgrader.models.settings import Settings
 from zgrader.models.submission import Submission, SubmissionLanguage, SubmissionStatus
+from zgrader.models.subscription import Subscription, SubscriptionStatus
 from zgrader.models.user import User, UserRole
 
 __all__ = [
@@ -32,6 +33,8 @@ __all__ = [
     "Submission",
     "SubmissionLanguage",
     "SubmissionStatus",
+    "Subscription",
+    "SubscriptionStatus",
     "ToleranceSeverity",
     "User",
     "UserRole",

@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-zgrader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zgrader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a real password in .env -- see .env.example}
       POSTGRES_DB: ${POSTGRES_DB:-zgrader}
     volumes:
       #- postgres_data:/var/lib/postgresql/data
@@ -19,10 +19,18 @@ services:
     build: ./backend
     command: alembic upgrade head
     environment: &backend-env
-      ZGRADER_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zgrader}:${POSTGRES_PASSWORD:-zgrader}@postgres:5432/${POSTGRES_DB:-zgrader}
+      # Turns on the startup checks that refuse shipped-default secrets, and
+      # switches off the interactive API docs. The app will not boot in
+      # production until ZGRADER_SECRET_KEY and POSTGRES_PASSWORD are real.
+      ZGRADER_ENV: ${ZGRADER_ENV:-production}
+      ZGRADER_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zgrader}:${POSTGRES_PASSWORD:?set a real password in .env -- see .env.example}@postgres:5432/${POSTGRES_DB:-zgrader}
       ZGRADER_SCANS_DIR: /data/scans
       ZGRADER_REPORTS_DIR: /data/reports
       ZGRADER_SECRET_KEY: ${ZGRADER_SECRET_KEY:?set a real random value in .env -- see .env.example}
+      # Origin used to build the links in verification and password-reset
+      # emails. It has to be the address the customer's browser can reach --
+      # behind Cloudflare that's your public hostname, not a container name.
+      ZGRADER_SITE_URL: ${ZGRADER_SITE_URL:-http://localhost:8080}
       ZGRADER_DEFAULT_SCAN_DPI: ${ZGRADER_DEFAULT_SCAN_DPI:-600}
       ZGRADER_ADMIN_EMAIL: ${ZGRADER_ADMIN_EMAIL:-}
       ZGRADER_ADMIN_PASSWORD: ${ZGRADER_ADMIN_PASSWORD:-}

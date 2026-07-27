@@ -24,8 +24,12 @@ operator (or auto-publish) gets it in front of the client as a report.
 
 - [ ] Landing page loads, describes the service, has working "Get started" /
       "Log in" links.
-- [ ] Register a new client account. Redirects to the dashboard, empty state
-      shown with a link to create the first submission.
+- [ ] Register a new client account. **The terms checkbox must block the form
+      until ticked**, with a visible reason. Registering redirects to the
+      dashboard with a "check your inbox" message.
+- [ ] Creating a submission is refused until the address is confirmed
+      ("Please confirm your email address first"). Open the confirmation link
+      from the SMTP catcher, then continue.
 - [ ] Create a submission (pick a game, name, set, card number, foil).
       Redirects to the submission detail page, status `Created`.
 - [ ] Confirm a folder named after the submission code now exists under the
@@ -45,9 +49,10 @@ operator (or auto-publish) gets it in front of the client as a report.
 
 ## Admin flow
 
-- [ ] Log in as an operator account (operators aren't self-registrable --
-      create one directly in the DB with `role=operator`). Login redirects
-      to `/admin`, not `/dashboard`.
+- [ ] Log in as an operator account (operators aren't self-registrable -- set
+      `ZGRADER_ADMIN_EMAIL`/`ZGRADER_ADMIN_PASSWORD` and restart, or set
+      `role=operator` directly in the DB). Login redirects to `/admin`, not
+      `/dashboard`.
 - [ ] Admin overview shows stats (total submissions, draft ready count,
       published reports) and lists the submission created above.
 - [ ] Open the submission's admin detail page. Auto-publish selector shows
@@ -93,6 +98,33 @@ operator (or auto-publish) gets it in front of the client as a report.
 - [ ] A non-operator hitting `/admin` gets redirected away.
 - [ ] Backend test suite passes: `cd backend && source .venv/bin/activate && pytest -q`.
 - [ ] Frontend type-checks and builds cleanly: `cd frontend && npx next build`.
+- [ ] **After changing any analysis threshold**, regenerate the published
+      figures: `cd backend && python scripts/generate_methodology_figures.py`,
+      then check `/methodology` still shows what its captions claim. The page
+      makes specific promises about the detector's behaviour, so stale figures
+      there are a page telling customers something untrue.
+
+## Account and security flows
+
+- [ ] "Forgotten your password?" on the login page → enter the address →
+      open the reset link from the SMTP catcher → set a new password → log in
+      with it. **Opening the same link again is refused.**
+- [ ] A password reset or change signs out other sessions: log in on a second
+      browser, change the password on the first, then reload the second --
+      it should be signed out. The tab that made the change stays signed in.
+- [ ] The forgot-password form gives the *same* answer for an address that
+      doesn't exist as for one that does.
+- [ ] `/account`: display name and marketing consent save; "Delete my account"
+      asks for confirmation, then the account and its submissions are gone
+      (the old password no longer logs in).
+- [ ] Six wrong passwords in a row from the same address get a 429 with a
+      `Retry-After`. Successful logins do **not** count towards that.
+- [ ] With `ZGRADER_ENV=production`: `curl -I http://localhost:3000/` shows
+      `Content-Security-Policy`, `Strict-Transport-Security`,
+      `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` and
+      `Permissions-Policy`, and **no** `X-Powered-By`; `/api/docs` returns 404.
+- [ ] With `ZGRADER_ENV=production` and the shipped default
+      `ZGRADER_SECRET_KEY`, the backend refuses to start and says why.
 
 ## Docker Compose deployment (homelab)
 
@@ -102,10 +134,15 @@ with a live daemon during development -- the sandbox this was built in can't
 run nested Docker. Treat the steps below as the first real test of the
 container path, not a formality:
 
-1. `cp .env.example .env` and fill in real values (`ZGRADER_SECRET_KEY`
-   especially -- generate with
+1. `cp .env.example .env` and fill in real values. `ZGRADER_SECRET_KEY` and
+   `POSTGRES_PASSWORD` are now mandatory -- the stack refuses to start
+   without them (generate a key with
    `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`).
-   Set `SCANS_HOST_PATH` to wherever your scanner actually writes.
+   Set `SCANS_HOST_PATH` to wherever your scanner actually writes, and
+   `ZGRADER_SITE_URL` to the address customers reach the site on, or the
+   links inside verification emails will point at the wrong host.
+   See `docs/deployment.md` for the Cloudflare Tunnel and file-ownership
+   notes.
 2. `docker compose --profile dev up --build` (the `dev` profile adds
    mailhog at `http://localhost:8025` so notification emails have
    somewhere to go without a real SMTP relay).

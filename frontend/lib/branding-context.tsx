@@ -3,7 +3,24 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import * as api from "./api";
 
-const DEFAULT_BRANDING: api.Branding = { business_name: "Card Care Center", business_contact: null };
+// Rendered until the backend answers (and kept if it never does). Everything
+// optional starts unset so the footer and contact page show nothing rather
+// than flashing placeholder links that go nowhere.
+const DEFAULT_BRANDING: api.Branding = {
+  business_name: "Card Care Center",
+  business_contact: null,
+  contact_email: null,
+  contact_location: null,
+  contact_response_days: null,
+  contact_in_person: false,
+  social_instagram: null,
+  social_facebook: null,
+  social_x: null,
+  social_whatsapp: null,
+  // Empty until the backend answers. The copy falls back to a generic phrase
+  // rather than briefly naming companies that may not be enabled.
+  grading_companies: [],
+};
 
 interface BrandingContextValue extends api.Branding {
   refresh: () => Promise<void>;

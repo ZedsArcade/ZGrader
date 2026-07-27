@@ -167,6 +167,9 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
         "dismissed_count": len(dismissed_findings),
         "dismissed_findings": dismissed_findings,
         "generated_at": datetime.datetime.now(datetime.timezone.utc),
+        # Printed in the footer so a forwarded copy of this PDF carries a
+        # route back to how its numbers were produced.
+        "methodology_url": f"{config.site_url.rstrip('/')}/methodology",
     }
 
 
