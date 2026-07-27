@@ -39,8 +39,32 @@ workflow in the QA checklist and the test suite keep working unchanged.
 | `ZGRADER_SECRET_KEY` | Signs session tokens. See above. |
 | `POSTGRES_PASSWORD` | Compose refuses to start without it. |
 | `ZGRADER_SITE_URL` | The public origin used to build the links inside verification and password-reset emails. Wrong value here means mail nobody can act on. |
-| `ZGRADER_SMTP_*` | Account verification and password reset both depend on mail being delivered. With the MailHog defaults, nobody can confirm an address or recover a password. A real relay is required in production. |
-| `ZGRADER_ADMIN_EMAIL` / `ZGRADER_ADMIN_PASSWORD` | Optional first-operator bootstrap. Safe to remove after the account exists — re-deploying never overwrites an existing operator's password. |
+| `ZGRADER_SMTP_*` | **A real relay is required before launch** — see below. |
+| `ZGRADER_ADMIN_EMAIL` / `ZGRADER_ADMIN_PASSWORD` | Optional first-operator bootstrap. Safe to remove after the account exists — re-deploying never overwrites an existing operator's password. See below. |
+| `ZGRADER_ADMIN_RESET_PASSWORD` | Recovery hatch for a locked-out operator. Off by default. |
+
+## Getting into the admin panel
+
+`ZGRADER_ADMIN_EMAIL` + `ZGRADER_ADMIN_PASSWORD` create an operator on startup, or promote an
+existing account of that address to operator. Capitalisation doesn't matter — addresses are
+normalised to lowercase everywhere.
+
+The part that catches people out: **if that address already has an account, only the role changes.**
+The password stays whatever was set when the account was created, and `ZGRADER_ADMIN_PASSWORD` is
+ignored. That's deliberate — otherwise a password you changed in the app would be silently reverted
+every time you redeployed, which is a horrible fault to track down.
+
+So if you're locked out:
+
+1. Set `ZGRADER_ADMIN_RESET_PASSWORD=true` alongside the email and password.
+2. Redeploy. The backend forces the password onto that account and signs out its existing sessions,
+   logging a warning that it did so.
+3. Log in, then **remove the flag and redeploy again**. While it's set, the environment file is a
+   standing credential for the admin account.
+
+The startup log tells you which path ran — `Seeded operator account for …`, `Promoted … to
+operator`, `… already exists; left unchanged`, or `Startup seeding failed` with a traceback. If you
+see none of those, the two variables aren't both set.
 
 ## Cloudflare Tunnel
 
@@ -109,6 +133,21 @@ user; nothing to configure.
    which account is real, not a silent merge.
 4. Existing users are marked verified by the migration, so nobody already
    registered is locked out by the new verification requirement.
+
+## Email is not optional
+
+The `ZGRADER_SMTP_*` defaults point at the bundled `mailhog` service, which only runs under the
+`dev` compose profile. In a normal production deployment they point at nothing, and **no mail
+leaves the server**.
+
+That breaks more than it looks like it does. Creating a submission and uploading a scan both
+require a confirmed email address, and the only way to confirm one is the link in the verification
+email. So with no relay configured, a customer can register successfully and then discover they
+cannot submit a card, with nothing they can do about it. Password reset is equally dead, which is
+how an operator ends up locked out with no way back except the database.
+
+Point `ZGRADER_SMTP_*` at a real relay before anyone else uses the site. To check it's working:
+register a throwaway account and confirm the verification mail arrives.
 
 ## Still open
 
