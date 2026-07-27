@@ -98,6 +98,11 @@ operator (or auto-publish) gets it in front of the client as a report.
 - [ ] A non-operator hitting `/admin` gets redirected away.
 - [ ] Backend test suite passes: `cd backend && source .venv/bin/activate && pytest -q`.
 - [ ] Frontend type-checks and builds cleanly: `cd frontend && npx next build`.
+- [ ] **After changing any analysis threshold**, regenerate the published
+      figures: `cd backend && python scripts/generate_methodology_figures.py`,
+      then check `/methodology` still shows what its captions claim. The page
+      makes specific promises about the detector's behaviour, so stale figures
+      there are a page telling customers something untrue.
 
 ## Account and security flows
 

@@ -37,6 +37,9 @@ export default function ServicesClient() {
     points: string[];
     status: Availability;
     warning?: string;
+    // Only the tier that actually exists has somewhere deeper to go. The
+    // others would be linking to a page describing something nobody can buy.
+    learnMoreHref?: string;
   }[] = [
     {
       slug: "analysis",
@@ -49,6 +52,7 @@ export default function ServicesClient() {
         t.services.tier1Point4,
       ],
       status: "available",
+      learnMoreHref: "/methodology",
     },
     {
       slug: "subscription",
@@ -141,7 +145,7 @@ export default function ServicesClient() {
               )}
               {/* Unavailable tiers route to contact rather than presenting a
                   dead call to action. */}
-              <div className="mt-auto pt-2">
+              <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
                 {tier.status === "available" ? (
                   <Link
                     href="/register"
@@ -158,6 +162,14 @@ export default function ServicesClient() {
                     className={cn(buttonVariants({ variant: "outline", size: "sm" }), "btn-press")}
                   >
                     {t.services.contactCta}
+                  </Link>
+                )}
+                {tier.learnMoreHref && (
+                  <Link
+                    href={tier.learnMoreHref}
+                    className="text-sm font-semibold text-accent link-accent-hover hover:underline"
+                  >
+                    {t.services.methodologyCta} &rsaquo;
                   </Link>
                 )}
               </div>

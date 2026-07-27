@@ -78,6 +78,17 @@ export default function HowItWorksClient() {
         ))}
       </div>
 
+      {/* The FAQ above admits surface analysis is the weakest category; this
+          is where someone who wants to know why goes next. */}
+      <div className="mt-4">
+        <Link
+          href="/methodology"
+          className="text-sm font-semibold text-accent link-accent-hover hover:underline"
+        >
+          {t.howItWorks.methodologyLink} &rsaquo;
+        </Link>
+      </div>
+
       <Card className="interactive-card mt-8">
         <Card.Header>
           <Card.Title>{t.howItWorks.ctaTitle}</Card.Title>

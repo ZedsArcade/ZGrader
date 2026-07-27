@@ -17,6 +17,7 @@ export const es: Dictionary = {
     about: "Nosotros",
     services: "Servicios",
     howItWorks: "Cómo funciona",
+    methodology: "Metodología",
     contact: "Contacto",
     terms: "Términos",
     privacy: "Privacidad",
@@ -174,6 +175,7 @@ export const es: Dictionary = {
     expand: "Expandir",
     collapseAll: "Contraer todo",
     expandAll: "Expandir todo",
+    whyFlagged: "¿Por qué se ha marcado esto? Cómo funciona el análisis",
   },
   inspector: {
     inspect: "Inspeccionar foto",
@@ -304,6 +306,7 @@ export const es: Dictionary = {
     includesLabel: "Incluye",
     contactCta: "Contactar",
     startCta: "Empezar revisión gratuita",
+    methodologyCta: "Cómo funciona el análisis",
     pricingNote:
       "Los precios de los servicios de pago aún no están fijados. Nada de esta página le compromete a nada, y no se trabaja sobre ninguna carta sin acordar antes el coste con usted.",
     tier1Name: "Análisis de imagen e informe",
@@ -385,6 +388,118 @@ export const es: Dictionary = {
       "Se almacenan para que su informe siga funcionando, y no se usan para nada más. Puede eliminar un envío en cualquier momento, lo que borra sus escaneos, el análisis y el informe.",
     ctaTitle: "¿Listo para probarlo?",
     ctaBody: "La primera revisión es gratuita.",
+    methodologyLink: "Leer la metodología completa",
+  },
+  methodology: {
+    title: "Cómo funciona el análisis",
+    subtitle:
+      "Qué mide el software, cómo decide y en qué se equivoca. Todas las imágenes de esta página son resultados reales del mismo código que lee su carta.",
+
+    demoTitle: "Sobre la carta de estas imágenes",
+    demoBody:
+      "La carta que aparece abajo no es real. Se creó para esta página y se pasó por el análisis de verdad, así que lo que ve son detecciones auténticas, no un diagrama de lo que nos gustaría que hiciera. Usamos una carta inventada porque la ilustración de una carta real pertenece a su editorial, y el escaneo de un cliente pertenece al cliente.",
+
+    prepTitle: "Antes de medir nada",
+    prepBody:
+      "Se localiza la carta en la foto, se endereza y se recorta a sus propios bordes; usted confirma ese recorte, porque todas las medidas posteriores se toman de él. La escala sale del tamaño físico real de la carta, no del archivo de imagen. Los PPP guardados en la foto de un móvil no tienen nada que ver con cuántos píxeles cubren la carta, así que partimos de que una carta estándar mide 63mm por 88mm. Por eso el informe le da milímetros que puede comprobar con una regla.",
+
+    centeringTitle: "Centrado",
+    centeringMeasures: "Qué mide",
+    centeringMeasuresBody:
+      "El ancho del borde impreso en los cuatro lados, y cuán desigual fue el corte de la carta.",
+    centeringHow: "Cómo",
+    centeringHowBody:
+      "Se recorren veinte líneas hacia dentro desde cada borde cortado, buscando el salto de brillo más marcado: el punto donde el borde impreso se encuentra con el canto de la carta. Se toma el valor central de esas veinte, para que una línea anómala no distorsione el resultado. Los cuatro anchos se convierten en una proporción izquierda/derecha y superior/inferior.",
+    centeringWrong: "En qué se equivoca",
+    centeringWrongBody:
+      "Una carta full-art u holográfica no tiene un borde limpio que localizar. El software lo detecta en vez de adivinar: si las veinte líneas no coinciden entre sí, la lectura se marca como de menor confianza y así se indica en su informe.",
+    centeringAlt:
+      "La carta de demostración con el borde impreso resaltado y los cuatro anchos de borde etiquetados en milímetros.",
+    centeringCaption:
+      "Las cuatro medidas y la proporción que producen. Esta carta se cortó claramente hacia un lado.",
+
+    cornersTitle: "Esquinas",
+    cornersMeasures: "Qué mide",
+    cornersMeasuresBody: "Blanqueamiento y redondeo en cada una de las cuatro esquinas.",
+    cornersHow: "Cómo",
+    cornersHowBody:
+      "Una esquina desgastada se deshilacha hacia el cartón blanco de debajo, así que la intensidad del color cae en la punta. Cada esquina se compara con una zona de referencia un poco más adentro de la misma carta: la diferencia es el desgaste. El redondeo es aparte: tras enderezar la carta, una esquina en punta debería llegar hasta el vértice del encuadre, de modo que ver el fondo del escáner donde debería haber punta significa que falta material.",
+    cornersWrong: "En qué se equivoca",
+    cornersWrongBody:
+      "Los umbrales están ajustados a partir de escaneos reales, no tomados de ninguna norma publicada, y una carta cuya ilustración de esquina es naturalmente pálida puede parecer algo desgastada.",
+    cornersAlt:
+      "La esquina superior izquierda ampliada de la carta de demostración, con la zona de la punta y la de referencia resaltadas y sus valores de intensidad de color.",
+    cornersCaption:
+      "La punta frente a su referencia. Una caída grande significa que la esquina se ha desgastado hasta el cartón.",
+
+    edgesTitle: "Bordes",
+    edgesMeasures: "Qué mide",
+    edgesMeasuresBody:
+      "El blanqueamiento a lo largo de cada borde, y si es un tramo continuo o solo una mota.",
+    edgesHow: "Cómo",
+    edgesHowBody:
+      "Se compara una franja fina de cada borde con una franja de referencia justo por dentro. La referencia es local a propósito: muchas cartas tienen un borde distinto de la ilustración central, y comparar un borde con el centro de la carta las marcaría todas. Un tramo largo e ininterrumpido de blanqueamiento pesa más que la misma cantidad repartida, porque así es como se juzga en realidad.",
+    edgesWrong: "En qué se equivoca",
+    edgesWrongBody:
+      "En una carta de borde inusualmente estrecho, la franja de referencia puede caer sobre la ilustración en lugar del borde, y entonces la comparación mide un cambio de diseño en vez de desgaste.",
+    edgesAlt:
+      "El borde derecho ampliado de la carta de demostración, con un tramo blanco desgastado dentro de la franja muestreada, junto a su franja de referencia.",
+    edgesCaption: "La franja muestreada, su referencia y el tramo blanqueado entre ambas.",
+
+    surfaceTitle: "Superficie",
+    surfaceMeasures: "Qué mide",
+    surfaceMeasuresBody: "Arañazos, líneas de impresión y otras marcas en la cara de la carta.",
+    surfaceHow: "Cómo",
+    surfaceHowBody:
+      "El software desplaza una ventana pequeña por la carta y mide cuánto cambia la imagen dentro de ella. Una zona lisa y limpia apenas cambia; un arañazo cambia bruscamente. Todo lo que quede muy por encima de la media de la propia carta se marca, y después se mide cada zona marcada: un arañazo real es largo y su trazo es fino, de unas seis décimas de milímetro. El texto impreso tiene aproximadamente el doble de grosor, y esa diferencia es lo que permite distinguirlos.",
+    surfaceWrong: "En qué se equivoca",
+    surfaceWrongBody:
+      "Es la más débil de las cuatro, y preferimos decirlo a que lo descubra usted. Un escáner plano ilumina la carta de forma uniforme; un calificador profesional usa una luz casi rasante que proyecta una sombra a lo largo del arañazo y lo hace evidente. Nosotros no tenemos esa sombra, así que los arañazos leves pueden pasar desapercibidos, y detalles impresos pueden marcarse sin motivo.",
+    surfaceRawAlt:
+      "La carta de demostración con todo lo que detectó el análisis resaltado en rojo: todas las líneas de texto y el arañazo.",
+    surfaceRawCaption:
+      "Todo lo que ve la primera pasada. El texto impreso está incluido: para un detector de contraste, una letra se parece bastante a un arañazo.",
+    surfaceFilteredAlt:
+      "La misma carta tras el filtrado, con recuadros sobre el arañazo, el borde superior del panel de ilustración y dos palabras del texto.",
+    surfaceFilteredCaption:
+      "Lo que supera el filtro. El arañazo se conserva, pero también el borde superior del panel de ilustración y dos palabras de texto. Esos dos últimos son falsos positivos, y por eso puede eliminar cualquier detección con la que no esté de acuerdo.",
+
+    creasesTitle: "Dobleces",
+    creasesMeasures: "Qué mide",
+    creasesMeasuresBody:
+      "Líneas largas que cruzan la carta ignorando el diseño impreso.",
+    creasesHow: "Cómo",
+    creasesHowBody:
+      "Se realza mucho el contraste y solo se conservan las líneas largas y bastante rectas del interior de la carta; el borde se omite, porque los cantos del marco impreso también son líneas rectas y largas. Las líneas casi idénticas se fusionan para no informar tres veces del mismo doblez.",
+    creasesWrong: "En qué se equivoca",
+    creasesWrongBody:
+      "Un doblez necesita luz en ángulo que proyecte sombra sobre el relieve, y un escaneo plano no la da. Por eso esta detección es deliberadamente informativa: un doblez detectado se le muestra, pero no modifica ninguna puntuación. Las cartas foil y holográficas generan falsos positivos con facilidad.",
+    creasesAlt:
+      "La carta de demostración con dos líneas detectadas: el doblez y el borde superior del panel de ilustración.",
+    creasesCaption:
+      "Dos líneas encontradas: el doblez y el borde superior del panel de ilustración, que está impreso y no es un daño. Justo por eso los dobleces no alteran la puntuación.",
+
+    confidenceTitle: "Cuánto fiarse de cada número",
+    confidenceBody:
+      "No son igual de fiables, y tratarlos como si lo fueran sería engañoso.",
+    confidence1:
+      "El centrado se mide, no se estima. Fíese de él, salvo que aparezca marcado como de menor confianza.",
+    confidence2:
+      "Esquinas y bordes van bien. Comparan elementos equivalentes de la misma carta.",
+    confidence3:
+      "La superficie es la más débil, por el motivo de iluminación explicado arriba. Lea las detecciones, mire las imágenes y use sus propios ojos.",
+    confidence4: "Los dobleces son solo informativos y nunca afectan a una puntuación.",
+
+    adjustTitle: "Cuando se equivoca, decide usted",
+    adjustBody:
+      "Cualquier detección puede descartarse. Las puntuaciones se recalculan al instante, y el informe indica con claridad, en todas sus páginas, que usted lo ajustó y qué detecciones se retiraron. Esa marca no se puede quitar: un informe ajustado que pareciera idéntico a uno sin ajustar no tendría ningún valor para quien se lo enseñe.",
+
+    notTitle: "Lo que esto no es",
+    notBody:
+      "Es una estimación independiente para ayudarle a decidir si merece la pena enviar una carta. No es una calificación, y nunca predice una nota en nombre de ninguna empresa calificadora. No estamos afiliados a {companies} ni a ninguna otra empresa de calificación. Sus normas son suyas, cambian, y el criterio de un calificador humano en un día concreto no es algo que un software pueda prometer reproducir.",
+
+    ctaTitle: "Véalo en su propia carta",
+    ctaBody: "La primera revisión es gratuita y puede descartar lo que no le convenza.",
   },
   contact: {
     title: "Contacto",

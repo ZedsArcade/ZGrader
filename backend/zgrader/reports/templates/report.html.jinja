@@ -123,6 +123,7 @@
     <p>{{ disclaimer }}</p>
     {% if client_adjusted %}<p class="adjusted-disclaimer">{{ strings.adjusted_disclaimer }}</p>{% endif %}
     <p class="meta">{{ strings.generated_label }} {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+    <p class="meta">{{ strings.methodology_label }} {{ methodology_url }}</p>
   </footer>
 </body>
 </html>

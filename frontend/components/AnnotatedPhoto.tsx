@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Chip } from "@heroui/react";
 import Button from "@/components/Button";
 import PhotoInspector from "@/components/PhotoInspector";
@@ -433,6 +434,18 @@ export default function AnnotatedPhoto({
               ))}
             </ul>
           </div>
+        )}
+        {/* Once per side, under the list rather than on every panel: someone
+            doubting a finding is looking at it right now, and this is the
+            answer to "why did it say that?". Repeating it per panel would
+            just be noise. */}
+        {visible.length > 0 && (
+          <Link
+            href="/methodology"
+            className="self-start text-xs text-muted link-accent-hover hover:text-accent"
+          >
+            {t.breakout.whyFlagged} &rsaquo;
+          </Link>
         )}
       </div>
     </div>

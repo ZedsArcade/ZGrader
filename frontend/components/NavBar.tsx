@@ -35,6 +35,7 @@ export default function NavBar() {
     { href: "/about", label: t.nav.about },
     { href: "/services", label: t.nav.services },
     { href: "/how-it-works", label: t.nav.howItWorks },
+    { href: "/methodology", label: t.nav.methodology },
     { href: "/contact", label: t.nav.contact },
   ];
   const desktopLinks = publicLinks.slice(0, 2);

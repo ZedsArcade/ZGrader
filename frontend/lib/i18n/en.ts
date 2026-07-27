@@ -15,6 +15,7 @@ export const en = {
     about: "About",
     services: "Services",
     howItWorks: "How it works",
+    methodology: "Methodology",
     contact: "Contact",
     terms: "Terms",
     privacy: "Privacy",
@@ -174,6 +175,7 @@ export const en = {
     expand: "Expand",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
+    whyFlagged: "Why was this flagged? How the analysis works",
   },
   inspector: {
     inspect: "Inspect photo",
@@ -302,6 +304,7 @@ export const en = {
     includesLabel: "Includes",
     contactCta: "Get in touch",
     startCta: "Start a free check",
+    methodologyCta: "How the analysis works",
     pricingNote:
       "Pricing for the paid services isn't fixed yet. Nothing on this page commits you to anything, and no card is worked on without agreeing the cost with you first.",
     tier1Name: "Image analysis & report",
@@ -380,6 +383,116 @@ export const en = {
       "They're stored so your report keeps working, and used for nothing else. You can delete a submission at any time, which removes its scans, analysis and report.",
     ctaTitle: "Ready to try it?",
     ctaBody: "The first check is free.",
+    methodologyLink: "Read the full methodology",
+  },
+  methodology: {
+    title: "How the analysis works",
+    subtitle:
+      "What the software measures, how it decides, and where it gets things wrong. Every picture on this page is real output from the same code that reads your card.",
+
+    demoTitle: "About the card in these pictures",
+    demoBody:
+      "The card below isn't a real one. It was built for this page and run through the actual analysis -- so the findings you see are genuine detector output, not a diagram of what we'd like it to do. We use a made-up card because a real card's artwork belongs to its publisher, and a customer's scan belongs to the customer.",
+
+    prepTitle: "Before anything is measured",
+    prepBody:
+      "The card is found in the photo, straightened, and cropped to its own edges -- you confirm that crop yourself, because every measurement afterwards is taken from it. Scale then comes from the card's real physical size, not from the image file. A phone photo's stored DPI has nothing to do with how many pixels cover the card, so we work from the fact that a standard card is 63mm by 88mm. That's why the report gives you millimetres you can check with a ruler.",
+
+    centeringTitle: "Centering",
+    centeringMeasures: "What it measures",
+    centeringMeasuresBody:
+      "The width of the printed border on all four sides, and how unevenly the card was cut.",
+    centeringHow: "How",
+    centeringHowBody:
+      "Twenty sample lines are scanned inward from each cut edge, looking for the sharpest jump in brightness -- the boundary where the border meets the card's edge. The middle value of those twenty is taken, so one odd line can't skew the result. The four widths become a left/right and top/bottom split.",
+    centeringWrong: "Where it goes wrong",
+    centeringWrongBody:
+      "A full-art or holo card has no clean border to find. The software notices this rather than guessing: if the twenty sample lines disagree with each other, the reading is marked lower-confidence and flagged as such in your report.",
+    centeringAlt:
+      "The demonstration card with the printed border outlined, and each of the four border widths labelled in millimetres.",
+    centeringCaption:
+      "The four measurements, and the split they produce. This card was cut noticeably to one side.",
+
+    cornersTitle: "Corners",
+    cornersMeasures: "What it measures",
+    cornersMeasuresBody: "Whitening and rounding at each of the four corners.",
+    cornersHow: "How",
+    cornersHowBody:
+      "A worn corner frays toward the white cardstock underneath, so colour intensity drops off at the tip. Each corner is compared against a reference patch a little further in on the same card -- the difference is the wear. Rounding is separate: after straightening, a sharp corner should reach right into the tip of the frame, so scanner backing showing through where the point ought to be means material is missing.",
+    cornersWrong: "Where it goes wrong",
+    cornersWrongBody:
+      "The thresholds are tuned from real scans rather than taken from any published standard, and a card whose corner artwork is naturally pale can read as slightly worn.",
+    cornersAlt:
+      "A magnified top-left corner of the demonstration card, with the tip region and the reference region outlined, and their colour intensity values shown.",
+    cornersCaption:
+      "The tip against its reference. A big drop means the corner has worn toward bare card.",
+
+    edgesTitle: "Edges",
+    edgesMeasures: "What it measures",
+    edgesMeasuresBody:
+      "Whitening along each edge, and whether it runs continuously or is just a speck.",
+    edgesHow: "How",
+    edgesHowBody:
+      "A thin strip along each edge is compared with a reference strip immediately inside it. The reference is deliberately local: plenty of cards have a border that differs from the artwork in the middle, and comparing an edge against the centre of the card would flag every one of them. A long unbroken run of whitening counts for more than the same amount scattered about, because that's how it's actually judged.",
+    edgesWrong: "Where it goes wrong",
+    edgesWrongBody:
+      "On a card with an unusually narrow border, the reference strip can land on the artwork instead of the border, and the comparison then measures a design change rather than wear.",
+    edgesAlt:
+      "A magnified right edge of the demonstration card showing a white worn run inside the sampled edge strip, next to its reference strip.",
+    edgesCaption: "The sampled strip, its reference, and the whitened run between them.",
+
+    surfaceTitle: "Surface",
+    surfaceMeasures: "What it measures",
+    surfaceMeasuresBody: "Scratches, print lines and other marks across the face of the card.",
+    surfaceHow: "How",
+    surfaceHowBody:
+      "The software slides a small window across the card and measures how much the image changes within it. Somewhere flat and clean barely changes; a scratch changes sharply. Anything well above the card's own average is flagged, then each flagged patch is measured: a real scratch is long and its stroke is thin, around six tenths of a millimetre. Printed text is roughly twice that thickness, and that difference is what lets the two be told apart.",
+    surfaceWrong: "Where it goes wrong",
+    surfaceWrongBody:
+      "This is the weakest of the four, and we'd rather say so than have you find out. A flatbed scanner lights the card evenly from below; a professional grader uses a light held almost flat to the surface, which throws a shadow along a scratch and makes it obvious. We don't get that shadow, so faint scratches can be missed entirely -- and printed detail can be flagged when it shouldn't be.",
+    surfaceRawAlt:
+      "The demonstration card with everything the detector noticed highlighted in red: every line of body text, plus the scratch.",
+    surfaceRawCaption:
+      "Everything the first pass notices. All the printed text is in there -- to a contrast detector, a letter looks a lot like a scratch.",
+    surfaceFilteredAlt:
+      "The same card after filtering, with boxes around the scratch, the top edge of the art panel, and two words of body text.",
+    surfaceFilteredCaption:
+      "What survives the filter. The scratch is kept -- but so is the top edge of the art panel, and two words of text. Those last two are false positives, and they're why you can remove any finding you disagree with.",
+
+    creasesTitle: "Creases",
+    creasesMeasures: "What it measures",
+    creasesMeasuresBody: "Long lines running across the card that ignore the printed design.",
+    creasesHow: "How",
+    creasesHowBody:
+      "Contrast is boosted hard, then only long, roughly straight lines well inside the card's interior are kept -- the border is skipped, because printed frame edges are long straight lines too. Near-identical lines are merged so one crease isn't reported three times.",
+    creasesWrong: "Where it goes wrong",
+    creasesWrongBody:
+      "A crease really wants angled light to cast a shadow along the ridge, and a flat scan doesn't provide it. So this one is deliberately advisory: a detected crease is shown to you but does not change any score. Foil and holo cards produce false positives here readily.",
+    creasesAlt:
+      "The demonstration card with two detected lines marked: the crease, and the top edge of the art panel.",
+    creasesCaption:
+      "Two lines found: the crease, and the top edge of the art panel -- which is printed, not damage. Exactly why creases don't move the score.",
+
+    confidenceTitle: "How much to trust each number",
+    confidenceBody:
+      "They are not equally reliable, and treating them as if they were would be misleading.",
+    confidence1: "Centering is measured, not estimated. Trust it, unless it's marked lower-confidence.",
+    confidence2: "Corners and edges are good. They compare like with like on the same card.",
+    confidence3:
+      "Surface is the weakest, for the lighting reason above. Read the findings, look at the pictures, and use your own eyes.",
+    confidence4:
+      "Creases are advisory only and never affect a score.",
+
+    adjustTitle: "When it's wrong, you decide",
+    adjustBody:
+      "Every finding can be dismissed. The scores recalculate immediately, and the report then states plainly, on every page, that it was adjusted by you and which findings were removed. That mark can't be turned off -- an adjusted report that looked identical to an unadjusted one would be worth nothing to whoever you show it to.",
+
+    notTitle: "What this is not",
+    notBody:
+      "This is an independent estimate to help you decide whether a card is worth submitting. It is not a grade, and it never predicts a number on any grading company's behalf. We're not affiliated with {companies}, or with any other grading company. Their standards are their own, they change, and a human grader's judgement on the day is not something software can promise to reproduce.",
+
+    ctaTitle: "See it on your own card",
+    ctaBody: "The first check is free, and you can dismiss anything you disagree with.",
   },
   contact: {
     title: "Get in touch",

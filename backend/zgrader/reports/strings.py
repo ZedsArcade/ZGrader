@@ -52,6 +52,10 @@ REPORT_STRINGS = {
             "refined over time against real submitted-grade outcomes."
         ),
         "generated_label": "Report generated",
+        # This PDF gets forwarded to buyers, shops and other collectors, so it
+        # should carry a pointer to how its numbers were arrived at rather
+        # than leaving a second-hand reader with a score and no working.
+        "methodology_label": "Full methodology:",
         "adjusted_watermark": "CLIENT-ADJUSTED",
         "adjusted_title_suffix": "(Client-Adjusted)",
         "adjusted_banner": (
@@ -117,6 +121,7 @@ REPORT_STRINGS = {
             "de calificaciones enviadas."
         ),
         "generated_label": "Informe generado",
+        "methodology_label": "Metodología completa:",
         "adjusted_watermark": "AJUSTADO POR EL CLIENTE",
         "adjusted_title_suffix": "(Ajustado por el Cliente)",
         "adjusted_banner": (
