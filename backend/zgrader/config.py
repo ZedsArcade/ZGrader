@@ -60,6 +60,14 @@ class ZGraderConfig(BaseSettings):
     admin_email: str | None = None
     admin_password: str | None = None
 
+    # Recovery hatch for a locked-out operator. Normally the bootstrap only
+    # ever sets the *role* on an account that already exists, so a password
+    # changed in the app is never clobbered by a redeploy. Set this to true to
+    # also force the password back to ZGRADER_ADMIN_PASSWORD on next start,
+    # then unset it -- leaving it on means the environment file is a standing
+    # credential for that account.
+    admin_reset_password: bool = False
+
     # Optional external vision-model hook for extra "AI-assisted" analysis
     # observations. Off by default; when disabled the pipeline is unchanged.
     ai_enabled: bool = False

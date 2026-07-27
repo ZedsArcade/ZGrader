@@ -8,6 +8,14 @@ from zgrader.config import config
 from zgrader.db import SessionLocal
 from zgrader.seed import seed_all
 
+# Without this the API process has no logging configuration at all, so the
+# root logger sits at WARNING and every logger.info() in the backend is
+# dropped -- including the startup lines saying whether the admin bootstrap
+# created, promoted or skipped an account. That made a real deployment
+# problem undiagnosable from `docker logs`. The worker already does this
+# (see zgrader/worker/main.py); the API simply never did.
+logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 
