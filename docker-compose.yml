@@ -34,6 +34,9 @@ services:
       ZGRADER_DEFAULT_SCAN_DPI: ${ZGRADER_DEFAULT_SCAN_DPI:-600}
       ZGRADER_ADMIN_EMAIL: ${ZGRADER_ADMIN_EMAIL:-}
       ZGRADER_ADMIN_PASSWORD: ${ZGRADER_ADMIN_PASSWORD:-}
+      # Locked-out recovery: forces the password above onto the account on the
+      # next start. Set true, redeploy, log in, set it back to false.
+      ZGRADER_ADMIN_RESET_PASSWORD: ${ZGRADER_ADMIN_RESET_PASSWORD:-false}
       ZGRADER_AI_ENABLED: ${ZGRADER_AI_ENABLED:-false}
       ZGRADER_AI_ENDPOINT: ${ZGRADER_AI_ENDPOINT:-}
       ZGRADER_AI_MODEL: ${ZGRADER_AI_MODEL:-}
