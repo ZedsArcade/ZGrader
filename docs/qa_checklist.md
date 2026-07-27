@@ -123,6 +123,15 @@ operator (or auto-publish) gets it in front of the client as a report.
       `Content-Security-Policy`, `Strict-Transport-Security`,
       `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` and
       `Permissions-Policy`, and **no** `X-Powered-By`; `/api/docs` returns 404.
+- [ ] **Load the site on its real address, not `localhost`** — the LAN IP or
+      hostname you actually deploy on — and confirm it is styled, with no
+      failed requests in the browser console. Browsers treat `localhost` as a
+      trusted origin and exempt it from several security-header behaviours, so
+      a CSP that breaks every real visitor can pass cleanly on localhost. This
+      is not hypothetical: `upgrade-insecure-requests` shipped once and
+      rewrote every stylesheet and script request to `https://` on a
+      plain-HTTP deployment, serving unstyled HTML to anyone who wasn't
+      testing on localhost.
 - [ ] With `ZGRADER_ENV=production` and the shipped default
       `ZGRADER_SECRET_KEY`, the backend refuses to start and says why.
 

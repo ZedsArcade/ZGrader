@@ -37,7 +37,20 @@ const csp = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "upgrade-insecure-requests",
+  // Deliberately NO upgrade-insecure-requests.
+  //
+  // It was here and it broke every plain-HTTP deployment: the browser rewrites
+  // every http:// subresource to https://, so on a LAN or homelab install with
+  // no TLS listener the stylesheets, scripts and fonts all fail and the site
+  // renders as unstyled HTML. It buys nothing in any supported setup either --
+  // behind Cloudflare (or a Caddy cert) the document is already served over
+  // https, so its relative subresources are https too, with nothing left to
+  // upgrade.
+  //
+  // Worth knowing why this survived testing: localhost is a "potentially
+  // trustworthy" origin that the browser never upgrades, so it cannot be
+  // reproduced at http://localhost:3000 -- only over a real hostname or IP.
+  // docs/qa_checklist.md now says to check the site on its real address.
 ].join("; ");
 
 const securityHeaders = [
