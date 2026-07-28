@@ -8,9 +8,13 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from zgrader.analysis.corners import corner_crops
+from zgrader.analysis.edges import CORNER_EXCLUSION_FRACTION, STRIP_DEPTH_FRACTION
 
 _FLAG_COLOR = (220, 30, 30)
 _OK_COLOR = (30, 160, 30)
+# An edge that could not be measured is neither a pass nor a fail -- drawing
+# it green would assert a clean edge nothing actually looked at.
+_UNMEASURED_COLOR = (150, 150, 150)
 
 
 def _to_pil(card_image: np.ndarray) -> Image.Image:
@@ -133,8 +137,8 @@ def annotate_corners(card_image: np.ndarray, per_corner: dict, corner_fraction: 
 def annotate_edges(
     card_image: np.ndarray,
     per_edge: dict,
-    corner_exclusion_fraction: float = 0.12,
-    strip_depth_fraction: float = 0.04,
+    corner_exclusion_fraction: float = CORNER_EXCLUSION_FRACTION,
+    strip_depth_fraction: float = STRIP_DEPTH_FRACTION,
 ) -> Image.Image:
     img = _to_pil(card_image).convert("RGB")
     draw = ImageDraw.Draw(img)
@@ -150,7 +154,11 @@ def annotate_edges(
         "right": (w - depth_w, ex_h, w, h - ex_h),
     }
     for name, box in boxes.items():
-        color = _FLAG_COLOR if per_edge[name]["score"] < 8 else _OK_COLOR
+        score = per_edge[name]["score"]
+        if score is None:
+            color = _UNMEASURED_COLOR
+        else:
+            color = _FLAG_COLOR if score < 8 else _OK_COLOR
         draw.rectangle(box, outline=color, width=3)
     return img
 

@@ -87,10 +87,19 @@ def _measure_border(
     return float(np.median(widths)), spread_fraction
 
 
-def _score_from_worse_pct(worse_pct: float) -> float:
-    """50/50 -> 10.0, 100/0 -> 0.0, linear in between."""
+def score_from_worse_pct(worse_pct: float) -> float:
+    """50/50 -> 10.0, 100/0 -> 0.0, linear in between.
+
+    Public because recompute.py re-derives this same score after a client
+    dismissal and must not drift from it -- it previously reached in for the
+    private name.
+    """
     score = 10.0 - (worse_pct - 50.0) / 5.0
     return float(np.clip(score, 0.0, 10.0))
+
+
+# Backwards-compatible alias for the pre-existing private name.
+_score_from_worse_pct = score_from_worse_pct
 
 
 def measure_centering(card_image: np.ndarray, px_per_mm: float) -> dict:
@@ -134,5 +143,5 @@ def measure_centering(card_image: np.ndarray, px_per_mm: float) -> dict:
         for spread in (left_spread, right_spread, top_spread, bottom_spread)
     )
     flags = dict(CENTERING_LOW_CONFIDENCE_FLAG) if low_confidence else {}
-    raw_score = round(_score_from_worse_pct(worse_side_pct), 2)
+    raw_score = round(score_from_worse_pct(worse_side_pct), 2)
     return {"category": CATEGORY, "raw_score": raw_score, "measurements": measurements, "flags": flags}

@@ -16,6 +16,7 @@ already draws -- see that module's docstrings for why each fraction exists.
 import cv2
 import numpy as np
 
+from zgrader.analysis import edges, surface
 from zgrader.models import AnalysisCategory
 
 MAX_SURFACE_REGIONS = 6
@@ -68,10 +69,12 @@ _EDGE_LABELS_ES = {
 
 
 def _corner_note(name: str, info: dict, is_es: bool) -> str:
+    # Whitening only -- corners.py no longer scores rounding/material loss
+    # (see its module docstring), so the note must not claim it was assessed.
     label = (_CORNER_LABELS_ES if is_es else _CORNER_LABELS_EN)[name]
     if is_es:
-        return f"Desgaste/redondeo detectado en la {label} (puntuación {info['combined_score']:.1f}/10)."
-    return f"Whitening/rounding detected on the {label} (score {info['combined_score']:.1f}/10)."
+        return f"Blanqueamiento detectado en la {label} (puntuación {info['combined_score']:.1f}/10)."
+    return f"Whitening detected on the {label} (score {info['combined_score']:.1f}/10)."
 
 
 def _edge_note(name: str, info: dict, is_es: bool) -> str:
@@ -160,11 +163,12 @@ def _build_corner_regions(card_shape: tuple[int, int], language: str, result: di
 def _build_edge_regions(card_shape: tuple[int, int], language: str, result: dict) -> list[dict]:
     h, w = card_shape
     is_es = language == "es"
-    # edges.py doesn't persist these fractions (unlike corners.py's
-    # corner_fraction) -- hardcoded to match annotate_edges's own defaults,
-    # a pre-existing duplication in this codebase, not introduced here.
-    ex_h, ex_w = int(h * 0.12), int(w * 0.12)
-    depth_h, depth_w = max(2, int(h * 0.04)), max(2, int(w * 0.04))
+    # Imported from edges.py rather than copied, so the boxes drawn here
+    # always describe the strips that were actually measured.
+    ex_h = int(h * edges.CORNER_EXCLUSION_FRACTION)
+    ex_w = int(w * edges.CORNER_EXCLUSION_FRACTION)
+    depth_h = max(2, int(h * edges.STRIP_DEPTH_FRACTION))
+    depth_w = max(2, int(w * edges.STRIP_DEPTH_FRACTION))
 
     boxes = {
         "top": (ex_w, 0, w - ex_w, depth_h),
@@ -176,8 +180,16 @@ def _build_edge_regions(card_shape: tuple[int, int], language: str, result: dict
     for name, info in result["measurements"]["per_edge"].items():
         box = boxes[name]
         score = info["score"]
-        flagged = score < _FLAG_THRESHOLD
         anchor = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+        if score is None:
+            # An edge nothing could measure gets no region at all. Emitting
+            # one would force a verdict: "ok" asserts a clean edge and "flag"
+            # asserts a defect, and a third severity value is more frontend
+            # surface than this near-unreachable case earns (it needs a card
+            # image only a few pixels wide). Which edges were skipped is
+            # already named in the category's flags -- see measure_edges.
+            continue
+        flagged = score < _FLAG_THRESHOLD
         note = _edge_note(name, info, is_es) if flagged else None
         regions.append(_region(name, "edge", "flag" if flagged else "ok", score, box, anchor, w, h, note))
     return regions
@@ -270,8 +282,19 @@ def _build_surface_regions(
         length_mm = max(w_px, h_px) / px_per_mm
         note = _surface_note(length_mm, is_es)
         box = (x, y, x + w_px, y + h_px)
-        region = _region(f"blob_{i}", "blob", "flag", result["raw_score"], box, (cx, cy), w, h, note)
-        region["area_fraction"] = round(float(blob_area_px) / max(1, face_area_px), 6)
+        area_fraction = float(blob_area_px) / max(1, face_area_px)
+        # This blob's own score, not the whole card's. Every blob used to
+        # carry result["raw_score"], so six defects displayed one identical
+        # number as if each had been scored individually. What this is: the
+        # surface score this defect would produce if it were the only one on
+        # the card -- the same mapping surface.py applies to the whole image,
+        # fed only this blob's area. It is a real per-blob quantity and it
+        # ranks larger defects worse, which is what the UI orders on. It
+        # inherits surface.py's uncalibrated penalty constant.
+        blob_score = surface.score_from_anomaly_fraction(area_fraction)
+        region = _region(f"blob_{i}", "blob", "flag", blob_score, box, (cx, cy), w, h, note)
+        region["area_fraction"] = round(area_fraction, 6)
+        region["length_mm"] = round(length_mm, 2)
         regions.append(region)
     return regions
 

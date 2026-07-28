@@ -58,12 +58,17 @@ export interface AnalysisResult {
 // see backend/zgrader/analysis/regions.py for how these are built.
 export interface Region {
   id: string;
-  kind: "corner" | "edge" | "frame" | "blob";
+  kind: "corner" | "edge" | "frame" | "blob" | "crease";
   severity: "flag" | "ok";
   score: number;
   bbox_norm: [number, number, number, number];
   anchor_norm: [number, number];
   note: string | null;
+  // Surface blobs only: the blob's share of the flagged area, and its longest
+  // dimension in millimetres. recompute uses area_fraction to re-derive the
+  // surface score when this blob is dismissed.
+  area_fraction?: number;
+  length_mm?: number;
   // Set on a centering "frame" region when the measurement is unreliable
   // (holo/full-art card with no clean printed border) -- the UI draws it
   // muted/dashed instead of asserting a precise centering box.
@@ -75,7 +80,7 @@ export interface Region {
 }
 
 export interface Comparison {
-  company: "PSA" | "BGS" | "CGC" | "TAG";
+  company: "PSA" | "BGS" | "CGC" | "TAG" | "ACE";
   category: string;
   severity: "none" | "minor" | "major";
   contention_note: string;

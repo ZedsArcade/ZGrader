@@ -420,13 +420,13 @@ export const es: Dictionary = {
 
     cornersTitle: "Esquinas",
     cornersMeasures: "Qué mide",
-    cornersMeasuresBody: "Blanqueamiento y redondeo en cada una de las cuatro esquinas.",
+    cornersMeasuresBody: "Blanqueamiento en cada una de las cuatro esquinas.",
     cornersHow: "Cómo",
     cornersHowBody:
-      "Una esquina desgastada se deshilacha hacia el cartón blanco de debajo, así que la intensidad del color cae en la punta. Cada esquina se compara con una zona de referencia un poco más adentro de la misma carta: la diferencia es el desgaste. El redondeo es aparte: tras enderezar la carta, una esquina en punta debería llegar hasta el vértice del encuadre, de modo que ver el fondo del escáner donde debería haber punta significa que falta material.",
+      "Una esquina desgastada se deshilacha hacia el cartón blanco de debajo, así que la intensidad del color cae en la punta. Cada esquina se compara con una zona de referencia un poco más adentro de la misma carta: la diferencia es el desgaste.",
     cornersWrong: "En qué se equivoca",
     cornersWrongBody:
-      "Los umbrales están ajustados a partir de escaneos reales, no tomados de ninguna norma publicada, y una carta cuya ilustración de esquina es naturalmente pálida puede parecer algo desgastada.",
+      "Esto mide la decoloración, no la forma. Una esquina redondeada o aplastada que no haya cambiado de color no se detecta aquí, y preferimos decírtelo antes que puntuarla como impecable sin más: medir bien el material que falta es trabajo pendiente. Los umbrales están ajustados a partir de escaneos reales, no tomados de ninguna norma publicada, y como la señal es una pérdida de color, una esquina cuya ilustración es naturalmente pálida parece algo desgastada, mientras que un borde blanco puede ocultar por completo un blanqueamiento real.",
     cornersAlt:
       "La esquina superior izquierda ampliada de la carta de demostración, con la zona de la punta y la de referencia resaltadas y sus valores de intensidad de color.",
     cornersCaption:

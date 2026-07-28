@@ -16,6 +16,10 @@ from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.surface
 
+# Uncalibrated: 5% of the card flagged drives the score to 0. A hand-set
+# starting point, not derived from any grading methodology.
+_ANOMALY_FRACTION_PENALTY = 200.0
+
 SURFACE_LOWER_CONFIDENCE_FLAG = {
     "lower_confidence": True,
     "reason": (
@@ -24,6 +28,16 @@ SURFACE_LOWER_CONFIDENCE_FLAG = {
         "This category may under-detect defects only visible under angled light."
     ),
 }
+
+
+def score_from_anomaly_fraction(anomaly_fraction: float) -> float:
+    """Map the flagged-area fraction to a 0-10 score.
+
+    Public because recompute.py re-derives this same score after a client
+    dismisses a blob and must not drift from it -- the constant used to be
+    duplicated in both modules.
+    """
+    return float(np.clip(10.0 - anomaly_fraction * _ANOMALY_FRACTION_PENALTY, 0.0, 10.0))
 
 
 def _local_variance(gray: np.ndarray, window: int = 9) -> np.ndarray:
@@ -46,7 +60,7 @@ def measure_surface(card_image: np.ndarray, corner_exclusion_fraction: float = 0
     anomaly_mask = local_var > threshold
     anomaly_fraction = float(np.mean(anomaly_mask))
 
-    raw_score = round(float(np.clip(10.0 - anomaly_fraction * 200.0, 0.0, 10.0)), 2)
+    raw_score = round(score_from_anomaly_fraction(anomaly_fraction), 2)
     measurements = {
         "anomaly_fraction": round(anomaly_fraction, 4),
         "laplacian_variance": round(laplacian_var, 1),

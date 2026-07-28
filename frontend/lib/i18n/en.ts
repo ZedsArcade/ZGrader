@@ -415,13 +415,13 @@ export const en = {
 
     cornersTitle: "Corners",
     cornersMeasures: "What it measures",
-    cornersMeasuresBody: "Whitening and rounding at each of the four corners.",
+    cornersMeasuresBody: "Whitening at each of the four corners.",
     cornersHow: "How",
     cornersHowBody:
-      "A worn corner frays toward the white cardstock underneath, so colour intensity drops off at the tip. Each corner is compared against a reference patch a little further in on the same card -- the difference is the wear. Rounding is separate: after straightening, a sharp corner should reach right into the tip of the frame, so scanner backing showing through where the point ought to be means material is missing.",
+      "A worn corner frays toward the white cardstock underneath, so colour intensity drops off at the tip. Each corner is compared against a reference patch a little further in on the same card -- the difference is the wear.",
     cornersWrong: "Where it goes wrong",
     cornersWrongBody:
-      "The thresholds are tuned from real scans rather than taken from any published standard, and a card whose corner artwork is naturally pale can read as slightly worn.",
+      "This measures discolouration, not shape. A corner that has been rounded or knocked flat without changing colour is not caught here, and we would rather tell you that than quietly score it as clean -- measuring missing material properly is work still to come. The thresholds are tuned from real scans rather than taken from any published standard, and because the signal is a loss of colour, a corner whose artwork is naturally pale reads as slightly worn while a white border can hide genuine whitening altogether.",
     cornersAlt:
       "A magnified top-left corner of the demonstration card, with the tip region and the reference region outlined, and their colour intensity values shown.",
     cornersCaption:

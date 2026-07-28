@@ -148,6 +148,37 @@ def test_surface_regions_capped_at_max():
     assert len(region_list) == regions.MAX_SURFACE_REGIONS
 
 
+def test_each_surface_blob_carries_its_own_score_not_the_whole_card_score():
+    """Every blob used to be stamped with result["raw_score"], so a card with
+    six defects showed one identical number six times as if each had been
+    scored individually. A blob's score now comes from its own area."""
+    card = _deskewed()
+    h, w = card.shape[:2]
+    ex_h, ex_w = int(h * 0.12), int(w * 0.12)
+    face_h, face_w = h - 2 * ex_h, w - 2 * ex_w
+
+    # Two scratch-shaped bars of deliberately different length, so their
+    # areas -- and therefore their scores -- must differ.
+    # Both must clear MIN_BLOB_AREA_MM2 as well as the thin+elongated filter.
+    mask = np.zeros((face_h, face_w), dtype=bool)
+    mask[10:14, 10:210] = True  # long bar, 4x200
+    mask[40:44, 10:110] = True  # short bar, 4x100
+
+    fake_result = {"raw_score": 5.0, "measurements": {"corner_exclusion_fraction": 0.12}}
+    region_list = regions.build_regions(
+        AnalysisCategory.surface, (h, w), _PX_PER_MM, "en", fake_result, mask
+    )
+
+    assert len(region_list) == 2
+    scores = [r["score"] for r in region_list]
+    assert len(set(scores)) == 2, "blobs of different size must not share a score"
+    assert 5.0 not in scores, "the whole-card score must not be stamped onto a blob"
+    # Sorted largest-area first, so the bigger defect scores worse.
+    assert region_list[0]["score"] < region_list[1]["score"]
+    # And each carries its own physical measurement.
+    assert region_list[0]["length_mm"] > region_list[1]["length_mm"]
+
+
 def test_thick_word_shaped_blob_is_filtered_out():
     card = _deskewed()
     h, w = card.shape[:2]

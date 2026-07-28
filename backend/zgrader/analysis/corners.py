@@ -1,21 +1,36 @@
-"""Corner analysis: for each of the 4 corners, detect whitening (saturation
-drop-off from the tip inward, since worn corners fray to the white cardstock
-underneath) and rounding/clipping.
+"""Corner analysis: for each of the 4 corners, detect whitening -- the
+saturation drop-off from the tip inward, since worn corners fray to the white
+cardstock underneath.
 
-Rounding detection relies on how preprocessing.locate_and_deskew works: it
-warps the scan so the card's tightest bounding rectangle maps exactly onto
-the output image's corners. If a corner is physically rounded or chipped,
-the *ideal* sharp-corner position (mapped to crop[0, 0]) falls just outside
-the actual card material -- so that pixel shows scanner backing (near-black)
-rather than card color. A dark patch right at the tip is therefore itself
-the rounding signal, not something to be inferred from edge-detector
-response (an earlier version used Harris corner response here, but its
-per-crop-max normalization was dominated by unrelated edges elsewhere in the
-crop -- e.g. the border/interior color transition -- and scored every
-corner as heavily rounded regardless of actual condition).
+WHY ROUNDING IS NO LONGER SCORED
+--------------------------------
+This module used to derive a second sub-score, `rounding_score`, from how much
+scanner backing (near-black) bled into the pixel at crop[0, 0]. That reasoning
+only holds when crop[0, 0] is the card's *ideal* sharp-corner apex, which is
+true when preprocessing.locate_and_deskew produced the crop -- it warps the
+card's tightest bounding rectangle onto the output image's corners, so a
+rounded or chipped corner leaves backing visible at the apex.
 
-Heuristic v1 (see plan): thresholds are starting points to be tuned against
-real sample scans, not derived from an official published methodology.
+But that is not the production path. pipeline._load_deskewed_card warps to
+ScanImage.crop_points, and for every self-serve upload those points come from
+the customer dragging four handles in the crop-adjust UI (see
+api/routers/submissions.py's upload_scan and the confirm-crop flow). So the
+measurement became a function of where the customer dropped a handle, not of
+the card: crop a hair inside the card and every corner reads 10.0 regardless
+of damage; crop a hair outside and every corner reads 0.0. It was half of each
+corner's score and therefore half of this category's score.
+
+It is kept below as an unscored diagnostic (`backing_bleed_fraction`,
+`rounding_score`) because it is still meaningful on the operator flatbed path,
+where the watcher auto-confirms crop_points from detect_boundary -- but
+nothing on the row records which path produced the crop, so it cannot be
+trusted for scoring. Real material-loss measurement (corner area deficit in
+mm^2, measured against apexes recovered by RANSAC line fitting) replaces it
+properly in a later phase; until then this category deliberately measures
+whitening only and says so in its flags.
+
+Heuristic v1: thresholds are starting points to be tuned against real sample
+scans, not derived from an official published methodology.
 """
 
 import cv2
@@ -27,8 +42,21 @@ CATEGORY = AnalysisCategory.corners
 
 # HSV Value (0-255) below which a pixel is considered scanner backing rather
 # than card material -- consistent with the assumption in preprocessing.py
-# that backing is near-black.
+# that backing is near-black. Feeds the unscored backing_bleed_fraction
+# diagnostic only (see the module docstring).
 _BACKING_VALUE_THRESHOLD = 50.0
+
+CORNERS_LIMITATION_FLAG = {
+    "lower_confidence": True,
+    "reason": (
+        "Corner assessment covers whitening only. Material loss (rounding, "
+        "chipping) is not measured in this version, so a corner that is worn "
+        "down but not discoloured will not be penalised here. Whitening is "
+        "detected as a loss of colour saturation toward the tip, which also "
+        "makes it unreliable on white or very pale borders, where there is "
+        "little saturation to lose in the first place."
+    ),
+}
 
 
 def _analyze_corner(crop: np.ndarray) -> dict:
@@ -44,18 +72,24 @@ def _analyze_corner(crop: np.ndarray) -> dict:
     whitening_delta = max(0.0, ref_sat - tip_sat)
     whitening_score = float(np.clip(10.0 - whitening_delta / 8.0, 0.0, 10.0))
 
+    # Unscored diagnostic -- see the module docstring for why this no longer
+    # contributes to combined_score. Retained because it is still informative
+    # on the operator flatbed path and because the replacement measurement
+    # will want something to compare against.
     very_tip_radius = max(2, int(size * 0.08))
     very_tip_value = hsv[0:very_tip_radius, 0:very_tip_radius, 2]
     backing_fraction = float(np.mean(very_tip_value < _BACKING_VALUE_THRESHOLD))
     rounding_score = float(np.clip(10.0 - backing_fraction * 12.0, 0.0, 10.0))
 
-    combined_score = float(np.mean([whitening_score, rounding_score]))
+    combined_score = whitening_score
     return {
         "whitening_score": round(whitening_score, 2),
-        "rounding_score": round(rounding_score, 2),
         "combined_score": round(combined_score, 2),
         "tip_saturation": round(tip_sat, 1),
         "reference_saturation": round(ref_sat, 1),
+        # Diagnostics below this point are not scored.
+        "rounding_score": round(rounding_score, 2),
+        "rounding_scored": False,
         "backing_bleed_fraction": round(backing_fraction, 3),
     }
 
@@ -81,4 +115,9 @@ def measure_corners(card_image: np.ndarray, corner_fraction: float = 0.12) -> di
     worst_corner = min(per_corner, key=lambda k: per_corner[k]["combined_score"])
 
     measurements = {"per_corner": per_corner, "worst_corner": worst_corner, "corner_fraction": corner_fraction}
-    return {"category": CATEGORY, "raw_score": raw_score, "measurements": measurements, "flags": {}}
+    return {
+        "category": CATEGORY,
+        "raw_score": raw_score,
+        "measurements": measurements,
+        "flags": dict(CORNERS_LIMITATION_FLAG),
+    }

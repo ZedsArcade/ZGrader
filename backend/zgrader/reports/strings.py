@@ -75,6 +75,7 @@ REPORT_STRINGS = {
             "analysis."
         ),
         "surface_finding_label": "surface finding #{n}",
+        "crease_finding_label": "possible crease #{n}",
     },
     "es": {
         "report_title": "Informe de Pre-Calificación",
@@ -141,6 +142,7 @@ REPORT_STRINGS = {
             "análisis automatizado."
         ),
         "surface_finding_label": "hallazgo de superficie n.º {n}",
+        "crease_finding_label": "posible pliegue n.º {n}",
     },
 }
 

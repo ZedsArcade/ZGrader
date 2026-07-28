@@ -22,6 +22,13 @@ CATEGORY = AnalysisCategory.edges
 
 _WHITENING_SATURATION_DEFICIT = 40.0
 
+# Strip geometry. Exported because annotate.annotate_edges and
+# regions._build_edge_regions have to draw exactly the strips that were
+# measured -- they each used to carry their own copy of these numbers, so
+# retuning here silently desynchronized the overlay from the measurement.
+CORNER_EXCLUSION_FRACTION = 0.12
+STRIP_DEPTH_FRACTION = 0.04
+
 
 def _longest_true_run(mask: np.ndarray) -> int:
     longest = current = 0
@@ -35,8 +42,12 @@ def _longest_true_run(mask: np.ndarray) -> int:
 
 
 def _analyze_strip(outer_saturation: np.ndarray, inner_saturation: np.ndarray, along_axis: int) -> dict:
+    # No pixels to look at is not evidence of a clean edge. This used to
+    # return a hardcoded 10.0, i.e. absence of data scored as perfection --
+    # the edge is reported unmeasured instead and measure_edges leaves it out
+    # of the category mean.
     if outer_saturation.size == 0:
-        return {"score": 10.0, "whitened_fraction": 0.0, "longest_run_fraction": 0.0, "reference_saturation": 0.0}
+        return {"score": None, "measured": False}
 
     ref_sat = float(np.mean(inner_saturation)) if inner_saturation.size else float(np.mean(outer_saturation))
     deficit = np.clip(ref_sat - outer_saturation.astype(np.float32), 0, None)
@@ -50,6 +61,7 @@ def _analyze_strip(outer_saturation: np.ndarray, inner_saturation: np.ndarray, a
     score = float(np.clip(10.0 - whitened_fraction * 15.0 - run_fraction * 10.0, 0.0, 10.0))
     return {
         "score": round(score, 2),
+        "measured": True,
         "whitened_fraction": round(whitened_fraction, 3),
         "longest_run_fraction": round(run_fraction, 3),
         "reference_saturation": round(ref_sat, 1),
@@ -58,8 +70,8 @@ def _analyze_strip(outer_saturation: np.ndarray, inner_saturation: np.ndarray, a
 
 def measure_edges(
     card_image: np.ndarray,
-    corner_exclusion_fraction: float = 0.12,
-    strip_depth_fraction: float = 0.04,
+    corner_exclusion_fraction: float = CORNER_EXCLUSION_FRACTION,
+    strip_depth_fraction: float = STRIP_DEPTH_FRACTION,
 ) -> dict:
     h, w = card_image.shape[:2]
     hsv = cv2.cvtColor(card_image, cv2.COLOR_BGR2HSV)
@@ -96,7 +108,28 @@ def measure_edges(
         name: _analyze_strip(region["outer"], region["inner"], region["axis"])
         for name, region in regions.items()
     }
-    raw_score = round(float(np.mean([e["score"] for e in per_edge.values()])), 2)
 
-    measurements = {"per_edge": per_edge}
-    return {"category": CATEGORY, "raw_score": raw_score, "measurements": measurements, "flags": {}}
+    measured = [e["score"] for e in per_edge.values() if e.get("measured")]
+    if not measured:
+        # Every strip was empty, so the crop is degenerate (far too small, or
+        # collapsed by a bad warp). Fail loudly rather than emit a score --
+        # pipeline turns this into a PipelineError and the submission into an
+        # operator-visible error, which is the honest outcome.
+        raise ValueError(
+            "No edge strip contained any pixels -- the deskewed card image is "
+            "too small or the crop is degenerate."
+        )
+    raw_score = round(float(np.mean(measured)), 2)
+
+    measurements = {"per_edge": per_edge, "measured_edges": len(measured)}
+    flags = {}
+    if len(measured) < len(per_edge):
+        unmeasured = sorted(name for name, e in per_edge.items() if not e.get("measured"))
+        flags = {
+            "lower_confidence": True,
+            "reason": (
+                "Some edges could not be measured and were left out of this "
+                f"score rather than counted as clean: {', '.join(unmeasured)}."
+            ),
+        }
+    return {"category": CATEGORY, "raw_score": raw_score, "measurements": measurements, "flags": flags}

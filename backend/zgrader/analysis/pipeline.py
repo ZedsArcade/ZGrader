@@ -23,6 +23,7 @@ from zgrader.analysis import (
     regions,
     rules_engine,
     scale,
+    scoring,
     surface,
 )
 
@@ -164,9 +165,7 @@ def _persist_side(
 
 
 def _combine_score(front_score: float, back_score: float | None) -> float:
-    if back_score is None:
-        return front_score
-    return round((front_score + back_score) / 2, 2)
+    return scoring.combine_front_back(front_score, back_score)
 
 
 def _persist_combined(
@@ -193,11 +192,21 @@ def _persist_combined(
             # comparison engine silently skips every centering rule.
             front_worse = front_result["measurements"].get("worse_side_pct")
             back_worse = back_result["measurements"].get("worse_side_pct") if back_result else None
-            if front_worse is not None and back_worse is not None:
-                measurements["worse_side_pct"] = round((front_worse + back_worse) / 2, 1)
-            elif front_worse is not None:
-                measurements["worse_side_pct"] = front_worse
+            if front_worse is not None:
+                # Weighted the same way as the scores: this is the figure the
+                # rules engine compares against every company's centering
+                # tolerance, so a well-cut back must not average away a
+                # badly-cut front.
+                measurements["worse_side_pct"] = round(
+                    scoring.combine_front_back(front_worse, back_worse), 1
+                )
             if "worse_side_pct" in measurements:
+                # Nothing reads this yet, but recompute.py overwrites
+                # worse_side_pct in place when a client dismisses the frame
+                # finding, so this is the only surviving record of the
+                # measured ratio. Kept deliberately -- it is the centering
+                # counterpart to original_raw_score below, which the UI and
+                # PDF do render as "was X.X".
                 measurements["original_worse_side_pct"] = measurements["worse_side_pct"]
 
         combined_score = _combine_score(

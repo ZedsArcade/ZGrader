@@ -41,13 +41,22 @@ def _severity_rank(severity) -> int:
     return _SEVERITY_SORT_RANK.get(value, 99)
 
 
+# Region ids that are index-based rather than named locations. Both live
+# under the surface category (creases ride along with surface's regions, see
+# analysis/pipeline.py) and both need a numbered label -- without an entry
+# here a dismissed crease printed its raw id, "crease_0", in both languages.
+_INDEXED_REGION_LABELS = {"blob_": "surface_finding_label", "crease_": "crease_finding_label"}
+
+
 def _region_location(category: str, region_id: str, language: str) -> str:
-    if category == "surface" and region_id.startswith("blob_"):
-        try:
-            n = int(region_id.split("_", 1)[1]) + 1
-        except (ValueError, IndexError):
-            n = region_id
-        return REPORT_STRINGS[language]["surface_finding_label"].format(n=n)
+    if category == "surface":
+        for prefix, string_key in _INDEXED_REGION_LABELS.items():
+            if region_id.startswith(prefix):
+                try:
+                    n = int(region_id.split("_", 1)[1]) + 1
+                except (ValueError, IndexError):
+                    n = region_id
+                return REPORT_STRINGS[language][string_key].format(n=n)
     return REGION_LOCATION_LABELS[language].get(region_id, region_id)
 
 
