@@ -43,7 +43,7 @@ export const en = {
   landing: {
     title: "Know before you submit.",
     subtitle:
-      "Card Care Center is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how {companies} are likely to treat each one before you pay to submit for real.",
+      "{businessName} is an independent pre-grading service for trading card games. Send us your cards, and we'll scan and analyze centering, corners, edges, and surface, then show you exactly how {companies} are likely to treat each one before you pay to submit for real.",
     getStarted: "Get started",
     login: "Log in",
     feature1Title: "Automated analysis",
@@ -60,7 +60,7 @@ export const en = {
     companiesFallback: "the major grading companies",
     noteTitle: "An important note",
     noteBody:
-      "Card Care Center is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, ACE, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
+      "{businessName} is an independent estimate, not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, ACE, or any other third-party grading company. Scans are captured on a flatbed scanner, which uses diffuse rather than raking light -- surface analysis in particular is lower-confidence than what a specialized grading company's photography can catch.",
   },
   login: {
     title: "Log in",
@@ -145,7 +145,7 @@ export const en = {
     originalScorePrefix: "was",
     adjustedBannerTitle: "You've adjusted this assessment",
     adjustedBannerBody:
-      "{count} auto-detected finding(s) dismissed. Scores below reflect your changes, and the report will be clearly labelled as client-adjusted.",
+      "{count} auto-detected finding(s) dismissed. Where a score can still be re-derived from the findings that remain, it has been; where dismissing left nothing to measure from, the original measurement stands. Either way the report will be clearly labelled as client-adjusted.",
     deleteButton: "Delete submission",
     deleteTitle: "Delete this submission?",
     deleteBody:
@@ -283,7 +283,7 @@ export const en = {
     title: "About us",
     lede: "A local collector trying to make caring for cards less of a guessing game.",
     body1:
-      "Card Care Center started in Gibraltar, run by someone who collects the same things you do. Anyone who has sent a card away for grading knows the feeling: you pay the fee, you post something you care about, you wait weeks, and only then do you find out whether it was worth doing at all.",
+      "{businessName} started in Gibraltar, run by someone who collects the same things you do. Anyone who has sent a card away for grading knows the feeling: you pay the fee, you post something you care about, you wait weeks, and only then do you find out whether it was worth doing at all.",
     body2:
       "That gap is what this service exists to close. Before you commit to a submission, you get a measured look at centering, corners, edges and surface, with annotated images showing exactly what was picked up and why. If the card isn't going to grade the way you hoped, far better to learn that here than after paying for a real submission.",
     body3:
@@ -371,7 +371,7 @@ export const en = {
       "Centering is measured and is the most reliable of the four. Corners and edges are good. Surface is the weakest: a flatbed scan uses diffuse light, while a grading company uses raking light that casts shadows along scratches, so faint surface defects can be missed and print texture can occasionally be flagged.",
     faq3Q: "Why did it flag something that isn't there?",
     faq3A:
-      "Usually text or print texture read as a scratch, or a crop that clipped into the card. You can dismiss any finding you disagree with and the scores update immediately. The report then carries a clear notice that it was adjusted by you.",
+      "Usually text or print texture read as a scratch, or a crop that clipped into the card. You can dismiss any finding you disagree with. Where the remaining findings still support a score, it updates immediately; where dismissing leaves nothing to measure from, the original measurement stands rather than jumping to a perfect score. The report then carries a clear notice that it was adjusted by you.",
     faq4Q: "What if the photo isn't perfect?",
     faq4A:
       "Photograph the card flat, straight on, filling most of the frame, in even light with no glare. You'll get a chance to adjust the crop before the analysis runs, and there's a snap-to-edge helper if your corners aren't quite right.",
@@ -485,7 +485,7 @@ export const en = {
 
     adjustTitle: "When it's wrong, you decide",
     adjustBody:
-      "Every finding can be dismissed. The scores recalculate immediately, and the report then states plainly, on every page, that it was adjusted by you and which findings were removed. That mark can't be turned off -- an adjusted report that looked identical to an unadjusted one would be worth nothing to whoever you show it to.",
+      "Every finding can be dismissed. Where the findings that remain still support a score, it recalculates immediately. Where dismissing leaves nothing to measure from -- centering has only one finding, so dismissing it removes the whole basis for the number -- the original measurement stands and your disagreement is recorded alongside it. Dismissing something is a statement that we got it wrong, which is not the same as evidence the card is flawless, and it would be dishonest to award a perfect score on that basis. Either way the report states plainly, on every page, that it was adjusted by you and which findings were removed. That mark can't be turned off -- an adjusted report that looked identical to an unadjusted one would be worth nothing to whoever you show it to.",
 
     notTitle: "What this is not",
     notBody:
@@ -518,10 +518,10 @@ export const en = {
     updated: "Last updated",
     updatedValue: "July 2026",
     intro:
-      "These terms cover your use of Card Care Center. By creating an account or submitting a card, you agree to them. Please read the disclaimer below in particular.",
+      "These terms cover your use of {businessName}. By creating an account or submitting a card, you agree to them. Please read the disclaimer below in particular.",
     disclaimerTitle: "Important disclaimer",
     disclaimerBody:
-      "Card Care Center is an independent estimate. It is not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, ACE, or any other third-party grading company. Nothing we produce is a grade, a prediction of a grade, or a promise about what any grading company will decide. A card that scores well here may still grade lower than you expect, and vice versa.",
+      "{businessName} is an independent estimate. It is not affiliated with, endorsed by, or a guarantee of the outcome from PSA, Beckett Grading Services (BGS), CGC, TAG, ACE, or any other third-party grading company. Nothing we produce is a grade, a prediction of a grade, or a promise about what any grading company will decide. A card that scores well here may still grade lower than you expect, and vice versa.",
     s1Title: "1. What this service does",
     s1Body:
       "We analyse images of your trading cards and produce a report covering centering, corners, edges and surface, together with notes on the points of contention that could affect how different grading companies treat the card. The report is informational and is intended to help you decide whether to pay for a real grading submission.",
@@ -533,7 +533,7 @@ export const en = {
       "Automated image analysis has real limits and we would rather state them than bury them. Scans use diffuse light rather than the raking light a grading company uses, so faint surface scratches and creases can be missed. Printed text and holographic patterns can occasionally be flagged as defects. Measurement accuracy depends on the quality and framing of the image you provide. Findings marked lower-confidence are exactly that. You should treat the report as one input among several, not as a decision on its own.",
     s4Title: "4. Reports you have adjusted",
     s4Body:
-      "You can dismiss individual findings you believe are incorrect, and the scores update to reflect that. Any report where you have done so is labelled as client-adjusted, and both the original and adjusted scores are shown. You are responsible for adjustments you make, and an adjusted report should not be presented to anyone else as an unmodified assessment.",
+      "You can dismiss individual findings you believe are incorrect. Where the findings that remain still support a score, it updates to reflect that; where dismissing leaves nothing to measure from, the original measurement stands. Any report where you have done so is labelled as client-adjusted, and both the original and adjusted scores are shown. You are responsible for adjustments you make, and an adjusted report should not be presented to anyone else as an unmodified assessment.",
     s5Title: "5. Your account",
     s5Body:
       "You must give an accurate email address and keep your password secure. You are responsible for activity under your account. Do not upload images you do not have the right to use, and do not upload anything unlawful. We may suspend or close an account that is being misused.",
@@ -562,10 +562,10 @@ export const en = {
     updated: "Last updated",
     updatedValue: "July 2026",
     intro:
-      "This explains what personal data Card Care Center collects, why, and what you can do about it. We collect as little as the service needs to work.",
+      "This explains what personal data {businessName} collects, why, and what you can do about it. We collect as little as the service needs to work.",
     s1Title: "1. Who is responsible",
     s1Body:
-      "Card Care Center, based in Gibraltar, is the data controller for the personal data described here. You can reach us via the contact page.",
+      "{businessName}, based in Gibraltar, is the data controller for the personal data described here. You can reach us via the contact page.",
     s2Title: "2. What we collect",
     s2Body:
       "Your email address and a securely hashed password, so you can log in. Details of the cards you submit -- game, card name, set and number. The images you upload or that we produce by scanning your card, along with the analysis derived from them. Basic records of actions taken on your submissions, so there is an audit trail. We do not collect payment card details on this site, and we do not use advertising or tracking cookies.",

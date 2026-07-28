@@ -4,9 +4,11 @@ import { Card } from "@heroui/react";
 import LegalSection from "@/components/LegalSection";
 import PageHeader from "@/components/PageHeader";
 import { useTranslations } from "@/lib/i18n/context";
+import { useBusinessName, withBusinessName } from "@/lib/use-business-name";
 
 export default function TermsClient() {
   const t = useTranslations();
+  const businessName = useBusinessName();
 
   const sections = [
     { title: t.terms.s1Title, body: t.terms.s1Body },
@@ -26,7 +28,7 @@ export default function TermsClient() {
     <div className="max-w-3xl">
       <PageHeader
         title={t.terms.title}
-        lede={t.terms.intro}
+        lede={withBusinessName(t.terms.intro, businessName)}
         meta={`${t.terms.updated}: ${t.terms.updatedValue}`}
       />
 
@@ -42,13 +44,21 @@ export default function TermsClient() {
           <Card.Title>{t.terms.disclaimerTitle}</Card.Title>
         </Card.Header>
         <Card.Content>
-          <p className="text-sm leading-relaxed text-foreground">{t.terms.disclaimerBody}</p>
+          <p className="text-sm leading-relaxed text-foreground">
+            {withBusinessName(t.terms.disclaimerBody, businessName)}
+          </p>
         </Card.Content>
       </Card>
 
+      {/* Bodies go through withBusinessName so a renamed business is reflected
+          in the legal text too, not just the marketing copy. */}
       <div className="mt-8 flex flex-col gap-6">
         {sections.map((section) => (
-          <LegalSection key={section.title} title={section.title} body={section.body} />
+          <LegalSection
+            key={section.title}
+            title={section.title}
+            body={withBusinessName(section.body, businessName)}
+          />
         ))}
       </div>
 

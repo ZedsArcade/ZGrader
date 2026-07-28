@@ -45,7 +45,7 @@ export const es: Dictionary = {
   landing: {
     title: "Sepa antes de enviar.",
     subtitle:
-      "Card Care Center es un servicio independiente de pre-calificación para juegos de cartas coleccionables. Envíenos sus cartas y analizaremos el centrado, las esquinas, los bordes y la superficie, para mostrarle exactamente cómo es probable que {companies} traten cada una antes de que pague por un envío real.",
+      "{businessName} es un servicio independiente de pre-calificación para juegos de cartas coleccionables. Envíenos sus cartas y analizaremos el centrado, las esquinas, los bordes y la superficie, para mostrarle exactamente cómo es probable que {companies} traten cada una antes de que pague por un envío real.",
     getStarted: "Comenzar",
     login: "Iniciar sesión",
     feature1Title: "Análisis automatizado",
@@ -60,7 +60,7 @@ export const es: Dictionary = {
     companiesFallback: "las principales compañías de calificación",
     noteTitle: "Nota importante",
     noteBody:
-      "Card Care Center es una estimación independiente, no está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG, ACE ni ninguna otra compañía de calificación externa. Los escaneos se capturan con un escáner plano, que utiliza luz difusa en lugar de luz rasante; el análisis de superficie en particular tiene menor confiabilidad que lo que puede detectar la fotografía especializada de una compañía de calificación.",
+      "{businessName} es una estimación independiente, no está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG, ACE ni ninguna otra compañía de calificación externa. Los escaneos se capturan con un escáner plano, que utiliza luz difusa en lugar de luz rasante; el análisis de superficie en particular tiene menor confiabilidad que lo que puede detectar la fotografía especializada de una compañía de calificación.",
   },
   login: {
     title: "Iniciar sesión",
@@ -145,7 +145,7 @@ export const es: Dictionary = {
     originalScorePrefix: "era",
     adjustedBannerTitle: "Ha ajustado esta evaluación",
     adjustedBannerBody:
-      "{count} hallazgo(s) detectado(s) automáticamente descartado(s). Las puntuaciones reflejan sus cambios, y el informe se etiquetará claramente como ajustado por el cliente.",
+      "{count} hallazgo(s) detectado(s) automáticamente descartado(s). Cuando la puntuación aún puede deducirse de los hallazgos restantes, se ha actualizado; cuando descartar no dejó nada que medir, se mantiene la medición original. En cualquier caso, el informe se etiquetará claramente como ajustado por el cliente.",
     deleteButton: "Eliminar envío",
     deleteTitle: "¿Eliminar este envío?",
     deleteBody:
@@ -285,7 +285,7 @@ export const es: Dictionary = {
     title: "Sobre nosotros",
     lede: "Un coleccionista local que quiere que cuidar sus cartas deje de ser una lotería.",
     body1:
-      "Card Care Center nació en Gibraltar, y lo lleva alguien que colecciona lo mismo que usted. Quien haya enviado una carta a calificar conoce la sensación: paga la tarifa, envía algo que le importa, espera semanas, y solo entonces descubre si mereció la pena.",
+      "{businessName} nació en Gibraltar, y lo lleva alguien que colecciona lo mismo que usted. Quien haya enviado una carta a calificar conoce la sensación: paga la tarifa, envía algo que le importa, espera semanas, y solo entonces descubre si mereció la pena.",
     body2:
       "Ese hueco es lo que este servicio pretende cerrar. Antes de comprometerse con un envío, obtiene una lectura medida del centrado, las esquinas, los bordes y la superficie, con imágenes anotadas que muestran exactamente qué se detectó y por qué. Si la carta no va a calificar como esperaba, mejor saberlo aquí que después de pagar un envío real.",
     body3:
@@ -376,7 +376,7 @@ export const es: Dictionary = {
       "El centrado se mide y es el más fiable de los cuatro. Esquinas y bordes funcionan bien. La superficie es el punto débil: un escaneo plano usa luz difusa, mientras que una compañía de calificación usa luz rasante que proyecta sombras en los arañazos, así que pueden pasarse por alto defectos leves y a veces se marca la textura de impresión.",
     faq3Q: "¿Por qué marcó algo que no existe?",
     faq3A:
-      "Normalmente texto o textura de impresión leídos como un arañazo, o un recorte que entró dentro de la carta. Puede descartar cualquier hallazgo con el que no esté de acuerdo y las puntuaciones se actualizan al instante. El informe pasa entonces a indicar claramente que usted lo ajustó.",
+      "Normalmente texto o textura de impresión leídos como un arañazo, o un recorte que entró dentro de la carta. Puede descartar cualquier hallazgo con el que no esté de acuerdo. Cuando los hallazgos restantes aún sostienen una puntuación, esta se actualiza al instante; cuando descartar no deja nada que medir, se mantiene la medición original en lugar de saltar a una puntuación perfecta. El informe pasa entonces a indicar claramente que usted lo ajustó.",
     faq4Q: "¿Y si la foto no es perfecta?",
     faq4A:
       "Fotografíe la carta plana, de frente, ocupando casi todo el encuadre, con luz uniforme y sin reflejos. Podrá ajustar el recorte antes de que se ejecute el análisis, y hay un ayudante de ajuste a los bordes detectados si las esquinas no quedan exactas.",
@@ -492,7 +492,7 @@ export const es: Dictionary = {
 
     adjustTitle: "Cuando se equivoca, decide usted",
     adjustBody:
-      "Cualquier detección puede descartarse. Las puntuaciones se recalculan al instante, y el informe indica con claridad, en todas sus páginas, que usted lo ajustó y qué detecciones se retiraron. Esa marca no se puede quitar: un informe ajustado que pareciera idéntico a uno sin ajustar no tendría ningún valor para quien se lo enseñe.",
+      "Cualquier detección puede descartarse. Cuando las detecciones restantes aún sostienen una puntuación, esta se recalcula al instante. Cuando descartar no deja nada que medir -- el centrado tiene una sola detección, así que descartarla elimina toda la base del número -- se mantiene la medición original y su desacuerdo queda registrado junto a ella. Descartar algo es afirmar que nos equivocamos, lo cual no es lo mismo que probar que la carta está impecable, y sería deshonesto otorgar una puntuación perfecta por ese motivo. En cualquier caso, el informe indica con claridad, en todas sus páginas, que usted lo ajustó y qué detecciones se retiraron. Esa marca no se puede quitar: un informe ajustado que pareciera idéntico a uno sin ajustar no tendría ningún valor para quien se lo enseñe.",
 
     notTitle: "Lo que esto no es",
     notBody:
@@ -525,10 +525,10 @@ export const es: Dictionary = {
     updated: "Última actualización",
     updatedValue: "Julio de 2026",
     intro:
-      "Estos términos regulan su uso de Card Care Center. Al crear una cuenta o enviar una carta, los acepta. Lea en particular el aviso siguiente.",
+      "Estos términos regulan su uso de {businessName}. Al crear una cuenta o enviar una carta, los acepta. Lea en particular el aviso siguiente.",
     disclaimerTitle: "Aviso importante",
     disclaimerBody:
-      "Card Care Center es una estimación independiente. No está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG, ACE ni ninguna otra compañía de calificación externa. Nada de lo que producimos es una calificación, una predicción de calificación ni una promesa sobre lo que decidirá ninguna compañía. Una carta con buena puntuación aquí puede calificar por debajo de lo esperado, y al revés.",
+      "{businessName} es una estimación independiente. No está afiliada, respaldada ni garantiza el resultado de PSA, Beckett Grading Services (BGS), CGC, TAG, ACE ni ninguna otra compañía de calificación externa. Nada de lo que producimos es una calificación, una predicción de calificación ni una promesa sobre lo que decidirá ninguna compañía. Una carta con buena puntuación aquí puede calificar por debajo de lo esperado, y al revés.",
     s1Title: "1. Qué hace este servicio",
     s1Body:
       "Analizamos imágenes de sus cartas coleccionables y elaboramos un informe sobre centrado, esquinas, bordes y superficie, junto con notas sobre los puntos de discrepancia que podrían afectar al trato de la carta en distintas compañías. El informe es informativo y busca ayudarle a decidir si pagar un envío real de calificación.",
@@ -540,7 +540,7 @@ export const es: Dictionary = {
       "El análisis automático de imagen tiene límites reales y preferimos declararlos a ocultarlos. Los escaneos usan luz difusa en lugar de la luz rasante de una compañía de calificación, por lo que pueden pasarse por alto arañazos y dobleces leves. El texto impreso y los patrones holográficos pueden marcarse ocasionalmente como defectos. La precisión de las medidas depende de la calidad y el encuadre de la imagen que aporte. Los hallazgos marcados como de menor confiabilidad son exactamente eso. Trate el informe como un dato más, no como una decisión en sí misma.",
     s4Title: "4. Informes ajustados por usted",
     s4Body:
-      "Puede descartar hallazgos concretos que considere incorrectos, y las puntuaciones se actualizan en consecuencia. Todo informe en el que lo haya hecho queda etiquetado como ajustado por el cliente, y se muestran tanto la puntuación original como la ajustada. Usted es responsable de los ajustes que realice, y un informe ajustado no debe presentarse a terceros como una evaluación sin modificar.",
+      "Puede descartar hallazgos concretos que considere incorrectos. Cuando los hallazgos restantes aún sostienen una puntuación, esta se actualiza en consecuencia; cuando descartar no deja nada que medir, se mantiene la medición original. Todo informe en el que lo haya hecho queda etiquetado como ajustado por el cliente, y se muestran tanto la puntuación original como la ajustada. Usted es responsable de los ajustes que realice, y un informe ajustado no debe presentarse a terceros como una evaluación sin modificar.",
     s5Title: "5. Su cuenta",
     s5Body:
       "Debe facilitar una dirección de correo válida y mantener su contraseña segura. Usted es responsable de la actividad realizada desde su cuenta. No suba imágenes sobre las que no tenga derechos, ni contenido ilícito. Podemos suspender o cerrar una cuenta que se esté utilizando indebidamente.",
@@ -569,10 +569,10 @@ export const es: Dictionary = {
     updated: "Última actualización",
     updatedValue: "Julio de 2026",
     intro:
-      "Aquí se explica qué datos personales recoge Card Care Center, por qué, y qué puede hacer al respecto. Recogemos lo mínimo que el servicio necesita para funcionar.",
+      "Aquí se explica qué datos personales recoge {businessName}, por qué, y qué puede hacer al respecto. Recogemos lo mínimo que el servicio necesita para funcionar.",
     s1Title: "1. Quién es responsable",
     s1Body:
-      "Card Care Center, con sede en Gibraltar, es el responsable del tratamiento de los datos personales aquí descritos. Puede contactarnos a través de la página de contacto.",
+      "{businessName}, con sede en Gibraltar, es el responsable del tratamiento de los datos personales aquí descritos. Puede contactarnos a través de la página de contacto.",
     s2Title: "2. Qué recogemos",
     s2Body:
       "Su dirección de correo y una contraseña almacenada de forma cifrada, para que pueda iniciar sesión. Los datos de las cartas que envía: juego, nombre, edición y número. Las imágenes que sube o que generamos al escanear su carta, junto con el análisis derivado de ellas. Registros básicos de las acciones realizadas sobre sus envíos, para mantener una traza de auditoría. No recogemos datos de tarjetas de pago en este sitio, y no usamos cookies publicitarias ni de seguimiento.",

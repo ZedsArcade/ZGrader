@@ -4,16 +4,18 @@ import Link from "next/link";
 import { Card, buttonVariants, cn } from "@heroui/react";
 import PageHeader from "@/components/PageHeader";
 import { useTranslations } from "@/lib/i18n/context";
+import { useBusinessName, withBusinessName } from "@/lib/use-business-name";
 
 export default function AboutClient() {
   const t = useTranslations();
+  const businessName = useBusinessName();
 
   return (
     <>
       <PageHeader title={t.about.title} lede={t.about.lede} />
 
       <div className="flex max-w-3xl flex-col gap-4 text-base leading-relaxed text-muted">
-        <p>{t.about.body1}</p>
+        <p>{withBusinessName(t.about.body1, businessName)}</p>
         <p>{t.about.body2}</p>
         <p>{t.about.body3}</p>
       </div>

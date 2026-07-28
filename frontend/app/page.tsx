@@ -4,12 +4,14 @@ import Link from "next/link";
 import { Card, buttonVariants, cn } from "@heroui/react";
 import { useTranslations } from "@/lib/i18n/context";
 import { useGradingCompanies, withCompanies } from "@/lib/use-grading-companies";
+import { useBusinessName, withBusinessName } from "@/lib/use-business-name";
 
 export default function HomePage() {
   const t = useTranslations();
   // Named from what's actually enabled in admin, so the page can't claim a
   // comparison the service no longer runs.
   const companies = useGradingCompanies();
+  const businessName = useBusinessName();
   return (
     <>
       <section
@@ -30,7 +32,9 @@ export default function HomePage() {
         <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
           {t.landing.title}
         </h1>
-        <p className="max-w-2xl text-lg text-muted">{withCompanies(t.landing.subtitle, companies)}</p>
+        <p className="max-w-2xl text-lg text-muted">
+          {withBusinessName(withCompanies(t.landing.subtitle, companies), businessName)}
+        </p>
         <div className="flex flex-wrap gap-3">
           <Link href="/register" className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}>
             {t.landing.getStarted}
@@ -73,7 +77,7 @@ export default function HomePage() {
           <Card.Title>{t.landing.noteTitle}</Card.Title>
         </Card.Header>
         <Card.Content>
-          <p className="text-sm text-muted">{t.landing.noteBody}</p>
+          <p className="text-sm text-muted">{withBusinessName(t.landing.noteBody, businessName)}</p>
         </Card.Content>
       </Card>
     </>
