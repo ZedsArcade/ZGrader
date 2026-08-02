@@ -72,12 +72,36 @@ violation cannot reproduce under pytest. Check those against a migrated database
 
 ## Running it
 
-Tests need a live Postgres with a `zgrader_test` database:
+Tests need a live Postgres with a database whose name **ends in `_test`**:
 
 ```
 cd backend && source .venv/bin/activate && pytest -q
 cd frontend && npx tsc --noEmit && npx next build
 ```
+
+`ZGRADER_TEST_DATABASE_URL` overrides the default
+(`postgresql+psycopg://zgrader:zgrader@localhost:5432/zgrader_test`), which is how the suite runs
+against the deployed Postgres instead of a local one. Compose binds Postgres to the host's loopback
+only, so reach it over a tunnel:
+
+```
+ssh -N -L 5432:127.0.0.1:5432 <host>
+```
+
+**The suite is destructive and guards itself accordingly.** It drops every table at session start,
+deletes every row after each test, and removes the scans and reports directories after each test.
+Two guards in `tests/conftest.py` keep that contained: it refuses to start unless the database name
+ends in `_test`, and it forces the scans/reports directories to a fresh temp directory per run
+rather than honouring the environment. Neither is decoration — without the first, a typo drops the
+production schema; without the second, any shell with `ZGRADER_SCANS_DIR` exported deletes customer
+scans.
+
+`zgrader_test` is pytest's scratch space and nothing else. `conftest` builds it with
+`create_all`, so it lacks the raw-SQL indexes the migrations create (`ix_users_email_lower`) — it is
+not a staging copy.
+
+`tests/test_pdf_generation.py` is the only module that needs WeasyPrint installed; `build_pdf`
+imports it lazily so everything else runs without Pango/Cairo present.
 
 `npx tsc --noEmit` doubles as the translation completeness check: `Dictionary = Widen<typeof en>`
 forces `es.ts` to have the same key structure as `en.ts`, so a missing Spanish string is a type

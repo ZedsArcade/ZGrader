@@ -296,6 +296,41 @@ export const es: Dictionary = {
     ctaTitle: "¿Tiene una carta que le genera dudas?",
     ctaBody: "Haga una revisión gratuita y vea el resultado antes de comprometerse a nada.",
   },
+  quota: {
+    chipRemaining: "{n} análisis restantes",
+    chipExhausted: "Sin análisis disponibles",
+    chipExhaustedIn: "Se renueva en {time}",
+    ariaLabel: "Análisis restantes en este periodo",
+    unitDay: "d",
+    unitHour: "h",
+    unitMinute: "min",
+    exhaustedTitle: "Ha agotado los análisis de este periodo",
+    exhaustedBody:
+      "Su cuota se renueva automáticamente en {time}. Una suscripción elimina el límite por completo.",
+    exhaustedBodyNoTimer:
+      "Su cuota se renueva automáticamente. Una suscripción elimina el límite por completo.",
+    seePlans: "Ver planes",
+  },
+  care: {
+    title: "Cuidar la carta que ya tiene.",
+    lede: "Limpieza, protección y consejo honesto sobre restauración, con los riesgos expuestos con claridad antes de tocar nada.",
+    intro:
+      "{businessName} es la parte del servicio dedicada al cuidado. Mientras que el lado de análisis le dice si merece la pena enviar una carta a calificar, este lado se ocupa del objeto físico: cómo se guarda, cómo se manipula, y qué se puede y no se puede mejorar con seguridad.",
+    ctaPrimary: "Consultar sobre una carta",
+    ctaSecondary: "Volver al análisis de calificación",
+    s1Title: "Manipulación y almacenamiento",
+    s1Body:
+      "La mayor parte del daño evitable ocurre entre que la carta sale del sobre y llega a una funda. El consejo aquí es gratuito y específico para lo que usted tiene, no una lista genérica.",
+    s2Title: "Limpieza de superficie",
+    s2Body:
+      "La suciedad superficial y las huellas suelen poder tratarse con seguridad. Todo lo que alteraría la superficie impresa en sí no es limpieza, y se trata como restauración más abajo.",
+    s3Title: "Consulta de restauración",
+    s3Body:
+      "Algunos problemas pueden mejorarse; muchos no, y algunos intentos empeoran las cosas. La consulta es gratuita precisamente para que nadie pague por escuchar un no.",
+    warningTitle: "Lea esto antes de pedir una restauración",
+    warningBody:
+      "La restauración conlleva un riesgo real. Una carta restaurada puede ser calificada como alterada, o rechazada sin más, por una compañía de calificación, y ese resultado es permanente. No se intenta nada sin hablarlo antes con usted y acordarlo por escrito. Si la respuesta honesta es dejar la carta en paz, esa será la respuesta que reciba.",
+  },
   services: {
     title: "Servicios",
     subtitle:

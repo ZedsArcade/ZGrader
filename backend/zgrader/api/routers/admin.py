@@ -6,13 +6,15 @@ from zgrader import images
 from zgrader.api.deps import require_operator
 from zgrader.config import config
 from zgrader.db import get_db
-from zgrader.models import AuditLog, Report, ReportStatus, Settings, Submission, User
+from zgrader.models import AuditLog, PlanEntitlement, Report, ReportStatus, Settings, Submission, User
 from zgrader.models.grading_comparison import GradingCompany, GradingCompanyToleranceRule
 from zgrader.models.settings import get_or_create_settings
 from zgrader.schemas.admin import (
     AuditLogOut,
     GradingCompanyOut,
     GradingCompanyUpdate,
+    PlanEntitlementOut,
+    PlanEntitlementUpdate,
     SettingsOut,
     SettingsUpdate,
     StatsOut,
@@ -126,6 +128,45 @@ def delete_service_image(slug: str, _operator: User = Depends(require_operator))
     """Remove a tier's banner. The card then renders without one, as it did
     before any image was set."""
     _service_image_path(slug).unlink(missing_ok=True)
+
+
+@router.get("/plans", response_model=list[PlanEntitlementOut])
+def list_plans(
+    _operator: User = Depends(require_operator), db: Session = Depends(get_db)
+) -> list[PlanEntitlement]:
+    """Every plan's submission cap and cooldown, free tier included."""
+    return db.query(PlanEntitlement).order_by(PlanEntitlement.plan).all()
+
+
+@router.patch("/plans/{plan}", response_model=PlanEntitlementOut)
+def update_plan(
+    plan: str,
+    payload: PlanEntitlementUpdate,
+    _operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> PlanEntitlement:
+    """Retune a plan's cap or cooldown.
+
+    Takes effect on the next quota read for every user on that plan -- windows
+    already open keep their anchor, so raising a limit hands out the extra
+    checks immediately rather than making people wait for a reset.
+
+    submission_limit is nullable and null means unlimited, so exclude_unset is
+    what distinguishes "make this unlimited" from "leave the limit alone".
+    """
+    row = db.query(PlanEntitlement).filter(PlanEntitlement.plan == plan).first()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No entitlement configured for plan '{plan}'")
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "submission_limit" in updates:
+        row.submission_limit = updates["submission_limit"]
+    if updates.get("period_days") is not None:
+        row.period_days = updates["period_days"]
+
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 @router.get("/grading-companies", response_model=list[GradingCompanyOut])

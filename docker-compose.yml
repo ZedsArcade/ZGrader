@@ -6,6 +6,15 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-zgrader}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a real password in .env -- see .env.example}
       POSTGRES_DB: ${POSTGRES_DB:-zgrader}
+    # Bound to the host's loopback, not 0.0.0.0: this exists so the test suite
+    # can reach a scratch database (zgrader_test) over an SSH tunnel, not so
+    # the database is reachable from the LAN. Exposing 5432 on the network
+    # with the default zgrader/zgrader credentials would be a considerably
+    # worse trade than the convenience is worth.
+    #
+    # Reach it with:  ssh -N -L 5432:127.0.0.1:5432 <this-host>
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       #- postgres_data:/var/lib/postgresql/data
       - ${POSTGRES_DATA_PATH:-postgres_data}:/var/lib/postgresql/data

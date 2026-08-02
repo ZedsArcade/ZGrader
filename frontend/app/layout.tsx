@@ -5,7 +5,10 @@ import { Providers } from "./providers";
 import { AuthProvider } from "@/lib/auth-context";
 import { BrandingProvider } from "@/lib/branding-context";
 import { getServerBusinessName } from "@/lib/branding-server";
+import { BRAND_INIT_SCRIPT } from "@/lib/brand";
 import { LocaleProvider } from "@/lib/i18n/context";
+import { QuotaProvider } from "@/lib/quota-context";
+import BrandSync from "@/components/BrandSync";
 import Footer from "@/components/Footer";
 import NavBar from "@/components/NavBar";
 
@@ -51,15 +54,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Sets data-brand before first paint so /care never flashes the
+            GemLab palette. Same approach next-themes uses for light/dark. */}
+        <script dangerouslySetInnerHTML={{ __html: BRAND_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-screen flex flex-col bg-background text-foreground font-sans antialiased">
         <Providers themeProps={{ attribute: "class", defaultTheme: "system", enableSystem: true }}>
           <LocaleProvider>
             <BrandingProvider>
               <AuthProvider>
-                <NavBar />
-                <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 pb-16">{children}</main>
-                <Footer />
-                <Toast.Provider />
+                <QuotaProvider>
+                  <BrandSync />
+                  <NavBar />
+                  <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 pb-16">{children}</main>
+                  <Footer />
+                  <Toast.Provider />
+                </QuotaProvider>
               </AuthProvider>
             </BrandingProvider>
           </LocaleProvider>

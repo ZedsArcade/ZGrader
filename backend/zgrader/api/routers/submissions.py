@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from zgrader import images
+from zgrader import entitlements, images
 from zgrader.analysis import preprocessing, recompute
 from zgrader.api.deps import get_current_user, require_operator, require_verified_user
 from zgrader.config import config
@@ -31,6 +31,7 @@ from zgrader.storage import purge_submission_files
 from zgrader.schemas.admin import AutoPublishUpdate
 from zgrader.schemas.submission import (
     CropPointsIn,
+    QuotaOut,
     RegionToggleIn,
     SubmissionCreate,
     SubmissionDetail,
@@ -64,12 +65,55 @@ def _get_owned_submission(code: str, user: User, db: Session) -> Submission:
     return submission
 
 
+@router.get("/quota", response_model=QuotaOut)
+def get_quota(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> QuotaOut:
+    """The signed-in account's remaining checks and reset time.
+
+    Declared before /{code} so the literal path isn't captured by that route's
+    parameter -- FastAPI matches in declaration order.
+
+    Reading rolls a lapsed window forward (see entitlements.get_quota), which
+    mutates the user row, so this commits rather than leaving the reset to be
+    re-derived on every subsequent read.
+    """
+    quota = entitlements.get_quota(db, user)
+    db.commit()
+    return QuotaOut(
+        plan=quota.plan,
+        unlimited=quota.unlimited,
+        limit=quota.limit,
+        used=quota.used,
+        remaining=quota.remaining,
+        period_days=quota.period_days,
+        resets_at=quota.resets_at,
+    )
+
+
 @router.post("", response_model=SubmissionDetail, status_code=status.HTTP_201_CREATED)
 def create_submission(
     payload: SubmissionCreate,
     user: User = Depends(require_verified_user),
     db: Session = Depends(get_db),
 ) -> Submission:
+    # Checked before anything is created, so a refused submission leaves no
+    # row, no folder and no half-state behind.
+    quota = entitlements.get_quota(db, user)
+    if not quota.can_submit:
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            {
+                "message": (
+                    "You've used all your checks for this period. They reset automatically, "
+                    "or a subscription removes the limit."
+                ),
+                "limit": quota.limit,
+                "used": quota.used,
+                "resets_at": quota.resets_at.isoformat() if quota.resets_at else None,
+            },
+        )
+
     code = _next_submission_code(db)
     submission = Submission(
         submission_code=code,
@@ -79,6 +123,11 @@ def create_submission(
     )
     db.add(submission)
     db.flush()
+
+    # Spend the credit in the same transaction as the row it paid for, so a
+    # failure below can't leave the user charged for a submission that doesn't
+    # exist -- nor create one that was never paid for.
+    entitlements.consume_submission(db, user)
 
     db.add(
         Card(

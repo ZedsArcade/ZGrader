@@ -8,6 +8,7 @@ import * as api from "./api";
 // than flashing placeholder links that go nowhere.
 const DEFAULT_BRANDING: api.Branding = {
   business_name: "Card Care Center",
+  care_business_name: "GemCare",
   business_contact: null,
   contact_email: null,
   contact_location: null,

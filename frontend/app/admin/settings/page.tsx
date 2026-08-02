@@ -120,6 +120,111 @@ function SectionHeading({ title, hint }: { title: string; hint: string }) {
   );
 }
 
+/**
+ * Per-plan submission caps and cooldowns.
+ *
+ * An empty limit box means unlimited, which is how a subscription tier is
+ * expressed -- so the field is deliberately allowed to be blank rather than
+ * forced to a number. Changes apply on each user's next quota read; windows
+ * already open keep their anchor, so raising a limit hands out the extra
+ * checks straight away instead of making people wait for a reset.
+ */
+function PlanEntitlementRows({ token }: { token: string }) {
+  const [plans, setPlans] = useState<api.PlanEntitlement[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  // Kept as strings so the box can be empty (= unlimited) while being typed
+  // in, rather than snapping to 0 on every keystroke.
+  const [drafts, setDrafts] = useState<Record<string, { limit: string; period: string }>>({});
+
+  useEffect(() => {
+    if (!token) return;
+    api
+      .getPlanEntitlements(token)
+      .then((rows) => {
+        setPlans(rows);
+        setDrafts(
+          Object.fromEntries(
+            rows.map((r) => [
+              r.plan,
+              { limit: r.submission_limit === null ? "" : String(r.submission_limit), period: String(r.period_days) },
+            ])
+          )
+        );
+      })
+      .catch(() => setPlans([]));
+  }, [token]);
+
+  async function save(plan: string) {
+    const draft = drafts[plan];
+    if (!draft) return;
+    const trimmed = draft.limit.trim();
+    const period = Number(draft.period);
+    if (!Number.isFinite(period) || period < 1) {
+      toastError("Reset period must be at least 1 day.");
+      return;
+    }
+    if (trimmed !== "" && (!Number.isFinite(Number(trimmed)) || Number(trimmed) < 0)) {
+      toastError("Limit must be a number, or blank for unlimited.");
+      return;
+    }
+    setBusy(plan);
+    try {
+      const updated = await api.updatePlanEntitlement(token, plan, {
+        submission_limit: trimmed === "" ? null : Number(trimmed),
+        period_days: period,
+      });
+      setPlans((prev) => (prev ?? []).map((p) => (p.plan === plan ? updated : p)));
+      toastSuccess(
+        updated.submission_limit === null
+          ? `${plan}: unlimited submissions.`
+          : `${plan}: ${updated.submission_limit} per ${updated.period_days} days.`
+      );
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Couldn't update the plan");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (plans === null) return <Skeleton className="h-24 w-full" />;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {plans.map(({ plan }) => (
+        <div
+          key={plan}
+          className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface-secondary p-3"
+        >
+          <span className="min-w-16 text-sm font-medium text-foreground">{plan}</span>
+          <TextField
+            value={drafts[plan]?.limit ?? ""}
+            onChange={(value) =>
+              setDrafts((d) => ({ ...d, [plan]: { ...d[plan]!, limit: value } }))
+            }
+            className="w-40"
+          >
+            <Label>Submissions (blank = unlimited)</Label>
+            <Input inputMode="numeric" />
+          </TextField>
+          <TextField
+            value={drafts[plan]?.period ?? ""}
+            onChange={(value) =>
+              setDrafts((d) => ({ ...d, [plan]: { ...d[plan]!, period: value } }))
+            }
+            className="w-32"
+          >
+            <Label>Reset (days)</Label>
+            <Input inputMode="numeric" />
+          </TextField>
+          <Button variant="outline" size="sm" isDisabled={busy === plan} onPress={() => save(plan)}>
+            {busy === plan ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function GradingCompanyRows({
   token,
   onChanged,
@@ -268,7 +373,17 @@ function SettingsForm() {
             isRequired
             fullWidth
           >
-            <Label>Business name</Label>
+            <Label>Business name (analysis side, and the legal name on reports)</Label>
+            <Input />
+          </TextField>
+
+          <TextField
+            value={settings.care_business_name}
+            onChange={(value) => setSettings({ ...settings, care_business_name: value })}
+            isRequired
+            fullWidth
+          >
+            <Label>Care brand name (the /care section)</Label>
             <Input />
           </TextField>
 
@@ -406,6 +521,13 @@ function SettingsForm() {
               />
             ))}
           </div>
+
+          <SectionHeading
+            title="Plans and submission limits"
+            hint="How many checks each plan allows, and how often the allowance returns. Leave the limit blank for unlimited. Changes apply on a user's next visit; an allowance already part-used keeps its reset time, so raising a limit takes effect straight away rather than at the next reset."
+          />
+
+          <PlanEntitlementRows token={token ?? ""} />
 
           <SectionHeading
             title="Grading companies"
