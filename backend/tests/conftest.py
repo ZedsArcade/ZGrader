@@ -1,12 +1,57 @@
 import os
+import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit
+
+# ---------------------------------------------------------------------------
+# This suite is destructive by design, and that is only safe while it is
+# pointed somewhere disposable. It drops every table at session start, deletes
+# every row after each test, and rmtree's the scans and reports directories
+# after each test. The two guards below are what keep that pointed at a
+# scratch database and scratch directories.
+# ---------------------------------------------------------------------------
+
+_DEFAULT_TEST_DATABASE_URL = "postgresql+psycopg://zgrader:zgrader@localhost:5432/zgrader_test"
+
+
+def _require_test_database(url: str) -> str:
+    """Refuse to run against anything not obviously a test database.
+
+    The URL became overridable so the suite could run against a shared
+    Postgres instance rather than needing a local one. That removed the
+    property that previously made this safe -- a hardcoded literal -- so the
+    name is checked instead. Getting this wrong drops the production schema,
+    which is not a mistake worth leaving available.
+    """
+    name = urlsplit(url).path.lstrip("/")
+    if not name.endswith("_test"):
+        raise RuntimeError(
+            f"Refusing to run the test suite against database {name!r}.\n"
+            "The name must end in '_test'. This suite calls Base.metadata.drop_all() "
+            "at session start and deletes every row after each test, so pointing it "
+            "at a real database would destroy it.\n"
+            "Set ZGRADER_TEST_DATABASE_URL to a scratch database, e.g. "
+            "postgresql+psycopg://zgrader:zgrader@localhost:5432/zgrader_test"
+        )
+    return url
+
 
 # Must happen before any `zgrader.*` import: zgrader.db creates its engine
 # from zgrader.config at import time, so the test DB URL has to be in the
 # environment before that first import anywhere in the process.
-os.environ["ZGRADER_DATABASE_URL"] = "postgresql+psycopg://zgrader:zgrader@localhost:5432/zgrader_test"
-os.environ.setdefault("ZGRADER_REPORTS_DIR", "/tmp/zgrader-test/reports")
-os.environ.setdefault("ZGRADER_SCANS_DIR", "/tmp/zgrader-test/scans")
+os.environ["ZGRADER_DATABASE_URL"] = _require_test_database(
+    os.environ.get("ZGRADER_TEST_DATABASE_URL", _DEFAULT_TEST_DATABASE_URL)
+)
+
+# Forced, never setdefault. These paths are rmtree'd after every single test,
+# so honouring the environment meant any shell with ZGRADER_SCANS_DIR exported
+# at a real path would delete customer scans. A fresh temp directory per run
+# removes that hazard rather than guarding it, and lets two runs proceed
+# concurrently without clobbering each other's fixture files -- which the old
+# fixed /tmp/zgrader-test path could not.
+_TEST_DATA_ROOT = Path(tempfile.mkdtemp(prefix="zgrader-test-"))
+os.environ["ZGRADER_REPORTS_DIR"] = str(_TEST_DATA_ROOT / "reports")
+os.environ["ZGRADER_SCANS_DIR"] = str(_TEST_DATA_ROOT / "scans")
 
 import shutil  # noqa: E402
 
@@ -21,6 +66,13 @@ from zgrader.seed import seed_all  # noqa: E402
 
 TEST_DATABASE_URL = os.environ["ZGRADER_DATABASE_URL"]
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "sample_scans"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _cleanup_test_data_root():
+    """Remove the per-run scratch directory when the session ends."""
+    yield
+    shutil.rmtree(_TEST_DATA_ROOT, ignore_errors=True)
 
 
 @pytest.fixture(scope="session")

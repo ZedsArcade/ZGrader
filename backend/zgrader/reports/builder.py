@@ -7,7 +7,6 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy.orm import Session
-from weasyprint import HTML
 
 from zgrader.config import config
 from zgrader.models import AnalysisSide, GradingCompany, Report, ReportStatus, Settings, Submission
@@ -188,6 +187,16 @@ def render_html(context: dict) -> str:
 
 
 def build_pdf(context: dict, output_path: Path) -> Path:
+    # Imported here rather than at module scope, the same way ai.py defers
+    # httpx. WeasyPrint renders through Pango/Cairo, which are system
+    # libraries rather than part of the wheel -- so importing it at module
+    # scope made this module, and everything that reaches it (the submissions
+    # router, the watcher, and nine test modules through them), unimportable
+    # anywhere those libraries are absent. Deferring it means only the code
+    # path that actually renders a PDF needs them, which is also why the API
+    # process no longer loads Pango at startup.
+    from weasyprint import HTML
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     html_str = render_html(context)
     HTML(string=html_str, base_url=str(TEMPLATES_DIR)).write_pdf(str(output_path))
