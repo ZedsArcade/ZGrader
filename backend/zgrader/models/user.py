@@ -55,6 +55,24 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # Submission quota, per zgrader.entitlements.
+    #
+    # The window is anchored here rather than to a calendar week so it starts
+    # when the person actually starts using the service. NULL means they have
+    # not submitted yet; it is set on first consumption and rolls forward in
+    # whole periods after that, which keeps resets_at predictable enough to
+    # count down to.
+    quota_period_started_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Counts submissions *created* in the current window, and is never
+    # decremented. Deriving usage from a live COUNT(*) of submissions would
+    # refund a credit whenever someone deleted one, which at zero remaining
+    # is an unlimited-retry loop.
+    quota_used: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, server_default="0"
+    )
+
     # Set when the user first checks out. Card details never reach this
     # server -- this is only Stripe's handle for them.
     stripe_customer_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)

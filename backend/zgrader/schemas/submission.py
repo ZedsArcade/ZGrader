@@ -6,6 +6,27 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from zgrader.models import SubmissionLanguage, SubmissionStatus
 
 
+class QuotaOut(BaseModel):
+    """How many checks the signed-in account has left, and when they return.
+
+    `unlimited` is sent explicitly rather than left to be inferred from a null
+    limit, so the UI never has to decide what a missing number means -- an
+    unlimited plan shows no counter at all rather than a zero or an infinity
+    symbol.
+    """
+
+    plan: str
+    unlimited: bool
+    limit: int | None
+    used: int
+    remaining: int | None
+    period_days: int
+    # Absolute instant the allowance returns, so the client can count down to
+    # it without the server and browser needing agreeing clocks beyond UTC.
+    # Null when unlimited, or before the first submission has started a window.
+    resets_at: datetime.datetime | None
+
+
 class SubmissionCreate(BaseModel):
     game: str
     card_name: str

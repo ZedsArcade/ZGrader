@@ -16,12 +16,14 @@ import RequireAuth from "@/components/RequireAuth";
 import Skeleton from "@/components/Skeleton";
 import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
+import { useQuota } from "@/lib/quota-context";
 import { toastError } from "@/lib/toast";
 import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 function NewSubmissionForm() {
   const { token } = useAuth();
+  const { refresh: refreshQuota } = useQuota();
   const router = useRouter();
   const { locale } = useLocale();
   const t = useTranslations();
@@ -61,6 +63,10 @@ function NewSubmissionForm() {
         foil,
         language: locale,
       });
+      // A credit was just spent, so re-read it before navigating -- otherwise
+      // the header keeps showing the pre-submission count until something
+      // else happens to refresh it.
+      await refreshQuota();
       router.push(`/dashboard/${submission.submission_code}`);
     } catch (err) {
       toastError(err instanceof Error ? err.message : t.newSubmission.failed);

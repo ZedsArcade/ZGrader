@@ -298,6 +298,22 @@ export const en = {
   // palette. Kept as its own block rather than folded into `services` so the
   // two sides of the business can diverge in copy without stepping on each
   // other.
+  quota: {
+    chipRemaining: "{n} checks left",
+    chipExhausted: "No checks left",
+    chipExhaustedIn: "Resets in {time}",
+    ariaLabel: "Checks remaining this period",
+    // Short units, so the countdown fits a chip: "2d 6h", "3h 40m".
+    unitDay: "d",
+    unitHour: "h",
+    unitMinute: "m",
+    exhaustedTitle: "You've used this period's checks",
+    exhaustedBody:
+      "Your allowance resets automatically in {time}. A subscription removes the limit entirely.",
+    exhaustedBodyNoTimer:
+      "Your allowance resets automatically. A subscription removes the limit entirely.",
+    seePlans: "See plans",
+  },
   care: {
     title: "Looking after the card you already own.",
     lede: "Cleaning, protection and honest advice on restoration -- with the risks stated plainly before anything is touched.",

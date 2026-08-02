@@ -8,6 +8,7 @@ from zgrader.models.grading_comparison import (
     GradingCompanyToleranceRule,
     ToleranceSeverity,
 )
+from zgrader.models.plan_entitlement import FREE_PLAN, PlanEntitlement
 from zgrader.models.report import Report, ReportStatus
 from zgrader.models.scan_image import ScanImage, ScanSide
 from zgrader.models.settings import Settings
@@ -25,6 +26,8 @@ __all__ = [
     "GradingCompany",
     "GradingCompanyComparison",
     "GradingCompanyToleranceRule",
+    "FREE_PLAN",
+    "PlanEntitlement",
     "Report",
     "ReportStatus",
     "ScanImage",

@@ -180,6 +180,13 @@ export interface SettingsUpdate extends Partial<PublicContact> {
   disclaimer_text?: string;
 }
 
+/** A plan's submission cap and cooldown. `submission_limit: null` = unlimited. */
+export interface PlanEntitlement {
+  plan: string;
+  submission_limit: number | null;
+  period_days: number;
+}
+
 export interface Stats {
   total_submissions: number;
   by_status: Record<string, number>;
@@ -325,6 +332,25 @@ export async function getMe(token: string): Promise<User> {
   return request("/auth/me", { headers: authHeaders(token) });
 }
 
+/** How many checks the signed-in account has left, and when they return. */
+export interface Quota {
+  plan: string;
+  /** Sent explicitly rather than inferred from a null limit, so the UI never
+   *  has to decide what a missing number means. */
+  unlimited: boolean;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  period_days: number;
+  /** ISO instant the allowance returns. Null when unlimited, or before the
+   *  first submission has started a window. */
+  resets_at: string | null;
+}
+
+export async function getQuota(token: string): Promise<Quota> {
+  return request("/submissions/quota", { headers: authHeaders(token) });
+}
+
 export async function getGames(): Promise<Game[]> {
   return request("/catalog/games");
 }
@@ -394,6 +420,24 @@ export async function setGradingCompanyActive(
     method: "PATCH",
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify({ active }),
+  });
+}
+
+export async function getPlanEntitlements(token: string): Promise<PlanEntitlement[]> {
+  return request("/admin/plans", { headers: authHeaders(token) });
+}
+
+export async function updatePlanEntitlement(
+  token: string,
+  plan: string,
+  // Pass submission_limit: null to make a plan unlimited; omit the key
+  // entirely to leave it as it is. The backend distinguishes the two.
+  payload: { submission_limit?: number | null; period_days?: number }
+): Promise<PlanEntitlement> {
+  return request(`/admin/plans/${plan}`, {
+    method: "PATCH",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
 }
 

@@ -43,6 +43,23 @@ def normalize_phone(value: str | None) -> str | None:
     return digits
 
 
+class PlanEntitlementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    plan: str
+    # None = unlimited submissions on this plan.
+    submission_limit: int | None
+    period_days: int
+
+
+class PlanEntitlementUpdate(BaseModel):
+    # Explicitly nullable: clearing the limit is how a plan is made unlimited,
+    # so None here means "unlimited", not "leave unchanged". The endpoint uses
+    # exclude_unset to tell the two apart.
+    submission_limit: int | None = Field(default=None, ge=0, le=10_000)
+    period_days: int | None = Field(default=None, ge=1, le=365)
+
+
 class SettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

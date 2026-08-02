@@ -296,6 +296,21 @@ export const es: Dictionary = {
     ctaTitle: "¿Tiene una carta que le genera dudas?",
     ctaBody: "Haga una revisión gratuita y vea el resultado antes de comprometerse a nada.",
   },
+  quota: {
+    chipRemaining: "{n} análisis restantes",
+    chipExhausted: "Sin análisis disponibles",
+    chipExhaustedIn: "Se renueva en {time}",
+    ariaLabel: "Análisis restantes en este periodo",
+    unitDay: "d",
+    unitHour: "h",
+    unitMinute: "min",
+    exhaustedTitle: "Ha agotado los análisis de este periodo",
+    exhaustedBody:
+      "Su cuota se renueva automáticamente en {time}. Una suscripción elimina el límite por completo.",
+    exhaustedBodyNoTimer:
+      "Su cuota se renueva automáticamente. Una suscripción elimina el límite por completo.",
+    seePlans: "Ver planes",
+  },
   care: {
     title: "Cuidar la carta que ya tiene.",
     lede: "Limpieza, protección y consejo honesto sobre restauración, con los riesgos expuestos con claridad antes de tocar nada.",

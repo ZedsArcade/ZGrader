@@ -8,6 +8,7 @@ from zgrader.config import config
 from zgrader.models.settings import Settings
 from zgrader.models.user import User, UserRole
 from zgrader.seed.card_dimensions_seed import seed_card_dimensions
+from zgrader.seed.plan_entitlements_seed import seed_plan_entitlements
 from zgrader.seed.tolerance_rules_seed import seed_tolerance_rules
 
 logger = logging.getLogger(__name__)
@@ -93,5 +94,6 @@ def seed_admin_user(db: Session) -> None:
 def seed_all(db: Session) -> None:
     seed_card_dimensions(db)
     seed_tolerance_rules(db)
+    seed_plan_entitlements(db)
     seed_settings_singleton(db)
     seed_admin_user(db)

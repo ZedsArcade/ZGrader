@@ -9,6 +9,7 @@ import { useTranslations } from "@/lib/i18n/context";
 import { brandFromPathname, CARE_PREFIX } from "@/lib/brand";
 import { titanOne } from "@/lib/fonts";
 import BrandSwitch from "@/components/brand-switch";
+import QuotaChip from "@/components/QuotaChip";
 import ThemeSwitch from "@/components/theme-switch";
 import LocaleSwitch from "@/components/locale-switch";
 import NavDrawer from "@/components/nav-drawer";
@@ -86,6 +87,7 @@ export default function NavBar() {
               >
                 {user.email}
               </Link>
+              <QuotaChip />
               <LocaleSwitch />
               <ThemeSwitch />
               <Button variant="outline" size="sm" onPress={handleLogout}>
@@ -107,6 +109,7 @@ export default function NavBar() {
         </nav>
 
         <div className="flex items-center gap-2 md:hidden">
+          <QuotaChip />
           <LocaleSwitch />
           <ThemeSwitch />
           <NavDrawer>
