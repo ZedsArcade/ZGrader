@@ -14,6 +14,7 @@ import type { Branding } from "./api";
 
 /** Mirrors DEFAULT_BRANDING in branding-context.tsx. */
 export const FALLBACK_BUSINESS_NAME = "Card Care Center";
+export const FALLBACK_CARE_BUSINESS_NAME = "GemCare";
 
 /**
  * How long a fetched business name stays cached.
@@ -30,18 +31,29 @@ export const FALLBACK_BUSINESS_NAME = "Card Care Center";
  */
 const REVALIDATE_SECONDS = 3600;
 
-export async function getServerBusinessName(): Promise<string> {
+async function fetchBranding(): Promise<Partial<Branding> | null> {
   const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
   try {
     const res = await fetch(`${backendUrl}/catalog/branding`, {
       next: { revalidate: REVALIDATE_SECONDS },
     });
-    if (!res.ok) return FALLBACK_BUSINESS_NAME;
-    const branding = (await res.json()) as Partial<Branding>;
-    return branding.business_name?.trim() || FALLBACK_BUSINESS_NAME;
+    if (!res.ok) return null;
+    return (await res.json()) as Partial<Branding>;
   } catch {
     // An unreachable backend must never fail a build or a page render --
     // same reasoning as BrandingProvider swallowing its own fetch error.
-    return FALLBACK_BUSINESS_NAME;
+    return null;
   }
+}
+
+/** The analysis/pre-grading brand, and the legal name used on reports. */
+export async function getServerBusinessName(): Promise<string> {
+  const branding = await fetchBranding();
+  return branding?.business_name?.trim() || FALLBACK_BUSINESS_NAME;
+}
+
+/** The card-care / restoration brand, for metadata on the /care routes. */
+export async function getServerCareBusinessName(): Promise<string> {
+  const branding = await fetchBranding();
+  return branding?.care_business_name?.trim() || FALLBACK_CARE_BUSINESS_NAME;
 }

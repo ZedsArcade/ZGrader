@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
 import { useTranslations } from "@/lib/i18n/context";
+import { brandFromPathname, CARE_PREFIX } from "@/lib/brand";
 import { titanOne } from "@/lib/fonts";
+import BrandSwitch from "@/components/brand-switch";
 import ThemeSwitch from "@/components/theme-switch";
 import LocaleSwitch from "@/components/locale-switch";
 import NavDrawer from "@/components/nav-drawer";
@@ -18,9 +20,10 @@ const DRAWER_LINK_CLASS =
 
 export default function NavBar() {
   const { user, logout, loading } = useAuth();
-  const { business_name } = useBranding();
+  const { business_name, care_business_name } = useBranding();
   const t = useTranslations();
   const router = useRouter();
+  const brand = brandFromPathname(usePathname() ?? "/");
 
   function handleLogout() {
     logout();
@@ -43,9 +46,19 @@ export default function NavBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5">
-        <Link href="/" className={`${titanOne.className} text-xl tracking-wide text-foreground`}>
-          {business_name}
-        </Link>
+        {/* Wordmark names the section you are actually in, and the switch
+            beside it moves between the two. Placed left because the right-hand
+            group is already at its width budget (see the note on
+            desktopLinks). */}
+        <div className="flex items-center gap-3">
+          <Link
+            href={brand === "care" ? CARE_PREFIX : "/"}
+            className={`${titanOne.className} hidden text-xl tracking-wide text-foreground sm:block`}
+          >
+            {brand === "care" ? care_business_name : business_name}
+          </Link>
+          <BrandSwitch />
+        </div>
 
         <nav className="hidden items-center gap-6 md:flex">
           {desktopLinks.map(({ href, label }) => (

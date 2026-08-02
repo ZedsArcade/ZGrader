@@ -145,6 +145,9 @@ export interface PublicContact {
 
 export interface Branding extends PublicContact {
   business_name: string;
+  /** The card-care / restoration brand, reached at /care. The header's
+   *  section toggle renders both names, so this is public. */
+  care_business_name: string;
   business_contact: string | null;
   /** Companies currently taking part in the comparison, in a fixed order.
    *  The public copy names these rather than a hardcoded list, so disabling
@@ -162,6 +165,7 @@ export interface GradingCompanyStatus {
 export interface Settings extends PublicContact {
   auto_publish_default: boolean;
   business_name: string;
+  care_business_name: string;
   business_logo_path: string | null;
   business_contact: string | null;
   disclaimer_text: string;
@@ -170,6 +174,7 @@ export interface Settings extends PublicContact {
 export interface SettingsUpdate extends Partial<PublicContact> {
   auto_publish_default?: boolean;
   business_name?: string;
+  care_business_name?: string;
   business_logo_path?: string | null;
   business_contact?: string | null;
   disclaimer_text?: string;

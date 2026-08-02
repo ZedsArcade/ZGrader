@@ -19,6 +19,9 @@ class BrandingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     business_name: str
+    # The care/restoration brand, shown by the header's section toggle and on
+    # the /care pages. Public because the nav renders it on every page.
+    care_business_name: str
     business_contact: str | None
     contact_email: str | None
     contact_location: str | None

@@ -50,6 +50,83 @@
  * [data-theme="light"] is kept only as defensive backward-compat with the
  * rest of this file's existing token-override convention.
  */
+/*
+ * ---------------------------------------------------------------------------
+ * GemCare — the card-care / restoration brand, served under /care.
+ * ---------------------------------------------------------------------------
+ *
+ * Deliberately as far from the synthwave palette above as a sibling brand can
+ * sensibly go, because the whole point is that a visitor knows which side of
+ * the service they are on without reading the header. Three axes differ at
+ * once: hue family (teal/brass vs purple/magenta), saturation (muted vs neon)
+ * and temperature (warm neutrals vs cool darks).
+ *
+ * The reference is mid-century clinical: surgical-green enamel, porcelain,
+ * aged brass fittings, cream paper labels. Restrained on purpose -- this side
+ * of the business handles other people's property, so the palette should read
+ * as careful rather than energetic.
+ *
+ * Specificity: these use :root[data-brand] / .light[data-brand], i.e. (0,2,0),
+ * so they beat the unbranded :root and .light blocks at (0,1,0) regardless of
+ * source order. The care-light block still comes after care-dark so the two
+ * never depend on order between themselves.
+ *
+ * Non-colour tokens (--radius, --font, motion) are inherited unchanged: the
+ * brands differ in palette, not in physics.
+ */
+:root[data-brand="care"] {
+  /* base — deep teal-slate, the colour of old surgical enamel in shadow */
+  --bg:        #0b1f1e;
+  --surface-1: #102c2a;
+  --surface-2: #163937;
+  --border:    #20504c;
+
+  /* accents — muted jade and brass, never neon */
+  --neon-pink:   #4fb3a0;   /* primary accent — jade, CTAs/focus/active */
+  --neon-cyan:   #d9a441;   /* secondary accent — brass, links/highlights */
+  --neon-purple: #7fc9b8;   /* tertiary — pale jade for borders/gradients */
+  --neon-glow:   #4fb3a040;
+  /* Label text on a jade or brass fill. Near-black rather than the near-white
+     used by GemLab: both accents here are mid-tone, so dark text is what
+     actually clears AA on them. */
+  --neon-foreground: #08201d;
+
+  /* text — warm cream on teal, not clinical white */
+  --text:     #f2ece0;
+  --text-dim: #a9bdb6;
+
+  /* grade colours — same semantic roles, pulled into this palette */
+  --grade-gem:  #6fd6b4;
+  --grade-mint: #a8cf7a;
+  --grade-warn: #e0a83c;
+}
+
+.light[data-brand="care"],
+[data-theme="light"][data-brand="care"] {
+  /* base — bone and porcelain, warm rather than blue-white */
+  --bg:        #f6f3ea;
+  --surface-1: #fffdf8;
+  --surface-2: #ece5d6;
+  --border:    #d8cdb8;
+
+  /* accents — deepened for AA against a light surface */
+  --neon-pink:   #0f6b5c;   /* jade, deepened */
+  --neon-cyan:   #8a6420;   /* brass, deepened */
+  --neon-purple: #2f7a6b;
+  --neon-glow:   #0f6b5c33;
+  /* Both accents above are dark enough here that near-white label text is
+     the legible choice, unlike the dark-mode pair. */
+  --neon-foreground: #fffdf8;
+
+  /* text — deep teal-ink, keeps the hue family off pure black */
+  --text:     #14302c;
+  --text-dim: #5b6f68;
+
+  --grade-gem:  #00705c;
+  --grade-mint: #4a7020;
+  --grade-warn: #8a5a10;
+}
+
 .light,
 [data-theme="light"] {
   /* base — soft purple-tinted daylight, not generic gray/white */

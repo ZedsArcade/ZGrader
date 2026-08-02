@@ -14,7 +14,15 @@ class Settings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "settings"
 
     auto_publish_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # The two public-facing brands. business_name is the primary one -- the
+    # analysis/pre-grading side -- and doubles as the legal name printed on
+    # reports and used in notification emails, so it is the one to change if
+    # the trading entity is renamed. care_business_name names the card-care /
+    # restoration side, reached at /care, and is presentational only.
     business_name: Mapped[str] = mapped_column(String(200), default="Card Care Center", nullable=False)
+    care_business_name: Mapped[str] = mapped_column(
+        String(200), default="GemCare", nullable=False, server_default="GemCare"
+    )
     business_logo_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     business_contact: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # The disclaimer printed on generated reports. The public site carries an

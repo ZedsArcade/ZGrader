@@ -268,7 +268,17 @@ function SettingsForm() {
             isRequired
             fullWidth
           >
-            <Label>Business name</Label>
+            <Label>Business name (analysis side, and the legal name on reports)</Label>
+            <Input />
+          </TextField>
+
+          <TextField
+            value={settings.care_business_name}
+            onChange={(value) => setSettings({ ...settings, care_business_name: value })}
+            isRequired
+            fullWidth
+          >
+            <Label>Care brand name (the /care section)</Label>
             <Input />
           </TextField>
 

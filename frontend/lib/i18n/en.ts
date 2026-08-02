@@ -294,6 +294,30 @@ export const en = {
     ctaTitle: "Have a card you're unsure about?",
     ctaBody: "Run a free check and see what comes back before you commit to anything.",
   },
+  // The card-care / restoration section, served under /care with its own
+  // palette. Kept as its own block rather than folded into `services` so the
+  // two sides of the business can diverge in copy without stepping on each
+  // other.
+  care: {
+    title: "Looking after the card you already own.",
+    lede: "Cleaning, protection and honest advice on restoration -- with the risks stated plainly before anything is touched.",
+    intro:
+      "{businessName} is the care side of the service. Where the analysis side tells you whether a card is worth submitting, this side is about the physical object: how it is stored, how it is handled, and what can and cannot be safely improved.",
+    ctaPrimary: "Ask about a card",
+    ctaSecondary: "Back to grading analysis",
+    s1Title: "Handling and storage",
+    s1Body:
+      "Most avoidable damage happens between the card leaving a pack and reaching a sleeve. Advice here is free and specific to what you actually own, not a generic checklist.",
+    s2Title: "Surface cleaning",
+    s2Body:
+      "Loose surface debris and fingerprints can often be dealt with safely. Anything that would alter the printed surface itself is not cleaning, and is treated as restoration below.",
+    s3Title: "Restoration consultation",
+    s3Body:
+      "Some problems can be improved; many cannot, and some attempts make things worse. The consultation is free precisely so nobody pays to be told no.",
+    warningTitle: "Read this before asking for restoration",
+    warningBody:
+      "Restoration carries real risk. A restored card may be graded as altered, or refused outright, by a grading company -- and that outcome is permanent. Nothing is attempted without discussing it with you first and agreeing it in writing. If the honest answer is to leave a card alone, that is the answer you will get.",
+  },
   services: {
     title: "Services",
     subtitle:

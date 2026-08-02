@@ -37,8 +37,8 @@ export default function ServicesClient() {
     points: string[];
     status: Availability;
     warning?: string;
-    // Only the tier that actually exists has somewhere deeper to go. The
-    // others would be linking to a page describing something nobody can buy.
+    // Set only where there is a real page behind it. The rest would be
+    // linking to a page describing something nobody can buy.
     learnMoreHref?: string;
   }[] = [
     {
@@ -75,6 +75,9 @@ export default function ServicesClient() {
       points: [t.services.tier4Point1, t.services.tier4Point2, t.services.tier4Point3],
       status: "soon",
       warning: t.services.tier4Warning,
+      // Restoration is the care side of the business, so this hands over to
+      // the GemCare section rather than describing it twice.
+      learnMoreHref: "/care",
     },
     {
       slug: "packaging",

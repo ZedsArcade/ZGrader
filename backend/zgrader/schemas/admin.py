@@ -48,6 +48,7 @@ class SettingsOut(BaseModel):
 
     auto_publish_default: bool
     business_name: str
+    care_business_name: str
     business_logo_path: str | None
     business_contact: str | None
     disclaimer_text: str
@@ -64,6 +65,7 @@ class SettingsOut(BaseModel):
 class SettingsUpdate(BaseModel):
     auto_publish_default: bool | None = None
     business_name: str | None = None
+    care_business_name: str | None = None
     business_logo_path: str | None = None
     business_contact: str | None = None
     disclaimer_text: str | None = None
