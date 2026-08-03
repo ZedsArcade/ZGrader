@@ -16,6 +16,7 @@ real sample scans.
 import cv2
 import numpy as np
 
+from zgrader.analysis import scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.edges
@@ -58,7 +59,7 @@ def _analyze_strip(outer_saturation: np.ndarray, inner_saturation: np.ndarray, a
     longest_run = _longest_true_run(collapsed_along_edge)
     run_fraction = longest_run / max(1, len(collapsed_along_edge))
 
-    score = float(np.clip(10.0 - whitened_fraction * 15.0 - run_fraction * 10.0, 0.0, 10.0))
+    score = scoring.edge_score(whitened_fraction, run_fraction)
     return {
         "score": round(score, 2),
         "measured": True,

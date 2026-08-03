@@ -12,13 +12,10 @@ it is intentionally flagged "lower_confidence" in every result.
 import cv2
 import numpy as np
 
+from zgrader.analysis import scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.surface
-
-# Uncalibrated: 5% of the card flagged drives the score to 0. A hand-set
-# starting point, not derived from any grading methodology.
-_ANOMALY_FRACTION_PENALTY = 200.0
 
 SURFACE_LOWER_CONFIDENCE_FLAG = {
     "lower_confidence": True,
@@ -31,13 +28,13 @@ SURFACE_LOWER_CONFIDENCE_FLAG = {
 
 
 def score_from_anomaly_fraction(anomaly_fraction: float) -> float:
-    """Map the flagged-area fraction to a 0-10 score.
+    """Thin delegate to the scoring layer.
 
-    Public because recompute.py re-derives this same score after a client
-    dismisses a blob and must not drift from it -- the constant used to be
-    duplicated in both modules.
+    The mapping lives in analysis/scoring.py; detecting anomalous texture and
+    deciding what a given amount of it is worth are separate jobs. Kept as a
+    name because recompute.py and regions.py call it.
     """
-    return float(np.clip(10.0 - anomaly_fraction * _ANOMALY_FRACTION_PENALTY, 0.0, 10.0))
+    return scoring.surface_score(anomaly_fraction)
 
 
 def _local_variance(gray: np.ndarray, window: int = 9) -> np.ndarray:

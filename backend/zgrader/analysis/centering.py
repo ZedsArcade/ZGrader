@@ -11,6 +11,7 @@ sample scans, not a from-first-principles-exact measurement.
 import cv2
 import numpy as np
 
+from zgrader.analysis import scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.centering
@@ -88,14 +89,14 @@ def _measure_border(
 
 
 def score_from_worse_pct(worse_pct: float) -> float:
-    """50/50 -> 10.0, 100/0 -> 0.0, linear in between.
+    """Thin delegate to the scoring layer.
 
-    Public because recompute.py re-derives this same score after a client
-    dismissal and must not drift from it -- it previously reached in for the
-    private name.
+    The mapping itself lives in analysis/scoring.py: measuring a border and
+    deciding what a given asymmetry is worth are separate jobs, and only the
+    first belongs here. Kept as a name because recompute.py and the tests call
+    it, and re-deriving the same score in two places is how they drift apart.
     """
-    score = 10.0 - (worse_pct - 50.0) / 5.0
-    return float(np.clip(score, 0.0, 10.0))
+    return scoring.centering_score(worse_pct)
 
 
 # Backwards-compatible alias for the pre-existing private name.
