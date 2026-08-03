@@ -57,10 +57,16 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
             metrics[f"{prefix}.score_high"] = _round(block["score_high"])
 
     cen = centering.measure_centering(card, px_per_mm)
-    metrics["centering.raw_score"] = _round(cen["raw_score"])
-    metrics["centering.worse_side_pct"] = _round(cen["measurements"]["worse_side_pct"])
-    metrics["centering.lr_left_pct"] = _round(cen["measurements"]["lr_ratio"][0])
-    metrics["centering.tb_top_pct"] = _round(cen["measurements"]["tb_ratio"][0])
+    # Unmeasurable centering has no score and no top-level ratio -- the reading
+    # moves under `indicative_estimate`, which is measured here too so that a
+    # change in the estimate still shows as drift even though it is
+    # non-binding.
+    cen_reading = cen["measurements"].get("indicative_estimate", cen["measurements"])
+    if cen["raw_score"] is not None:
+        metrics["centering.raw_score"] = _round(cen["raw_score"])
+    metrics["centering.worse_side_pct"] = _round(cen_reading["worse_side_pct"])
+    metrics["centering.lr_left_pct"] = _round(cen_reading["lr_ratio"][0])
+    metrics["centering.tb_top_pct"] = _round(cen_reading["tb_ratio"][0])
     # A flag is a customer-visible claim about reliability, so drift in it
     # matters as much as drift in a number.
     metrics["centering.lower_confidence"] = float(

@@ -124,3 +124,21 @@ th { background: #f2f4f7; }
 .adjustments ul { font-size: 9pt; color: #444; padding-left: 14pt; }
 .adjustments li { margin-bottom: 4pt; }
 .adjusted-disclaimer { color: #c33; font-weight: bold; }
+
+/* A limitation sits under the category it qualifies, quieter than the score
+   but not hidden -- the point is that a reader who looks at the number also
+   sees what constrained it. */
+.limitation-note {
+  font-size: 7.5pt;
+  line-height: 1.35;
+  color: #555;
+  margin-top: 2pt;
+}
+
+/* Deliberately not styled like a score: it is a decision we made, not a
+   number that went missing. */
+.unmeasurable {
+  font-size: 9pt;
+  font-weight: 600;
+  color: #666;
+}

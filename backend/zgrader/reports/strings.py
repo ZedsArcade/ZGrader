@@ -74,6 +74,7 @@ REPORT_STRINGS = {
             "auto-detected findings. It does not represent the unaltered output of the automated "
             "analysis."
         ),
+        "unmeasurable": "Not measurable",
         "surface_finding_label": "surface finding #{n}",
         "crease_finding_label": "possible crease #{n}",
     },
@@ -141,8 +142,58 @@ REPORT_STRINGS = {
             "hallazgos detectados automáticamente. No representa el resultado sin alterar del "
             "análisis automatizado."
         ),
+        "unmeasurable": "No medible",
         "surface_finding_label": "hallazgo de superficie n.º {n}",
         "crease_finding_label": "posible pliegue n.º {n}",
+    },
+}
+
+
+# What constrained a reading, per language, keyed by the codes in
+# analysis/assessment.py. Stored as codes rather than sentences precisely so
+# this wording can change without re-analysing anything -- and so a card
+# analysed in one language can be reported in the other.
+#
+# A code with no entry here would render as a raw identifier to a customer, so
+# adding one in assessment.py means adding copy in both dicts below.
+LIMITATION_LABELS = {
+    "en": {
+        "surface_diffuse_light": (
+            "Surface was lit evenly rather than at an angle, so faint scratches and "
+            "print lines can be missed."
+        ),
+        "corners_whitening_only": (
+            "Corners were assessed for discolouration only. Material loss — a rounded "
+            "or knocked corner that has not changed colour — is not measured."
+        ),
+        "corners_pale_border": (
+            "This card's border is pale, and corner wear is detected as a loss of "
+            "colour, so there is little for it to show up against."
+        ),
+        "centering_no_frame": (
+            "No clear printed border was found to measure against, which is normal on "
+            "full-art cards where the artwork runs to the edge."
+        ),
+        "edges_partial": "Some edges could not be sampled and were left out of this score.",
+    },
+    "es": {
+        "surface_diffuse_light": (
+            "La superficie se iluminó de forma uniforme y no en ángulo, así que pueden "
+            "pasarse por alto arañazos finos y líneas de impresión."
+        ),
+        "corners_whitening_only": (
+            "Las esquinas se evaluaron solo por decoloración. La pérdida de material "
+            "—una esquina redondeada o aplastada que no ha cambiado de color— no se mide."
+        ),
+        "corners_pale_border": (
+            "El borde de esta carta es pálido, y el desgaste de esquinas se detecta como "
+            "pérdida de color, así que hay poco contraste sobre el que aparezca."
+        ),
+        "centering_no_frame": (
+            "No se encontró un borde impreso claro con el que medir, algo normal en "
+            "cartas de ilustración completa donde el arte llega hasta el filo."
+        ),
+        "edges_partial": "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
     },
 }
 

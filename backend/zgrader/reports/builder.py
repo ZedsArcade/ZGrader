@@ -12,6 +12,7 @@ from zgrader.config import config
 from zgrader.models import AnalysisSide, GradingCompany, Report, ReportStatus, Settings, Submission
 from zgrader.reports.strings import (
     CATEGORY_LABELS,
+    LIMITATION_LABELS,
     REGION_LOCATION_LABELS,
     REPORT_STRINGS,
     SEVERITY_LABELS,
@@ -98,6 +99,9 @@ def _build_dismissed_findings(submission, language: str) -> list[dict]:
 
 def build_report_context(submission: Submission, settings: Settings) -> dict:
     card = submission.card
+    # Resolved up here because the scorecard loop below needs it to turn
+    # limitation codes into sentences.
+    language = submission.language.value
 
     combined_by_category: dict[str, object] = {}
     per_side_by_category: dict[str, dict] = {}
@@ -127,6 +131,17 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
         # Pristine auto-detected score, stashed by pipeline._persist_combined
         # -- shown struck-through beside the adjusted score when the client
         # dismissed findings that changed this category.
+        # What constrained this category, resolved from codes to sentences at
+        # render time so the report can be produced in either language.
+        block = (combined.measurements or {}).get("assessment") if combined else None
+        limitation_notes = [
+            LIMITATION_LABELS[language][code]
+            for code in (block or {}).get("limitations", [])
+            if code in LIMITATION_LABELS[language]
+        ]
+        confidence = (block or {}).get("confidence")
+        unmeasurable = bool(block) and block.get("state") != "measured"
+
         original = (combined.measurements or {}).get("original_raw_score") if combined else None
         original_score = float(original) if original is not None else None
         scorecard.append(
@@ -137,8 +152,11 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
                 "adjusted": original_score is not None
                 and combined_score is not None
                 and round(original_score, 2) != round(combined_score, 2),
-                "front_score": float(front.raw_score) if front else None,
-                "back_score": float(back.raw_score) if back else None,
+                "confidence": confidence,
+                "unmeasurable": unmeasurable,
+                "limitation_notes": limitation_notes,
+                "front_score": float(front.raw_score) if front and front.raw_score is not None else None,
+                "back_score": float(back.raw_score) if back and back.raw_score is not None else None,
                 "front_image": front.annotated_image_path if front else None,
                 "back_image": back.annotated_image_path if back else None,
             }
@@ -150,7 +168,6 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
     for comparisons in comparisons_by_category.values():
         comparisons.sort(key=lambda c: (_severity_rank(c.severity), c.company.value))
 
-    language = submission.language.value
     dismissed_findings = _build_dismissed_findings(submission, language)
     return {
         "strings": REPORT_STRINGS[language],

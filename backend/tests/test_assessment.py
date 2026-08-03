@@ -72,22 +72,23 @@ def test_a_white_border_lowers_corner_confidence():
     assert white["confidence"] < coloured["confidence"]
 
 
-def test_full_art_lowers_centering_confidence_and_widens_the_interval():
-    """No printed frame means the border measurement is a reading of noise.
+def test_full_art_centering_declines_to_score():
+    """No printed frame means every border number is the argmax of noise.
 
-    Until raw_score can be null this still emits a number, so the interval is
-    what carries the doubt -- and it should be wide enough that nobody mistakes
-    it for a measurement.
+    This previously emitted a wide interval around a plausible-looking score.
+    Now that raw_score can be null it declines outright, which is the honest
+    answer -- full_art_centered used to come back as a confident 10.0 on a
+    card whose centering cannot be measured at all.
     """
     full_art = _analyse("full_art_centered")["centering"]
     bordered = _analyse("pokemon_back")["centering"]
 
+    assert full_art["state"] == assessment.UNMEASURABLE
     assert assessment.CENTERING_NO_FRAME in full_art["limitations"]
-    assert full_art["confidence"] < bordered["confidence"]
+    assert full_art["score_low"] is None and full_art["score_high"] is None
 
-    full_art_width = full_art["score_high"] - full_art["score_low"]
-    bordered_width = bordered["score_high"] - bordered["score_low"]
-    assert full_art_width > bordered_width
+    assert bordered["state"] == assessment.MEASURED
+    assert bordered["confidence"] == assessment.CONFIDENCE_CENTERING_CLEAN_FRAME
 
 
 def test_interval_widens_as_confidence_falls():

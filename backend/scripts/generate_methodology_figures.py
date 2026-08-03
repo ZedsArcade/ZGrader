@@ -227,6 +227,17 @@ def figure_centering(card: np.ndarray, result: dict, out: Path) -> None:
     draw = ImageDraw.Draw(img)
     h, w = card.shape[:2]
     m = result["measurements"]
+    if "left_px" not in m:
+        # Centering declined to score this card, so its reading lives under
+        # `indicative_estimate` and there are no border widths to illustrate.
+        # The demo card is supposed to have a crisp printed border -- if it no
+        # longer does, the figure would be a diagram of nothing, so say what
+        # actually happened rather than dying on a KeyError three frames deep.
+        raise RuntimeError(
+            "The methodology demo card is being reported as unmeasurable for centering, "
+            "so there are no border widths to draw. Check build_demo_scan still produces "
+            "a clean printed border, or the significance rule in analysis/centering.py."
+        )
     left, right, top, bottom = m["left_px"], m["right_px"], m["top_px"], m["bottom_px"]
     line_width = max(2, w // 250)
     font = _font(max(14, w // 26), bold=True)

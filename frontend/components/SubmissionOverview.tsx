@@ -1,5 +1,5 @@
 import { Card, Chip, Table } from "@heroui/react";
-import type { Comparison, ScanSide, SubmissionDetail } from "@/lib/api";
+import type { Assessment, Comparison, ScanSide, SubmissionDetail } from "@/lib/api";
 import { getDictionary, type Locale } from "@/lib/i18n/context";
 import AnnotatedPhoto from "./AnnotatedPhoto";
 import StatusBadge from "./StatusBadge";
@@ -94,6 +94,11 @@ export default function SubmissionOverview({
                 // showing the second is exactly the confident wrongness the
                 // nullable score exists to remove.
                 const unmeasurable = result.raw_score === null;
+                // What actually constrained this reading. Shown under the
+                // score rather than tucked into a footnote -- a caveat nobody
+                // reads is the same as no caveat.
+                const assessmentBlock = result.measurements?.assessment as Assessment | undefined;
+                const limitationCodes: string[] = assessmentBlock?.limitations ?? [];
                 const adjusted =
                   !unmeasurable &&
                   original !== null &&
@@ -134,6 +139,24 @@ export default function SubmissionOverview({
                         </span>
                       )}
                     </div>
+                    {limitationCodes.length > 0 && (
+                      <ul className="mt-1.5 flex flex-col gap-1">
+                        {limitationCodes.map((code) => {
+                          const text =
+                            t.submissionDetail.limitation[
+                              code as keyof typeof t.submissionDetail.limitation
+                            ];
+                          // An unknown code means the backend added one
+                          // without copy. Render nothing rather than a raw
+                          // identifier.
+                          return text ? (
+                            <li key={code} className="text-[11px] leading-snug text-muted">
+                              {text}
+                            </li>
+                          ) : null;
+                        })}
+                      </ul>
+                    )}
                   </div>
                 );
               })}

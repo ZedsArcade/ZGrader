@@ -24,6 +24,22 @@ CATEGORY = AnalysisCategory.centering
 # centering result is marked lower_confidence.
 _MAX_BORDER_SPREAD_FRACTION = 0.15
 
+# A single scattered side is not a borderless card -- it is one noisy edge on a
+# card that visibly has a frame, and declining on it withholds a measurement we
+# can actually make. Measured across the fixture set: cards with a real printed
+# border sit at 0.00-0.15 on every side with at most one marginal outlier,
+# while genuinely unmeasurable ones (full-art foil, a bordered foil whose holo
+# scatters the edge, the worst-case capture) scatter on *all four* at 0.22-0.35.
+#
+# So two independent ways to conclude there is no frame worth measuring:
+_MIN_SCATTERED_SIDES = 2
+# ...or one side so scattered that its reading is meaningless regardless of the
+# others. The synthetic full-art fixture lands at 0.42 on the side crossing its
+# artwork while the uniform sides read a consistent but meaningless depth --
+# without this it would be scored on the strength of three sides that found
+# nothing at all.
+_SEVERE_BORDER_SPREAD_FRACTION = 0.35
+
 CENTERING_LOW_CONFIDENCE_FLAG = {
     "lower_confidence": True,
     "reason": (
@@ -126,7 +142,7 @@ def measure_centering(card_image: np.ndarray, px_per_mm: float) -> dict:
     )
     worse_side_pct = max(max(lr_split), max(tb_split))
 
-    measurements = {
+    reading = {
         "left_px": round(left, 1),
         "right_px": round(right, 1),
         "top_px": round(top, 1),
@@ -139,21 +155,39 @@ def measure_centering(card_image: np.ndarray, px_per_mm: float) -> dict:
         "tb_ratio": tb_split,
         "worse_side_pct": round(worse_side_pct, 1),
     }
-    low_confidence = any(
-        spread > _MAX_BORDER_SPREAD_FRACTION
-        for spread in (left_spread, right_spread, top_spread, bottom_spread)
+    spreads = (left_spread, right_spread, top_spread, bottom_spread)
+    scattered_sides = sum(1 for spread in spreads if spread > _MAX_BORDER_SPREAD_FRACTION)
+    no_frame = (
+        scattered_sides >= _MIN_SCATTERED_SIDES
+        or max(spreads) > _SEVERE_BORDER_SPREAD_FRACTION
     )
-    flags = dict(CENTERING_LOW_CONFIDENCE_FLAG) if low_confidence else {}
-    raw_score = round(score_from_worse_pct(worse_side_pct), 2)
+    flags = dict(CENTERING_LOW_CONFIDENCE_FLAG) if no_frame else {}
 
-    # A scattered border edge means there was no clean printed frame to measure
-    # against -- full-art, or artwork bleeding to the cut. The ratio above is
-    # then a best-effort reading of noise, which the confidence says plainly.
-    measurements["assessment"] = assessment.measured(
-        raw_score,
-        assessment.CONFIDENCE_CENTERING_NO_FRAME
-        if low_confidence
-        else assessment.CONFIDENCE_CENTERING_CLEAN_FRAME,
-        (assessment.CENTERING_NO_FRAME,) if low_confidence else (),
+    if no_frame:
+        # No clean printed frame -- full-art, or artwork bleeding to the cut.
+        # Every number above is then the argmax of noise, so this declines to
+        # score rather than publishing a plausible-looking ratio.
+        #
+        # The reading is kept as `indicative_estimate`, deliberately NOT under
+        # the keys a measurement lives at. rules_engine reads `worse_side_pct`
+        # off the top level and skips the rule when it is absent; that skip is
+        # the correct behaviour here, and hoisting the estimate into that key
+        # would silently resurrect it as five company verdicts on a card
+        # nothing could measure. The distinct key is what keeps an estimate
+        # from being mistaken for a measurement anywhere downstream.
+        measurements = {
+            "indicative_estimate": reading,
+            "assessment": assessment.unmeasurable((assessment.CENTERING_NO_FRAME,)).as_dict(),
+        }
+        return {
+            "category": CATEGORY,
+            "raw_score": None,
+            "measurements": measurements,
+            "flags": flags,
+        }
+
+    raw_score = round(score_from_worse_pct(worse_side_pct), 2)
+    reading["assessment"] = assessment.measured(
+        raw_score, assessment.CONFIDENCE_CENTERING_CLEAN_FRAME, ()
     ).as_dict()
-    return {"category": CATEGORY, "raw_score": raw_score, "measurements": measurements, "flags": flags}
+    return {"category": CATEGORY, "raw_score": raw_score, "measurements": reading, "flags": flags}

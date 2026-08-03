@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from zgrader.analysis import (
     ai,
     annotate,
+    assessment,
     centering,
     corners,
     creases,
@@ -164,8 +165,36 @@ def _persist_side(
     return results
 
 
-def _combine_score(front_score: float, back_score: float | None) -> float:
+def _combine_score(front_score: float | None, back_score: float | None) -> float | None:
     return scoring.combine_front_back(front_score, back_score)
+
+
+def _combine_assessments(front: dict | None, back: dict | None) -> dict | None:
+    """Merge two sides' assessments pessimistically.
+
+    Lowest confidence, union of limitations, and unmeasurable if either side
+    was: a category is only as trustworthy as its weaker face, and a
+    limitation that applied to one side applied to the card the customer sent.
+    Averaging confidence would let a clean back talk up an unreadable front,
+    which is the same mistake the 70/30 score weighting exists to avoid.
+    """
+    blocks = [b for b in (front, back) if b]
+    if not blocks:
+        return None
+    if len(blocks) == 1:
+        return dict(blocks[0])
+
+    limitations = sorted({code for b in blocks for code in b["limitations"]})
+    unmeasurable = any(b["state"] != assessment.MEASURED for b in blocks)
+    lows = [b["score_low"] for b in blocks if b["score_low"] is not None]
+    highs = [b["score_high"] for b in blocks if b["score_high"] is not None]
+    return {
+        "state": assessment.UNMEASURABLE if unmeasurable else assessment.MEASURED,
+        "confidence": min(b["confidence"] for b in blocks),
+        "score_low": None if unmeasurable or not lows else min(lows),
+        "score_high": None if unmeasurable or not highs else max(highs),
+        "limitations": limitations,
+    }
 
 
 def _persist_combined(
@@ -208,6 +237,16 @@ def _persist_combined(
                 # counterpart to original_raw_score below, which the UI and
                 # PDF do render as "was X.X".
                 measurements["original_worse_side_pct"] = measurements["worse_side_pct"]
+
+        # Hoist a combined assessment alongside the combined score, so the
+        # report and the UI can read one place rather than reaching into the
+        # front/back nesting. The pessimistic merge is the point: a category
+        # is only as trustworthy as its weaker side, and a limitation that
+        # applied to either face applied to the card.
+        measurements["assessment"] = _combine_assessments(
+            front_result["measurements"].get("assessment"),
+            back_result["measurements"].get("assessment") if back_result else None,
+        )
 
         combined_score = _combine_score(
             front_result["raw_score"], back_result["raw_score"] if back_result else None
