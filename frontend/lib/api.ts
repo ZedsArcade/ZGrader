@@ -423,6 +423,36 @@ export async function setGradingCompanyActive(
   });
 }
 
+/** A customer's quota, as seen by an operator helping them. */
+export interface UserQuota {
+  user_id: string;
+  email: string;
+  plan: string;
+  unlimited: boolean;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  resets_at: string | null;
+}
+
+export async function findUserQuotas(token: string, email: string): Promise<UserQuota[]> {
+  return request(`/admin/users/quota?email=${encodeURIComponent(email)}`, {
+    headers: authHeaders(token),
+  });
+}
+
+export async function updateUserQuota(
+  token: string,
+  userId: string,
+  payload: { remaining?: number; reset_period?: boolean }
+): Promise<UserQuota> {
+  return request(`/admin/users/${userId}/quota`, {
+    method: "PATCH",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function getPlanEntitlements(token: string): Promise<PlanEntitlement[]> {
   return request("/admin/plans", { headers: authHeaders(token) });
 }
