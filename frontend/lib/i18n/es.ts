@@ -146,6 +146,10 @@ export const es: Dictionary = {
         "La carta es demasiado pequeña en esta foto para que el desgaste a esta escala sea visible: una foto más cercana permitiría medirlo.",
       capture_modest_resolution:
         "Ocupa lo suficiente para mostrar daños evidentes, no para juzgar el desgaste fino, así que esta lectura se mantiene en un rango más amplio.",
+      geometry_unverified:
+        "No se pudieron localizar automáticamente los filos de la carta, así que esto se midió a partir del recorte enviado.",
+      geometry_aspect_mismatch:
+        "El área medida no tiene la forma de una carta, así que las cifras en milímetros están mal escaladas en al menos un eje.",
     },
     comparisonTitle: "Comparación entre compañías",
     comparisonSubtitle:
@@ -274,8 +278,8 @@ export const es: Dictionary = {
     fileTooLarge: "Esa imagen es demasiado grande.",
   },
   cropAdjust: {
-    title: "Confirme las esquinas de la carta",
-    instructions: "Arrastre los 4 controles hasta las esquinas exactas de la carta y confirme.",
+    title: "Confirme qué carta analizar",
+    instructions: "Arrastre los 4 controles aproximadamente hasta las esquinas de la carta y confirme. No hace falta que sean exactos: los filos de la carta se localizan automáticamente.",
     confirmButton: "Confirmar recorte",
     confirming: "Confirmando…",
     loadFailed: "No se pudo cargar la foto para recortar.",
@@ -432,7 +436,7 @@ export const es: Dictionary = {
       "Díganos el juego y la carta. Es cuestión de un momento, y le asigna a su carta un código de referencia que puede seguir.",
     step2Title: "Añada una foto, o envíe la carta",
     step2Body:
-      "Suba una foto nítida y plana del frente (y del reverso si lo tiene), o envíenos la carta y la escanearemos como es debido. Usted confirma el recorte para que las medidas se tomen de la carta y no del fondo.",
+      "Suba una foto nítida y plana del frente (y del reverso si lo tiene), o envíenos la carta y la escanearemos como es debido. Usted confirma un recorte aproximado para que sepamos a qué carta de la foto se refiere; los filos exactos se localizan después de forma automática, así que el recorte no tiene que ser perfecto.",
     step3Title: "Se ejecuta el análisis",
     step3Body:
       "El centrado se mide a partir del ancho de los márgenes, se revisan esquinas y bordes en busca de blanqueo y desgaste, y se examina la superficie buscando arañazos y dobleces. Normalmente tarda unos instantes.",
@@ -448,7 +452,7 @@ export const es: Dictionary = {
       "El centrado se mide y es el más fiable de los cuatro. Esquinas y bordes funcionan bien. La superficie es el punto débil: un escaneo plano usa luz difusa, mientras que una compañía de calificación usa luz rasante que proyecta sombras en los arañazos, así que pueden pasarse por alto defectos leves y a veces se marca la textura de impresión.",
     faq3Q: "¿Por qué marcó algo que no existe?",
     faq3A:
-      "Normalmente texto o textura de impresión leídos como un arañazo, o un recorte que entró dentro de la carta. Puede descartar cualquier hallazgo con el que no esté de acuerdo. Cuando los hallazgos restantes aún sostienen una puntuación, esta se actualiza al instante; cuando descartar no deja nada que medir, se mantiene la medición original en lugar de saltar a una puntuación perfecta. El informe pasa entonces a indicar claramente que usted lo ajustó.",
+      "Normalmente texto o textura de impresión leídos como un arañazo. Puede descartar cualquier hallazgo con el que no esté de acuerdo. Cuando los hallazgos restantes aún sostienen una puntuación, esta se actualiza al instante; cuando descartar no deja nada que medir, se mantiene la medición original en lugar de saltar a una puntuación perfecta. El informe pasa entonces a indicar claramente que usted lo ajustó.",
     faq4Q: "¿Y si la foto no es perfecta?",
     faq4A:
       "Fotografíe la carta plana, de frente, ocupando casi todo el encuadre, con luz uniforme y sin reflejos. Podrá ajustar el recorte antes de que se ejecute el análisis, y hay un ayudante de ajuste a los bordes detectados si las esquinas no quedan exactas.",
@@ -473,7 +477,7 @@ export const es: Dictionary = {
 
     prepTitle: "Antes de medir nada",
     prepBody:
-      "Se localiza la carta en la foto, se endereza y se recorta a sus propios bordes; usted confirma ese recorte, porque todas las medidas posteriores se toman de él. La escala sale del tamaño físico real de la carta, no del archivo de imagen. Los PPP guardados en la foto de un móvil no tienen nada que ver con cuántos píxeles cubren la carta, así que partimos de que una carta estándar mide 63mm por 88mm. Por eso el informe le da milímetros que puede comprobar con una regla.",
+      "Se localiza la carta en la foto, se endereza y se recorta a sus propios bordes. Se ajusta una recta a cada uno de los cuatro lados, usando los tramos rectos e ignorando las esquinas, y los cuatro vértices salen de donde se cruzan esas rectas: así, una esquina a la que le falta material sigue teniendo una punta ideal conocida contra la que medir esa pérdida. Las rectas se sitúan con precisión de fracciones de píxel, lo cual importa porque un píxel entero ya es una parte apreciable del desgaste que se mide. El recorte que usted confirma nos dice dónde mirar, pero no decide dónde están los filos de la carta; eso lo decide la carta. La escala sale del tamaño físico real de la carta, no del archivo de imagen. Los PPP guardados en la foto de un móvil no tienen nada que ver con cuántos píxeles cubren la carta, así que partimos de que una carta estándar mide 63mm por 88mm. Por eso el informe le da milímetros que puede comprobar con una regla.",
 
     centeringTitle: "Centrado",
     centeringMeasures: "Qué mide",

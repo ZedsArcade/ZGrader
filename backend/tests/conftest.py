@@ -46,9 +46,16 @@ os.environ["ZGRADER_DATABASE_URL"] = _require_test_database(
 # Forced, never setdefault. These paths are rmtree'd after every single test,
 # so honouring the environment meant any shell with ZGRADER_SCANS_DIR exported
 # at a real path would delete customer scans. A fresh temp directory per run
-# removes that hazard rather than guarding it, and lets two runs proceed
-# concurrently without clobbering each other's fixture files -- which the old
-# fixed /tmp/zgrader-test path could not.
+# removes that hazard rather than guarding it.
+#
+# NOTE: that makes the *directories* safe under concurrency, not the run. The
+# database is still a single shared scratch schema, and this file drops every
+# table at session start and deletes every row after each test -- so a second
+# pytest process started while one is running will pull rows out from under it.
+# The symptom is an ObjectDeletedError on some unrelated row (Settings, usually)
+# in whichever run got there second, which looks convincingly like a product
+# bug and is not one. Run one suite at a time, or point the second at its own
+# database with ZGRADER_TEST_DATABASE_URL.
 _TEST_DATA_ROOT = Path(tempfile.mkdtemp(prefix="zgrader-test-"))
 os.environ["ZGRADER_REPORTS_DIR"] = str(_TEST_DATA_ROOT / "reports")
 os.environ["ZGRADER_SCANS_DIR"] = str(_TEST_DATA_ROOT / "scans")

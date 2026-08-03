@@ -38,9 +38,25 @@ def dimensions_for(db: Session, game: str | None) -> tuple[float, float]:
 def px_per_mm(card_shape: tuple[int, int], width_mm: float, height_mm: float) -> float:
     """Pixels per millimetre for a deskewed card image.
 
-    card_shape is (height, width), matching np.ndarray.shape[:2]. Both axes
-    should agree on a correctly deskewed card; averaging them keeps the
-    result stable when the crop is slightly loose on one side.
+    card_shape is (height, width), matching np.ndarray.shape[:2].
+
+    **No longer on the analysis path.** preprocessing.rectify builds its output
+    raster at a chosen scale from the card's physical size, so px/mm there is
+    definitional rather than measured back off the image. This remains because
+    the tests use it to derive a scale for a card they deskewed themselves, and
+    because it is still the right answer for any image not produced by
+    `rectify`.
+
+    Averaging the two axes is what made it worth replacing: on a correctly
+    deskewed card they agree, but when they disagree -- which is precisely when
+    something is wrong -- the average quietly splits the difference instead of
+    surfacing it. `rectify` compares them and raises GEOMETRY_ASPECT_MISMATCH.
+
+    The rule this function exists to enforce has not changed and is not
+    negotiable: scale comes from the card's physical size, never from the image
+    file's DPI metadata. A phone photo's stored DPI bears no relation to how
+    many pixels cover the card, and trusting it once reported a 244mm crease on
+    an 88mm-tall card.
     """
     h, w = card_shape
     if height_mm <= 0 or width_mm <= 0:
