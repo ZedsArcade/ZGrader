@@ -50,11 +50,11 @@ def _analyze_centering(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, 
 
 
 def _analyze_corners(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, None]:
-    return corners.measure_corners(card_image), None
+    return corners.measure_corners(card_image, px_per_mm=px_per_mm), None
 
 
 def _analyze_edges(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, None]:
-    return edges.measure_edges(card_image), None
+    return edges.measure_edges(card_image, px_per_mm=px_per_mm), None
 
 
 _ANALYZERS = {
@@ -66,6 +66,19 @@ _ANALYZERS = {
 
 
 def _annotate_category(category: AnalysisCategory, card_image: np.ndarray, result: dict, extra):
+    if result["raw_score"] is None:
+        # Nothing was measurable, so there is nothing to draw. Every overlay in
+        # annotate.py is an assertion -- a green corner box says "checked and
+        # clean", a centering rectangle says "the border is here" -- and an
+        # unscored category has made no such claim. The plain deskewed card is
+        # still saved under the category's filename so the report and the
+        # results page keep working unchanged.
+        #
+        # This also covers a real crash: annotate_centering reads left_px off
+        # the top-level measurements, and an unmeasurable centering result
+        # moves those under `indicative_estimate`, so a genuine full-art card
+        # would have raised KeyError here.
+        return annotate.to_pil(card_image)
     if category == AnalysisCategory.centering:
         return annotate.annotate_centering(card_image, result["measurements"])
     if category == AnalysisCategory.corners:

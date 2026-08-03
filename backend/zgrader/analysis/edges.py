@@ -16,7 +16,7 @@ real sample scans.
 import cv2
 import numpy as np
 
-from zgrader.analysis import assessment, scoring
+from zgrader.analysis import assessment, capture, scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.edges
@@ -73,7 +73,10 @@ def measure_edges(
     card_image: np.ndarray,
     corner_exclusion_fraction: float = CORNER_EXCLUSION_FRACTION,
     strip_depth_fraction: float = STRIP_DEPTH_FRACTION,
+    px_per_mm: float | None = None,
 ) -> dict:
+    """px_per_mm is optional; omitting it means no claim is made about whether
+    the capture was good enough (see capture.resolution_limitation)."""
     h, w = card_image.shape[:2]
     hsv = cv2.cvtColor(card_image, cv2.COLOR_BGR2HSV)
 
@@ -123,15 +126,43 @@ def measure_edges(
     raw_score = round(float(np.mean(measured)), 2)
 
     partial = len(measured) < len(per_edge)
+    capture_code, too_low_resolution = capture.resolution_limitation(px_per_mm)
     measurements = {
         "per_edge": per_edge,
         "measured_edges": len(measured),
-        "assessment": assessment.measured(
-            raw_score,
-            assessment.CONFIDENCE_EDGES_PARTIAL if partial else assessment.CONFIDENCE_EDGES,
-            (assessment.EDGES_PARTIAL,) if partial else (),
-        ).as_dict(),
     }
+
+    if too_low_resolution:
+        # Edge whitening is a fraction of a millimetre of exposed cardstock at
+        # the cut. Below the resolution floor the outer strip is a handful of
+        # pixels wide and any saturation deficit in it is as likely to be
+        # compression noise as wear. Same treatment as corners: keep the
+        # per-edge numbers as diagnostics, publish no score.
+        measurements["assessment"] = assessment.unmeasurable((capture_code,)).as_dict()
+        return {
+            "category": CATEGORY,
+            "raw_score": None,
+            "measurements": measurements,
+            "flags": {
+                "lower_confidence": True,
+                "reason": (
+                    "The card occupies too few pixels in this photo for edge "
+                    "wear to be visible at all, so edges were not scored. A "
+                    "closer or higher-resolution photo would let this be "
+                    "measured."
+                ),
+            },
+        }
+
+    limitations = [assessment.EDGES_PARTIAL] if partial else []
+    confidence = assessment.CONFIDENCE_EDGES_PARTIAL if partial else assessment.CONFIDENCE_EDGES
+    if capture_code is not None:
+        limitations.append(capture_code)
+        confidence *= assessment.CONFIDENCE_MODEST_RESOLUTION_FACTOR
+
+    measurements["assessment"] = assessment.measured(
+        raw_score, confidence, tuple(limitations)
+    ).as_dict()
     flags = {}
     if partial:
         unmeasured = sorted(name for name, e in per_edge.items() if not e.get("measured"))

@@ -175,6 +175,15 @@ LIMITATION_LABELS = {
             "full-art cards where the artwork runs to the edge."
         ),
         "edges_partial": "Some edges could not be sampled and were left out of this score.",
+        "capture_too_low_resolution": (
+            "The card occupies too few pixels in this photo for wear at this scale to "
+            "be visible, so it was not scored. A closer or higher-resolution photo "
+            "would allow it to be measured."
+        ),
+        "capture_modest_resolution": (
+            "The card occupies enough pixels to show obvious damage but not enough to "
+            "judge fine wear, so this reading is held to a wider range."
+        ),
     },
     "es": {
         "surface_diffuse_light": (
@@ -194,6 +203,16 @@ LIMITATION_LABELS = {
             "cartas de ilustración completa donde el arte llega hasta el filo."
         ),
         "edges_partial": "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
+        "capture_too_low_resolution": (
+            "La carta ocupa muy pocos píxeles en esta foto para que el desgaste a esta "
+            "escala sea visible, así que no se puntuó. Una foto más cercana o de mayor "
+            "resolución permitiría medirlo."
+        ),
+        "capture_modest_resolution": (
+            "La carta ocupa píxeles suficientes para mostrar daños evidentes pero no "
+            "para juzgar el desgaste fino, así que esta lectura se mantiene en un rango "
+            "más amplio."
+        ),
     },
 }
 

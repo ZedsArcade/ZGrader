@@ -147,6 +147,10 @@ export const en = {
       centering_no_frame:
         "No clear printed border to measure against — normal on full-art cards.",
       edges_partial: "Some edges couldn't be sampled and were left out of this score.",
+      capture_too_low_resolution:
+        "The card is too small in this photo for wear at this scale to be visible — a closer photo would let it be measured.",
+      capture_modest_resolution:
+        "Big enough in frame to show obvious damage, not to judge fine wear — so this reading is held to a wider range.",
     },
     comparisonTitle: "Multi-company comparison",
     comparisonSubtitle:

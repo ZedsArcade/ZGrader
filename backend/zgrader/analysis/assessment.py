@@ -47,6 +47,10 @@ CORNERS_PALE_BORDER = "corners_pale_border"
 CENTERING_NO_FRAME = "centering_no_frame"
 #: One or more edges could not be sampled and were left out of the score.
 EDGES_PARTIAL = "edges_partial"
+#: The card occupies too few pixels for wear of this scale to exist in the image.
+CAPTURE_TOO_LOW_RESOLUTION = "capture_too_low_resolution"
+#: Enough resolution to spot gross damage, not enough to grade it finely.
+CAPTURE_MODEST_RESOLUTION = "capture_modest_resolution"
 
 ALL_LIMITATION_CODES = (
     SURFACE_DIFFUSE_LIGHT,
@@ -54,6 +58,8 @@ ALL_LIMITATION_CODES = (
     CORNERS_PALE_BORDER,
     CENTERING_NO_FRAME,
     EDGES_PARTIAL,
+    CAPTURE_TOO_LOW_RESOLUTION,
+    CAPTURE_MODEST_RESOLUTION,
 )
 
 MEASURED = "measured"
@@ -76,6 +82,12 @@ CONFIDENCE_CORNERS_PALE_BORDER = 0.35
 CONFIDENCE_EDGES = 0.75
 CONFIDENCE_EDGES_PARTIAL = 0.4
 CONFIDENCE_SURFACE = 0.4
+
+#: Applied to corners and edges on a modest capture. Multiplicative rather than
+#: absolute, so it compounds with whatever else already limited the reading --
+#: a white-bordered card photographed small is worse than either alone, and a
+#: fixed value would hide that.
+CONFIDENCE_MODEST_RESOLUTION_FACTOR = 0.6
 
 #: ARBITRARY. Below this mean HSV saturation (0-255) in a corner's reference
 #: region, the border is pale enough that "lost saturation" barely registers --

@@ -75,16 +75,22 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
 
     _record_assessment("centering", cen)
 
-    cor = corners.measure_corners(card)
-    metrics["corners.raw_score"] = _round(cor["raw_score"])
+    cor = corners.measure_corners(card, px_per_mm=px_per_mm)
+    # Corners and edges can now decline to score on a capture too small for
+    # the wear to exist in. The per-corner/per-edge numbers are still computed
+    # and still tracked -- they are the diagnostics a later retune gets
+    # compared against -- but there is no category score to record.
+    if cor["raw_score"] is not None:
+        metrics["corners.raw_score"] = _round(cor["raw_score"])
     for name, info in cor["measurements"]["per_corner"].items():
         metrics[f"corners.{name}.combined_score"] = _round(info["combined_score"])
         metrics[f"corners.{name}.whitening_score"] = _round(info["whitening_score"])
 
     _record_assessment("corners", cor)
 
-    edg = edges.measure_edges(card)
-    metrics["edges.raw_score"] = _round(edg["raw_score"])
+    edg = edges.measure_edges(card, px_per_mm=px_per_mm)
+    if edg["raw_score"] is not None:
+        metrics["edges.raw_score"] = _round(edg["raw_score"])
     for name, info in edg["measurements"]["per_edge"].items():
         if info.get("score") is None:
             continue

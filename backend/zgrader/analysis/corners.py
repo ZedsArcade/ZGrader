@@ -36,7 +36,7 @@ scans, not derived from an official published methodology.
 import cv2
 import numpy as np
 
-from zgrader.analysis import assessment, scoring
+from zgrader.analysis import assessment, capture, scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.corners
@@ -107,7 +107,16 @@ def corner_crops(card_image: np.ndarray, corner_fraction: float = 0.12) -> dict[
     }
 
 
-def measure_corners(card_image: np.ndarray, corner_fraction: float = 0.12) -> dict:
+def measure_corners(
+    card_image: np.ndarray,
+    corner_fraction: float = 0.12,
+    px_per_mm: float | None = None,
+) -> dict:
+    """px_per_mm is optional so callers that only want the per-corner
+    diagnostics (the annotator, the older tests) need not supply it. Omitting
+    it means no resolution claim is made either way -- see
+    capture.resolution_limitation.
+    """
     crops = corner_crops(card_image, corner_fraction)
     per_corner = {name: _analyze_corner(crop) for name, crop in crops.items()}
 
@@ -123,21 +132,58 @@ def measure_corners(card_image: np.ndarray, corner_fraction: float = 0.12) -> di
     )
     pale = mean_reference_saturation < assessment.PALE_BORDER_SATURATION
 
-    limitations = [assessment.CORNERS_WHITENING_ONLY]
-    if pale:
-        limitations.append(assessment.CORNERS_PALE_BORDER)
+    capture_code, too_low_resolution = capture.resolution_limitation(px_per_mm)
 
     measurements = {
         "per_corner": per_corner,
         "worst_corner": worst_corner,
         "corner_fraction": corner_fraction,
         "mean_reference_saturation": round(mean_reference_saturation, 1),
-        "assessment": assessment.measured(
-            raw_score,
-            assessment.CONFIDENCE_CORNERS_PALE_BORDER if pale else assessment.CONFIDENCE_CORNERS,
-            tuple(limitations),
-        ).as_dict(),
     }
+
+    if too_low_resolution:
+        # Corner wear is a sub-millimetre feature; below the floor it does not
+        # exist in the image to be found. The per-corner numbers above stay as
+        # diagnostics because they are what a later retune gets compared
+        # against, but the category declines to score and nothing downstream
+        # treats them as findings -- regions.build_regions returns nothing for
+        # an unscored category and the annotator draws no boxes.
+        #
+        # The whitening-only and pale-border caveats are dropped here on
+        # purpose: they explain the shape of a reading, and there is no
+        # reading. Listing them beside "nothing was measurable" reads as
+        # hedging rather than as the one thing that actually stopped us.
+        measurements["assessment"] = assessment.unmeasurable((capture_code,)).as_dict()
+        return {
+            "category": CATEGORY,
+            "raw_score": None,
+            "measurements": measurements,
+            "flags": {
+                "lower_confidence": True,
+                "reason": (
+                    "The card occupies too few pixels in this photo for corner "
+                    "wear to be visible at all, so corners were not scored. A "
+                    "closer or higher-resolution photo would let this be "
+                    "measured."
+                ),
+            },
+        }
+
+    limitations = [assessment.CORNERS_WHITENING_ONLY]
+    if pale:
+        limitations.append(assessment.CORNERS_PALE_BORDER)
+    confidence = (
+        assessment.CONFIDENCE_CORNERS_PALE_BORDER if pale else assessment.CONFIDENCE_CORNERS
+    )
+    if capture_code is not None:
+        # Enough resolution to see gross damage, not enough to grade it. The
+        # score stands; what it is worth does not.
+        limitations.append(capture_code)
+        confidence *= assessment.CONFIDENCE_MODEST_RESOLUTION_FACTOR
+
+    measurements["assessment"] = assessment.measured(
+        raw_score, confidence, tuple(limitations)
+    ).as_dict()
     return {
         "category": CATEGORY,
         "raw_score": raw_score,
