@@ -121,6 +121,132 @@ function SectionHeading({ title, hint }: { title: string; hint: string }) {
 }
 
 /**
+ * Look up a customer and put credits back when something went wrong for them.
+ *
+ * Search-first rather than a full customer list: this is for helping a
+ * specific person who has got in touch, not for browsing everyone. Adjustments
+ * are audited server-side.
+ */
+function UserQuotaLookup({ token }: { token: string }) {
+  const [term, setTerm] = useState("");
+  const [results, setResults] = useState<api.UserQuota[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  async function search() {
+    if (term.trim().length < 2) {
+      toastError("Enter at least 2 characters of the email address.");
+      return;
+    }
+    setBusy("search");
+    try {
+      const rows = await api.findUserQuotas(token, term.trim());
+      setResults(rows);
+      setDrafts(
+        Object.fromEntries(rows.map((r) => [r.user_id, r.remaining === null ? "" : String(r.remaining)]))
+      );
+      if (rows.length === 0) toastError("No accounts matched that address.");
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Lookup failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function apply(row: api.UserQuota, payload: { remaining?: number; reset_period?: boolean }) {
+    setBusy(row.user_id);
+    try {
+      const updated = await api.updateUserQuota(token, row.user_id, payload);
+      setResults((prev) => (prev ?? []).map((r) => (r.user_id === row.user_id ? updated : r)));
+      setDrafts((d) => ({
+        ...d,
+        [row.user_id]: updated.remaining === null ? "" : String(updated.remaining),
+      }));
+      toastSuccess(
+        updated.unlimited
+          ? `${updated.email}: unlimited plan.`
+          : `${updated.email}: ${updated.remaining} of ${updated.limit} remaining.`
+      );
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Couldn't update the account");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <TextField value={term} onChange={setTerm} className="w-72">
+          <Label>Customer email (or part of it)</Label>
+          <Input />
+        </TextField>
+        <Button variant="outline" size="sm" isDisabled={busy === "search"} onPress={search}>
+          {busy === "search" ? "Searching…" : "Find"}
+        </Button>
+      </div>
+
+      {results?.map((row) => (
+        <div
+          key={row.user_id}
+          className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface-secondary p-3"
+        >
+          <div className="min-w-56">
+            <div className="text-sm font-medium text-foreground">{row.email}</div>
+            <div className="text-xs text-muted">
+              {row.unlimited
+                ? `${row.plan} — unlimited`
+                : `${row.plan} — ${row.remaining} of ${row.limit} left` +
+                  (row.resets_at ? `, resets ${new Date(row.resets_at).toLocaleString()}` : ", not started")}
+            </div>
+          </div>
+
+          {row.unlimited ? (
+            // Nothing to top up, and the endpoint refuses it -- so don't
+            // offer a control that can only produce an error.
+            <span className="text-xs text-muted">No limit to adjust</span>
+          ) : (
+            <>
+              <TextField
+                value={drafts[row.user_id] ?? ""}
+                onChange={(value) => setDrafts((d) => ({ ...d, [row.user_id]: value }))}
+                className="w-36"
+              >
+                <Label>Set remaining</Label>
+                <Input inputMode="numeric" />
+              </TextField>
+              <Button
+                variant="outline"
+                size="sm"
+                isDisabled={busy === row.user_id}
+                onPress={() => {
+                  const n = Number(drafts[row.user_id]);
+                  if (!Number.isFinite(n) || n < 0) {
+                    toastError("Remaining must be a whole number of checks.");
+                    return;
+                  }
+                  apply(row, { remaining: n });
+                }}
+              >
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                isDisabled={busy === row.user_id}
+                onPress={() => apply(row, { reset_period: true })}
+              >
+                Reset period
+              </Button>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Per-plan submission caps and cooldowns.
  *
  * An empty limit box means unlimited, which is how a subscription tier is
@@ -528,6 +654,13 @@ function SettingsForm() {
           />
 
           <PlanEntitlementRows token={token ?? ""} />
+
+          <SectionHeading
+            title="Customer credits"
+            hint="Look up an account and put checks back when something went wrong for them — a failed analysis, a mistake on our side. Every adjustment is recorded in the audit log against your account."
+          />
+
+          <UserQuotaLookup token={token ?? ""} />
 
           <SectionHeading
             title="Grading companies"

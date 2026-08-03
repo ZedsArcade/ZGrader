@@ -1,8 +1,11 @@
+import datetime
+import uuid
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from zgrader import images
+from zgrader import entitlements, images
 from zgrader.api.deps import require_operator
 from zgrader.config import config
 from zgrader.db import get_db
@@ -18,6 +21,8 @@ from zgrader.schemas.admin import (
     SettingsOut,
     SettingsUpdate,
     StatsOut,
+    UserQuotaOut,
+    UserQuotaUpdate,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -128,6 +133,109 @@ def delete_service_image(slug: str, _operator: User = Depends(require_operator))
     """Remove a tier's banner. The card then renders without one, as it did
     before any image was set."""
     _service_image_path(slug).unlink(missing_ok=True)
+
+
+def _quota_out(db: Session, user: User) -> UserQuotaOut:
+    quota = entitlements.get_quota(db, user)
+    return UserQuotaOut(
+        user_id=user.id,
+        email=user.email,
+        plan=quota.plan,
+        unlimited=quota.unlimited,
+        limit=quota.limit,
+        used=quota.used,
+        remaining=quota.remaining,
+        resets_at=quota.resets_at,
+    )
+
+
+@router.get("/users/quota", response_model=list[UserQuotaOut])
+def list_user_quotas(
+    email: str = Query(min_length=2, description="Case-insensitive substring of the address"),
+    _operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> list[UserQuotaOut]:
+    """Look up customers by email to see what they have left.
+
+    Requires a search term rather than listing everyone: this is a support
+    tool for helping a specific person, not a way to page through the
+    customer base. Addresses are stored lowercased (see _find_by_email in
+    the auth router), so the term is lowered to match.
+    """
+    users = (
+        db.query(User)
+        .filter(User.email.contains(email.strip().lower()))
+        .order_by(User.email)
+        .limit(25)
+        .all()
+    )
+    result = [_quota_out(db, user) for user in users]
+    # get_quota rolls a lapsed window forward, which mutates the row.
+    db.commit()
+    return result
+
+
+@router.patch("/users/{user_id}/quota", response_model=UserQuotaOut)
+def update_user_quota(
+    user_id: uuid.UUID,
+    payload: UserQuotaUpdate,
+    _operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> UserQuotaOut:
+    """Give a customer credits back after something went wrong for them.
+
+    Audited, because this changes what someone is entitled to. Without a trail
+    there would be no way to tell a support gesture from someone quietly
+    handing themselves submissions.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+    before = entitlements.get_quota(db, user)
+    if payload.remaining is not None and before.unlimited:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"'{before.plan}' has no submission limit, so there is nothing to top up. "
+            "Change the plan's limit instead if it should be capped.",
+        )
+
+    if payload.reset_period:
+        # Clearing the anchor rather than setting it to now returns them to
+        # the pre-first-submission state: full allowance, and no countdown
+        # running until they next submit.
+        user.quota_period_started_at = None
+        user.quota_used = 0
+
+    if payload.remaining is not None:
+        limit = before.limit or 0
+        user.quota_used = max(0, limit - payload.remaining)
+        if user.quota_used > 0 and user.quota_period_started_at is None:
+            # Something has been spent, so there has to be a window for it to
+            # be spent in -- otherwise the UI would show a partial allowance
+            # with nothing counting down to its return.
+            user.quota_period_started_at = datetime.datetime.now(datetime.timezone.utc)
+
+    db.flush()
+    after = entitlements.get_quota(db, user)
+    db.add(
+        AuditLog(
+            submission_id=None,
+            user_id=_operator.id,
+            action="user_quota_adjusted",
+            detail={
+                "target_user_id": str(user.id),
+                "target_email": user.email,
+                "plan": after.plan,
+                "reset_period": payload.reset_period,
+                "remaining_before": before.remaining,
+                "remaining_after": after.remaining,
+            },
+        )
+    )
+    db.commit()
+    db.refresh(user)
+    return _quota_out(db, user)
 
 
 @router.get("/plans", response_model=list[PlanEntitlementOut])

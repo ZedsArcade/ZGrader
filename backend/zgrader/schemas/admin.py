@@ -43,6 +43,33 @@ def normalize_phone(value: str | None) -> str | None:
     return digits
 
 
+class UserQuotaOut(BaseModel):
+    """A customer's quota, for the operator's support view."""
+
+    user_id: uuid.UUID
+    email: str
+    plan: str
+    unlimited: bool
+    limit: int | None
+    used: int
+    remaining: int | None
+    resets_at: datetime.datetime | None
+
+
+class UserQuotaUpdate(BaseModel):
+    """Put credits back when something went wrong for a customer.
+
+    Expressed as `remaining` rather than the internal used-counter: an
+    operator helping someone thinks in "how many do they have left", and
+    making them compute `limit - remaining` is how off-by-ones happen.
+    """
+
+    remaining: int | None = Field(default=None, ge=0, le=10_000)
+    # Start a fresh window now, so the countdown restarts from full. Applied
+    # before `remaining`, so the two can be combined.
+    reset_period: bool = False
+
+
 class PlanEntitlementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
