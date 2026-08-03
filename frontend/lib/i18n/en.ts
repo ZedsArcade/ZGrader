@@ -131,6 +131,10 @@ export const en = {
     unknownCard: "Unknown card",
     foilLabel: "Foil",
     lowerConfidence: "lower confidence",
+    // Shown instead of a number when the pipeline declined to score a
+    // category. Deliberately not "0" or "N/A" -- it should read as a decision
+    // we made, not as data that went missing.
+    unmeasurable: "Not measurable",
     comparisonTitle: "Multi-company comparison",
     comparisonSubtitle:
       "Points of contention that may affect how each company treats this card. This is not a predicted numeric grade from any company.",

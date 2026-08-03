@@ -131,6 +131,7 @@ export const es: Dictionary = {
     unknownCard: "Carta desconocida",
     foilLabel: "Foil",
     lowerConfidence: "menor confiabilidad",
+    unmeasurable: "No medible",
     comparisonTitle: "Comparación entre compañías",
     comparisonSubtitle:
       "Puntos de discrepancia que podrían afectar cómo cada compañía trata esta carta. Esto no es una calificación numérica predicha por ninguna compañía.",

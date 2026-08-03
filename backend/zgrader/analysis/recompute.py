@@ -99,6 +99,10 @@ def recompute_submission(db: Session, submission: Submission) -> None:
         if row.side == AnalysisSide.combined:
             continue
         side_category = row.category.value if hasattr(row.category, "value") else str(row.category)
+        if row.raw_score is None:
+            # Unmeasurable sides have no score to fall back to, so they are
+            # left out entirely rather than contributing a zero.
+            continue
         stored_side_scores[(row.side.value, side_category)] = float(row.raw_score)
 
     for row in submission.analysis_results:

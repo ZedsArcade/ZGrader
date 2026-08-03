@@ -16,7 +16,7 @@ real sample scans.
 import cv2
 import numpy as np
 
-from zgrader.analysis import scoring
+from zgrader.analysis import assessment, scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.edges
@@ -122,9 +122,18 @@ def measure_edges(
         )
     raw_score = round(float(np.mean(measured)), 2)
 
-    measurements = {"per_edge": per_edge, "measured_edges": len(measured)}
+    partial = len(measured) < len(per_edge)
+    measurements = {
+        "per_edge": per_edge,
+        "measured_edges": len(measured),
+        "assessment": assessment.measured(
+            raw_score,
+            assessment.CONFIDENCE_EDGES_PARTIAL if partial else assessment.CONFIDENCE_EDGES,
+            (assessment.EDGES_PARTIAL,) if partial else (),
+        ).as_dict(),
+    }
     flags = {}
-    if len(measured) < len(per_edge):
+    if partial:
         unmeasured = sorted(name for name, e in per_edge.items() if not e.get("measured"))
         flags = {
             "lower_confidence": True,

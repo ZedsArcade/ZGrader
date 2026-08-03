@@ -89,8 +89,15 @@ export default function SubmissionOverview({
                 const result = combinedByCategory.get(category)!;
                 const lowerConfidence = Boolean(result.flags?.lower_confidence);
                 const original = (result.measurements?.original_raw_score as number | undefined) ?? null;
+                // null score = unmeasurable. Never render it as 0: "we could
+                // not tell" and "this is terrible" are different answers, and
+                // showing the second is exactly the confident wrongness the
+                // nullable score exists to remove.
+                const unmeasurable = result.raw_score === null;
                 const adjusted =
-                  original !== null && Math.round(original * 10) !== Math.round(result.raw_score * 10);
+                  !unmeasurable &&
+                  original !== null &&
+                  Math.round(original * 10) !== Math.round(result.raw_score! * 10);
                 return (
                   <div
                     key={category}
@@ -110,11 +117,17 @@ export default function SubmissionOverview({
                       )}
                     </div>
                     <div className="mt-1 flex items-baseline gap-2">
-                      <div
-                        className={`inline-flex rounded-lg px-2 py-0.5 text-2xl font-semibold ${gradeTierClass(result.raw_score)}`}
-                      >
-                        {result.raw_score.toFixed(1)}
-                      </div>
+                      {unmeasurable ? (
+                        <div className="inline-flex rounded-lg px-2 py-0.5 text-lg font-semibold text-muted">
+                          {t.submissionDetail.unmeasurable}
+                        </div>
+                      ) : (
+                        <div
+                          className={`inline-flex rounded-lg px-2 py-0.5 text-2xl font-semibold ${gradeTierClass(result.raw_score!)}`}
+                        >
+                          {result.raw_score!.toFixed(1)}
+                        </div>
+                      )}
                       {adjusted && (
                         <span className="text-xs text-muted line-through">
                           {t.submissionDetail.originalScorePrefix} {original!.toFixed(1)}

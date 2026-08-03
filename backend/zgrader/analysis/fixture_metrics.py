@@ -40,6 +40,22 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
         "card_width_px": float(card.shape[1]),
     }
 
+    def _record_assessment(prefix: str, result: dict) -> None:
+        """Confidence and the interval are customer-visible claims, so drift in
+        them matters as much as drift in the score itself. Limitation codes are
+        captured as a count -- the codes are asserted directly in
+        test_assessment.py, and a count is enough here to catch one appearing
+        or vanishing."""
+        block = result["measurements"].get("assessment")
+        if block is None:
+            return
+        metrics[f"{prefix}.confidence"] = _round(block["confidence"])
+        metrics[f"{prefix}.unmeasurable"] = float(block["state"] != "measured")
+        metrics[f"{prefix}.limitation_count"] = float(len(block["limitations"]))
+        if block["score_low"] is not None:
+            metrics[f"{prefix}.score_low"] = _round(block["score_low"])
+            metrics[f"{prefix}.score_high"] = _round(block["score_high"])
+
     cen = centering.measure_centering(card, px_per_mm)
     metrics["centering.raw_score"] = _round(cen["raw_score"])
     metrics["centering.worse_side_pct"] = _round(cen["measurements"]["worse_side_pct"])
@@ -51,11 +67,15 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
         bool(cen["flags"].get("lower_confidence", False))
     )
 
+    _record_assessment("centering", cen)
+
     cor = corners.measure_corners(card)
     metrics["corners.raw_score"] = _round(cor["raw_score"])
     for name, info in cor["measurements"]["per_corner"].items():
         metrics[f"corners.{name}.combined_score"] = _round(info["combined_score"])
         metrics[f"corners.{name}.whitening_score"] = _round(info["whitening_score"])
+
+    _record_assessment("corners", cor)
 
     edg = edges.measure_edges(card)
     metrics["edges.raw_score"] = _round(edg["raw_score"])
@@ -65,9 +85,13 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
         metrics[f"edges.{name}.score"] = _round(info["score"])
         metrics[f"edges.{name}.whitened_fraction"] = _round(info["whitened_fraction"])
 
+    _record_assessment("edges", edg)
+
     sur, _mask = surface.measure_surface(card)
     metrics["surface.raw_score"] = _round(sur["raw_score"])
     metrics["surface.anomaly_fraction"] = _round(sur["measurements"]["anomaly_fraction"])
+
+    _record_assessment("surface", sur)
 
     return metrics
 

@@ -40,13 +40,23 @@ FRONT_WEIGHT = 0.7
 BACK_WEIGHT = 1.0 - FRONT_WEIGHT
 
 
-def combine_front_back(front: float, back: float | None) -> float:
+def combine_front_back(front: float | None, back: float | None) -> float | None:
     """Combine a per-side value into the single figure shown to the customer.
 
     A missing back is not scored as absent-and-therefore-fine: the front value
     stands on its own, which is what a front-only "partial check" submission
     is asking for.
+
+    None means unmeasurable on that side. A side with no score contributes
+    nothing rather than a zero, so one measurable side carries the result at
+    full weight -- weighting a present value by 0.7 because the other side was
+    unreadable would quietly cap it at 7.0. Both unmeasurable gives None: the
+    combined figure is unmeasurable too, not perfect and not zero.
     """
+    if front is None and back is None:
+        return None
+    if front is None:
+        return round(float(back), 2)
     if back is None:
         return round(float(front), 2)
     return round(FRONT_WEIGHT * float(front) + BACK_WEIGHT * float(back), 2)

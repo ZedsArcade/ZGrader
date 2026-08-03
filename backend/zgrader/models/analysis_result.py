@@ -35,7 +35,15 @@ class AnalysisResult(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Enum(AnalysisSide, name="analysis_side"), nullable=False
     )
     # 0-10 scale, matching the familiar BGS/PSA-style subgrade range.
-    raw_score: Mapped[float] = mapped_column(Numeric(4, 2), nullable=False)
+    # NULL means unmeasurable: the pipeline looked and could not tell, which
+    # is a different answer from "we looked and it is bad". While this was NOT
+    # NULL the two collapsed into a low score, and the column was the reason
+    # the honest answer could not be expressed at all.
+    #
+    # Every reader must handle None. In particular the rules engine skips such
+    # a category rather than comparing it against a company tolerance -- a
+    # missing measurement cannot be in or out of tolerance.
+    raw_score: Mapped[float | None] = mapped_column(Numeric(4, 2), nullable=True)
     # Category-specific structured measurements, e.g. centering's
     # {"lr_ratio": [58, 42], "tb_ratio": [55, 45], "lr_offset_mm": 1.1, ...}
     measurements: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
