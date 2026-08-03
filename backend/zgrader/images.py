@@ -41,6 +41,14 @@ SERVICE_TIER_SLUGS = (
 SERVICE_IMAGE_MAX_SIZE = (1200, 675)
 SERVICE_IMAGE_QUALITY = 82
 
+# The two public brands, each with its own header logo. Must stay in step with
+# the Brand type in frontend/lib/brand.ts.
+BRAND_LOGO_SLUGS = ("lab", "care")
+
+# Bounds for a header logo. It renders at roughly 36px tall, so this is
+# generous enough for a 2x display without carrying a print-sized asset.
+BRAND_LOGO_MAX_SIZE = (600, 200)
+
 
 class ImageTooLarge(Exception):
     """Upload exceeded MAX_UPLOAD_BYTES."""
@@ -104,6 +112,40 @@ def service_image_path(media_dir: Path, slug: str) -> Path:
     """Where a service tier's banner lives. Always .jpg -- store_service_image
     re-encodes, so the extension is ours to fix rather than the upload's."""
     return Path(media_dir) / "services" / f"{slug}.jpg"
+
+
+def brand_logo_path(media_dir: Path, slug: str) -> Path:
+    """Where a brand's header logo lives. Always .png -- see
+    store_brand_logo for why this one isn't JPEG like the service banners."""
+    return Path(media_dir) / "brands" / f"{slug}.png"
+
+
+def store_brand_logo(content: bytes, destination: Path) -> None:
+    """Re-encode an uploaded logo to a bounded PNG at `destination`.
+
+    Deliberately *not* store_service_image. That re-encodes to JPEG, which has
+    no alpha channel, so it converts anything non-RGB to RGB -- and a logo is
+    exactly the kind of image that arrives as a transparent PNG. Sending it
+    through the banner path would silently paste a solid rectangle behind
+    every logo, against a header background it was meant to sit on cleanly.
+
+    Re-encoding still happens, for the same reason it does for banners: what
+    lands on disk and gets served publicly is bytes Pillow produced from a
+    decoded image, not bytes the client supplied, which also drops any EXIF
+    payload riding along.
+    """
+    validate_upload(content)
+
+    # verify() consumed the probe object, so reopen to actually decode.
+    image = Image.open(io.BytesIO(content))
+    # Keep alpha where it exists; palette images can carry transparency too,
+    # so those convert to RGBA rather than RGB.
+    if image.mode not in ("RGBA", "RGB", "L"):
+        image = image.convert("RGBA" if "transparency" in image.info or image.mode == "P" else "RGB")
+    image.thumbnail(BRAND_LOGO_MAX_SIZE, Image.LANCZOS)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image.save(destination, format="PNG", optimize=True)
 
 
 def store_service_image(content: bytes, destination: Path) -> None:

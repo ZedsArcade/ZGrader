@@ -135,6 +135,49 @@ def delete_service_image(slug: str, _operator: User = Depends(require_operator))
     _service_image_path(slug).unlink(missing_ok=True)
 
 
+def _brand_logo_path(slug: str):
+    """Resolve a brand slug to its logo file, 404ing on anything else.
+
+    Matched against a fixed tuple, same as _service_image_path, so the path is
+    always built from a constant and a request can't steer it elsewhere.
+    """
+    if slug not in images.BRAND_LOGO_SLUGS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown brand")
+    return images.brand_logo_path(config.public_media_dir, slug)
+
+
+@router.put("/brand-logos/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_brand_logo(
+    slug: str,
+    file: UploadFile = File(...),
+    _operator: User = Depends(require_operator),
+) -> None:
+    """Set the logo shown in the header for one of the two brands.
+
+    Idempotent by slug, hence PUT. Stored as PNG rather than JPEG so a
+    transparent logo stays transparent -- see images.store_brand_logo.
+    """
+    path = _brand_logo_path(slug)
+    content = await file.read(images.MAX_UPLOAD_BYTES + 1)
+    try:
+        images.store_brand_logo(content, path)
+    except images.ImageTooLarge:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Image is too large"
+        ) from None
+    except images.UnsupportedImage:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Unsupported image format -- use JPEG, PNG, or TIFF"
+        ) from None
+
+
+@router.delete("/brand-logos/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_brand_logo(slug: str, _operator: User = Depends(require_operator)) -> None:
+    """Remove a brand's logo. The header then shows just the section switch,
+    which is how it looks before any logo is set."""
+    _brand_logo_path(slug).unlink(missing_ok=True)
+
+
 def _quota_out(db: Session, user: User) -> UserQuotaOut:
     quota = entitlements.get_quota(db, user)
     return UserQuotaOut(

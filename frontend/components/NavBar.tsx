@@ -6,8 +6,9 @@ import Button from "@/components/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
 import { useTranslations } from "@/lib/i18n/context";
-import { brandFromPathname, CARE_PREFIX } from "@/lib/brand";
-import { titanOne } from "@/lib/fonts";
+import { CARE_PREFIX } from "@/lib/brand";
+import { useBrand } from "@/lib/use-brand";
+import BrandLogo from "@/components/BrandLogo";
 import BrandSwitch from "@/components/brand-switch";
 import QuotaChip from "@/components/QuotaChip";
 import ThemeSwitch from "@/components/theme-switch";
@@ -21,10 +22,9 @@ const DRAWER_LINK_CLASS =
 
 export default function NavBar() {
   const { user, logout, loading } = useAuth();
-  const { business_name, care_business_name } = useBranding();
   const t = useTranslations();
   const router = useRouter();
-  const brand = brandFromPathname(usePathname() ?? "/");
+  const brand = useBrand();
 
   function handleLogout() {
     logout();
@@ -37,7 +37,9 @@ export default function NavBar() {
   // has the room for all of them, and the footer carries everything anyway.
   const publicLinks = [
     { href: "/about", label: t.nav.about },
-    { href: "/services", label: t.nav.services },
+    // Each brand has its own services page; the link follows whichever
+    // section you are in rather than always landing on the analysis one.
+    { href: brand === "care" ? `${CARE_PREFIX}/services` : "/services", label: t.nav.services },
     { href: "/how-it-works", label: t.nav.howItWorks },
     { href: "/methodology", label: t.nav.methodology },
     { href: "/contact", label: t.nav.contact },
@@ -46,18 +48,15 @@ export default function NavBar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5">
-        {/* Wordmark names the section you are actually in, and the switch
-            beside it moves between the two. Placed left because the right-hand
-            group is already at its width budget (see the note on
-            desktopLinks). */}
+      {/* gap-4 so the left group can never butt against the first nav link --
+          justify-between alone lets them touch once the bar is full. */}
+      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-4 px-5">
+        {/* The switch is the identity. A text wordmark used to sit here too,
+            but it repeated whichever button was already highlighted, wrapped
+            onto two lines, and cost ~130px the navigation needed. An operator
+            logo takes that slot instead, and renders only if one is set. */}
         <div className="flex items-center gap-3">
-          <Link
-            href={brand === "care" ? CARE_PREFIX : "/"}
-            className={`${titanOne.className} hidden text-xl tracking-wide text-foreground sm:block`}
-          >
-            {brand === "care" ? care_business_name : business_name}
-          </Link>
+          <BrandLogo />
           <BrandSwitch />
         </div>
 

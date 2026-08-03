@@ -2,25 +2,30 @@
 
 import { useLayoutEffect } from "react";
 import { usePathname } from "next/navigation";
-import { brandFromPathname } from "@/lib/brand";
+import { brandFromPathname, readStoredBrand, resolveBrand, storeBrand } from "@/lib/brand";
 
 /**
- * Keeps data-brand on <html> in step with the route during client-side
- * navigation.
+ * Keeps data-brand on <html> in step with the route and the stored preference.
  *
- * The inline BRAND_INIT_SCRIPT in the root layout covers the first paint;
- * this covers every navigation after it, when there is no document reload to
- * re-run that script. useLayoutEffect rather than useEffect so the attribute
- * lands before the browser paints the new route, otherwise moving between
- * GemLab and GemCare flashes the previous palette for a frame.
+ * The inline BRAND_INIT_SCRIPT covers the first paint; this covers every
+ * client-side navigation after it, where no document reload re-runs that
+ * script. Entering /care/* also persists the choice, so leaving again for a
+ * shared page like /about stays in GemCare.
+ *
+ * useLayoutEffect rather than useEffect so the attribute lands before the
+ * browser paints the new route -- otherwise moving between the two brands
+ * flashes the previous palette for a frame.
  *
  * Renders nothing.
  */
 export default function BrandSync() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
 
   useLayoutEffect(() => {
-    document.documentElement.setAttribute("data-brand", brandFromPathname(pathname ?? "/"));
+    const forced = brandFromPathname(pathname);
+    if (forced) storeBrand(forced);
+    const brand = resolveBrand(pathname, readStoredBrand());
+    document.documentElement.setAttribute("data-brand", brand);
   }, [pathname]);
 
   return null;

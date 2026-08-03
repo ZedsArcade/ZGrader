@@ -91,3 +91,34 @@ def get_service_image(slug: str) -> FileResponse:
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
+
+
+@router.get("/brand-logos", response_model=dict[str, int])
+def list_brand_logos() -> dict[str, int]:
+    """Which brands have a header logo, and a version for each.
+
+    Same mtime-as-version trick as the service banners: the frontend appends
+    it so a replaced logo is a new URL rather than something the browser keeps
+    serving from cache while the operator wonders why the upload did nothing.
+    """
+    versions: dict[str, int] = {}
+    for slug in images.BRAND_LOGO_SLUGS:
+        path = images.brand_logo_path(config.public_media_dir, slug)
+        if path.is_file():
+            versions[slug] = int(path.stat().st_mtime)
+    return versions
+
+
+@router.get("/brand-logos/{slug}")
+def get_brand_logo(slug: str) -> FileResponse:
+    """Public: the logo sits in the header of every page, signed in or not."""
+    if slug not in images.BRAND_LOGO_SLUGS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown brand")
+    path = images.brand_logo_path(config.public_media_dir, slug)
+    if not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No logo set for this brand")
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )

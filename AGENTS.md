@@ -110,10 +110,19 @@ ships in no wheel:
 1. Install Pango: `pacman -S mingw-w64-x86_64-pango` under MSYS2. The winget "Gtk+ 3 Runtime"
    package is a dead end — it is from 2019 and its Pango predates
    `pango_context_set_round_glyph_positions` (added in 1.44), so WeasyPrint imports and then dies
-   on the first render.
-2. Point WeasyPrint at it: `WEASYPRINT_DLL_DIRECTORIES=C:\msys64\mingw64\bin`. Adding it to `PATH`
-   does nothing — since Python 3.8, Windows no longer searches `PATH` for dependent DLLs, so the
-   failure is a bare `error 0x7e` from a library that is plainly sitting right there.
+   on the first render. **Uninstall it if it is already present**: it adds itself to the machine
+   `PATH`, and WeasyPrint finds that copy ahead of a perfectly good MSYS2 one, so having it
+   installed breaks a setup that would otherwise work. The failure names the old path, which is the
+   only clue.
+2. Set **both** `WEASYPRINT_DLL_DIRECTORIES=C:\msys64\mingw64\bin` *and* put that directory first
+   on `PATH`. They fix different halves and neither is sufficient alone:
+   - `PATH` alone doesn't load dependent DLLs — since Python 3.8 Windows no longer searches it for
+     those — so you get a bare `error 0x7e` from a library plainly sitting right there.
+   - `WEASYPRINT_DLL_DIRECTORIES` alone doesn't decide *which* Pango gets picked:
+     `ctypes.util.find_library` walks `PATH` and returns the first hit, so a stale copy earlier on
+     `PATH` still wins. Check with
+     `python -c "import ctypes.util; print(ctypes.util.find_library('libpango-1.0-0'))"` — if that
+     prints anything other than the MSYS2 path, fix `PATH` before looking anywhere else.
 3. Nothing on Linux or in the container needs any of this; Debian's `libpango-1.0-0` is already on
    the loader path. Don't put the Windows path in `conftest.py`.
 

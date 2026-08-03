@@ -350,6 +350,34 @@ export interface Quota {
 /** Whether this deployment has Google sign-in configured. Asked before
  *  rendering the button, so an install without an OAuth client shows no
  *  button rather than one that dead-ends. */
+/** Which brands have a header logo, keyed by slug, valued by mtime version. */
+export async function getBrandLogos(): Promise<Record<string, number>> {
+  return request("/catalog/brand-logos");
+}
+
+/** The version makes a replaced logo a new URL, so a hard-cached old one can
+ *  never be served. Same trick as serviceImageUrl. */
+export function brandLogoUrl(slug: string, version: number): string {
+  return `${API_BASE}/catalog/brand-logos/${slug}?v=${version}`;
+}
+
+export async function uploadBrandLogo(token: string, slug: string, file: File): Promise<void> {
+  const body = new FormData();
+  body.append("file", file);
+  return request(`/admin/brand-logos/${slug}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body,
+  });
+}
+
+export async function deleteBrandLogo(token: string, slug: string): Promise<void> {
+  return request(`/admin/brand-logos/${slug}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+}
+
 export async function getGoogleStatus(): Promise<{ enabled: boolean }> {
   return request("/auth/google/status");
 }
