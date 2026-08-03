@@ -100,8 +100,36 @@ scans.
 `create_all`, so it lacks the raw-SQL indexes the migrations create (`ix_users_email_lower`) — it is
 not a staging copy.
 
-`tests/test_pdf_generation.py` is the only module that needs WeasyPrint installed; `build_pdf`
-imports it lazily so everything else runs without Pango/Cairo present.
+`build_pdf` imports WeasyPrint lazily, so everything except the PDF tests runs without Pango
+present. The API process doesn't load it at startup either.
+
+**WeasyPrint on Windows needs three separate things, and only the first is obvious.** The pip
+package installs fine and is not the problem. Rendering goes through Pango, a system library that
+ships in no wheel:
+
+1. Install Pango: `pacman -S mingw-w64-x86_64-pango` under MSYS2. The winget "Gtk+ 3 Runtime"
+   package is a dead end — it is from 2019 and its Pango predates
+   `pango_context_set_round_glyph_positions` (added in 1.44), so WeasyPrint imports and then dies
+   on the first render.
+2. Point WeasyPrint at it: `WEASYPRINT_DLL_DIRECTORIES=C:\msys64\mingw64\bin`. Adding it to `PATH`
+   does nothing — since Python 3.8, Windows no longer searches `PATH` for dependent DLLs, so the
+   failure is a bare `error 0x7e` from a library that is plainly sitting right there.
+3. Nothing on Linux or in the container needs any of this; Debian's `libpango-1.0-0` is already on
+   the loader path. Don't put the Windows path in `conftest.py`.
+
+**If pacman fails every download with "unable to get local issuer certificate", check for TLS
+interception before anything else.** AVG's Web/Mail Shield MITMs HTTPS and presents its own root,
+which Windows trusts and MSYS2's private CA bundle does not — so winget, `gh` and browser downloads
+all work while pacman alone fails, which points suspicion in entirely the wrong direction.
+Confirm it with:
+
+```
+openssl s_client -connect repo.msys2.org:443 2>/dev/null | openssl x509 -noout -issuer
+```
+
+The fix that needs no change to any trust store: `pacman -Sp --needed <pkg>` prints the exact
+package URLs, so fetch them with PowerShell (which uses the Windows store, and is therefore happy)
+and install from disk with `pacman -U`.
 
 `npx tsc --noEmit` doubles as the translation completeness check: `Dictionary = Widen<typeof en>`
 forces `es.ts` to have the same key structure as `en.ts`, so a missing Spanish string is a type
