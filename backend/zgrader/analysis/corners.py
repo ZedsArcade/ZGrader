@@ -36,7 +36,7 @@ scans, not derived from an official published methodology.
 import cv2
 import numpy as np
 
-from zgrader.analysis import scoring
+from zgrader.analysis import assessment, scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.corners
@@ -115,7 +115,29 @@ def measure_corners(card_image: np.ndarray, corner_fraction: float = 0.12) -> di
     raw_score = round(float(np.mean(combined_scores)), 2)
     worst_corner = min(per_corner, key=lambda k: per_corner[k]["combined_score"])
 
-    measurements = {"per_corner": per_corner, "worst_corner": worst_corner, "corner_fraction": corner_fraction}
+    # A pale border has almost no saturation to lose, so the whitening signal
+    # this category depends on is weak or absent -- the white-bordered blind
+    # spot, now measured per card rather than asserted in a footnote.
+    mean_reference_saturation = float(
+        np.mean([c["reference_saturation"] for c in per_corner.values()])
+    )
+    pale = mean_reference_saturation < assessment.PALE_BORDER_SATURATION
+
+    limitations = [assessment.CORNERS_WHITENING_ONLY]
+    if pale:
+        limitations.append(assessment.CORNERS_PALE_BORDER)
+
+    measurements = {
+        "per_corner": per_corner,
+        "worst_corner": worst_corner,
+        "corner_fraction": corner_fraction,
+        "mean_reference_saturation": round(mean_reference_saturation, 1),
+        "assessment": assessment.measured(
+            raw_score,
+            assessment.CONFIDENCE_CORNERS_PALE_BORDER if pale else assessment.CONFIDENCE_CORNERS,
+            tuple(limitations),
+        ).as_dict(),
+    }
     return {
         "category": CATEGORY,
         "raw_score": raw_score,

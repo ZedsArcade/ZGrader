@@ -11,7 +11,7 @@ sample scans, not a from-first-principles-exact measurement.
 import cv2
 import numpy as np
 
-from zgrader.analysis import scoring
+from zgrader.analysis import assessment, scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.centering
@@ -145,4 +145,15 @@ def measure_centering(card_image: np.ndarray, px_per_mm: float) -> dict:
     )
     flags = dict(CENTERING_LOW_CONFIDENCE_FLAG) if low_confidence else {}
     raw_score = round(score_from_worse_pct(worse_side_pct), 2)
+
+    # A scattered border edge means there was no clean printed frame to measure
+    # against -- full-art, or artwork bleeding to the cut. The ratio above is
+    # then a best-effort reading of noise, which the confidence says plainly.
+    measurements["assessment"] = assessment.measured(
+        raw_score,
+        assessment.CONFIDENCE_CENTERING_NO_FRAME
+        if low_confidence
+        else assessment.CONFIDENCE_CENTERING_CLEAN_FRAME,
+        (assessment.CENTERING_NO_FRAME,) if low_confidence else (),
+    ).as_dict()
     return {"category": CATEGORY, "raw_score": raw_score, "measurements": measurements, "flags": flags}

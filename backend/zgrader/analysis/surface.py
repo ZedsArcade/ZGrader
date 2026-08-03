@@ -12,7 +12,7 @@ it is intentionally flagged "lower_confidence" in every result.
 import cv2
 import numpy as np
 
-from zgrader.analysis import scoring
+from zgrader.analysis import assessment, scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.surface
@@ -62,6 +62,13 @@ def measure_surface(card_image: np.ndarray, corner_exclusion_fraction: float = 0
         "anomaly_fraction": round(anomaly_fraction, 4),
         "laplacian_variance": round(laplacian_var, 1),
         "corner_exclusion_fraction": corner_exclusion_fraction,
+        # Always the lowest confidence of the four, and always for the same
+        # reason -- see the limitation note at the top of this module.
+        "assessment": assessment.measured(
+            raw_score,
+            assessment.CONFIDENCE_SURFACE,
+            (assessment.SURFACE_DIFFUSE_LIGHT,),
+        ).as_dict(),
     }
     result = {
         "category": CATEGORY,
