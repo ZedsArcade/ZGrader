@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { useServiceImages } from "@/lib/use-service-images";
+import { useBrandLogos } from "@/lib/use-brand-logos";
 import * as api from "@/lib/api";
 
 // Labels are hardcoded English like the rest of this operator-only screen --
@@ -99,6 +100,96 @@ function ServiceImageRow({
         onPress={() => inputRef.current?.click()}
       >
         {busy ? "Working…" : version === undefined ? "Add image" : "Replace"}
+      </Button>
+      {version !== undefined && (
+        <Button variant="danger-soft" size="sm" isDisabled={busy} onPress={handleRemove}>
+          Remove
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A brand's header logo. Same shape as ServiceImageRow, but its own component
+ * rather than a generalisation of it: the two differ in endpoint, in stored
+ * format (PNG, so a transparent logo stays transparent) and in preview
+ * treatment -- a logo is shown contained against the surface, not cropped to
+ * fill a 16:9 banner.
+ */
+function BrandLogoRow({
+  slug,
+  label,
+  version,
+  token,
+  onChanged,
+}: {
+  slug: string;
+  label: string;
+  version: number | undefined;
+  token: string;
+  onChanged: () => Promise<void>;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Reset first, so re-picking the same file after a failure still fires.
+    event.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    try {
+      await api.uploadBrandLogo(token, slug, file);
+      await onChanged();
+      toastSuccess(`${label} logo updated.`);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    setBusy(true);
+    try {
+      await api.deleteBrandLogo(token, slug);
+      await onChanged();
+      toastSuccess(`${label} logo removed.`);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Couldn't remove the logo");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-secondary p-3">
+      {version === undefined ? (
+        <div className="flex h-14 w-24 shrink-0 items-center justify-center rounded border border-dashed border-border text-xs text-muted">
+          None
+        </div>
+      ) : (
+        // object-contain, not cover: a logo must not be cropped, and the
+        // header renders it the same way.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={api.brandLogoUrl(slug, version)}
+          alt=""
+          className="h-14 w-24 shrink-0 rounded border border-border object-contain p-1"
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{label}</p>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+      <Button
+        variant="outline"
+        size="sm"
+        isDisabled={busy}
+        onPress={() => inputRef.current?.click()}
+      >
+        {busy ? "Working…" : version === undefined ? "Add logo" : "Replace"}
       </Button>
       {version !== undefined && (
         <Button variant="danger-soft" size="sm" isDisabled={busy} onPress={handleRemove}>
@@ -416,6 +507,7 @@ function SettingsForm() {
   const { token } = useAuth();
   const { refresh: refreshBranding } = useBranding();
   const { images: serviceImages, refresh: refreshServiceImages } = useServiceImages();
+  const { logos: brandLogos, refresh: refreshBrandLogos } = useBrandLogos();
   const [settings, setSettings] = useState<api.Settings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -646,6 +738,28 @@ function SettingsForm() {
                 onChanged={refreshServiceImages}
               />
             ))}
+          </div>
+
+          <SectionHeading
+            title="Brand logos"
+            hint="Shown in the site header, one per section. Stored as PNG so a transparent logo stays transparent, and scaled to fit the bar. Leave one unset and that section shows just the Gem Lab / Gem Care switch."
+          />
+
+          <div className="flex flex-col gap-2">
+            <BrandLogoRow
+              slug="lab"
+              label={`${settings.business_name} (analysis)`}
+              version={brandLogos["lab"]}
+              token={token ?? ""}
+              onChanged={refreshBrandLogos}
+            />
+            <BrandLogoRow
+              slug="care"
+              label={`${settings.care_business_name} (card care)`}
+              version={brandLogos["care"]}
+              token={token ?? ""}
+              onChanged={refreshBrandLogos}
+            />
           </div>
 
           <SectionHeading

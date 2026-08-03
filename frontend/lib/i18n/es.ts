@@ -338,6 +338,9 @@ export const es: Dictionary = {
     s3Title: "Consulta de restauración",
     s3Body:
       "Algunos problemas pueden mejorarse; muchos no, y algunos intentos empeoran las cosas. La consulta es gratuita precisamente para que nadie pague por escuchar un no.",
+    servicesTitle: "Servicios de cuidado de cartas",
+    servicesLede:
+      "Todo lo que implica manipular físicamente una carta suya: almacenamiento, limpieza, restauración y hacerla llegar con seguridad a una compañía de calificación.",
     warningTitle: "Lea esto antes de pedir una restauración",
     warningBody:
       "La restauración conlleva un riesgo real. Una carta restaurada puede ser calificada como alterada, o rechazada sin más, por una compañía de calificación, y ese resultado es permanente. No se intenta nada sin hablarlo antes con usted y acordarlo por escrito. Si la respuesta honesta es dejar la carta en paz, esa será la respuesta que reciba.",
@@ -377,6 +380,13 @@ export const es: Dictionary = {
     tier3Point2:
       "Notas escritas sobre los puntos concretos que un calificador probablemente discutirá",
     tier3Point3: "Una opinión franca sobre si merece la pena enviar la carta",
+    crossToCareTitle: "¿Ya tiene la carta? {businessName} la cuida",
+    crossToCareBody:
+      "El análisis le dice si merece la pena enviar una carta a calificar. {businessName} es la otra mitad: consejo sobre almacenamiento y manipulación, limpieza de superficie, consultas honestas de restauración y embalaje adecuado para el trayecto.",
+    crossToLabTitle: "¿Aún no sabe si merece calificarla? Empiece por {businessName}",
+    crossToLabBody:
+      "Antes de pagar por calificar una carta, {businessName} mide el centrado, las esquinas, los bordes y la superficie, y le indica cómo es probable que la traten las principales compañías, para que lo sepa antes de pagar y no después.",
+    crossCta: "Ver servicios de {businessName}",
     tier4Name: "Restauraciones",
     tier4Body:
       "Algunos problemas se pueden mejorar; muchos no, y algunos intentos empeoran las cosas. La consulta es gratuita precisamente para que nadie pague por que le digan que no.",

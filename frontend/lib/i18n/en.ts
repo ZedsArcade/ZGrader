@@ -343,6 +343,9 @@ export const en = {
     s3Title: "Restoration consultation",
     s3Body:
       "Some problems can be improved; many cannot, and some attempts make things worse. The consultation is free precisely so nobody pays to be told no.",
+    servicesTitle: "Card care services",
+    servicesLede:
+      "Everything that involves physically handling a card you own — storage, cleaning, restoration, and getting it safely to a grading company.",
     warningTitle: "Read this before asking for restoration",
     warningBody:
       "Restoration carries real risk. A restored card may be graded as altered, or refused outright, by a grading company -- and that outcome is permanent. Nothing is attempted without discussing it with you first and agreeing it in writing. If the honest answer is to leave a card alone, that is the answer you will get.",
@@ -379,6 +382,16 @@ export const en = {
     tier3Point1: "Everything in the standard report, plus a physical inspection",
     tier3Point2: "Written notes on the specific points a grader is likely to argue over",
     tier3Point3: "A frank view on whether the card is worth submitting at all",
+    // Hand-off between the two brands' services pages. {businessName} is the
+    // brand being pointed *at*, so an operator renaming either one renames it
+    // in this copy too.
+    crossToCareTitle: "Already own the card? {businessName} looks after it",
+    crossToCareBody:
+      "Analysis tells you whether a card is worth submitting. {businessName} is the other half: storage and handling advice, surface cleaning, honest restoration consultations, and packing a card properly for the journey.",
+    crossToLabTitle: "Not sure it's worth grading yet? Start with {businessName}",
+    crossToLabBody:
+      "Before paying to have a card graded, {businessName} measures centering, corners, edges and surface, and tells you how the major companies are likely to treat it — so you find out before the fee, not after.",
+    crossCta: "See {businessName} services",
     tier4Name: "Restorations",
     tier4Body:
       "Some problems can be improved; many cannot, and some attempts make things worse. The consultation is free precisely so nobody pays to be told no.",

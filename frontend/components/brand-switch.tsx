@@ -1,42 +1,50 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ButtonGroup } from "@heroui/react";
 import Button from "@/components/Button";
 import { useBranding } from "@/lib/branding-context";
-import { brandFromPathname, CARE_PREFIX } from "@/lib/brand";
+import { CARE_PREFIX, storeBrand, type Brand } from "@/lib/brand";
+import { useBrand } from "@/lib/use-brand";
 
 /**
  * Switches between the two public sections.
  *
  * Shaped like LocaleSwitch and ThemeSwitch so the header reads as one set of
- * controls, but unlike those two this changes the route rather than a stored
- * preference -- the brand is derived from the URL (see lib/brand.ts). Both
- * names come from Settings, so an operator renaming either one in admin
- * renames it here.
+ * controls. Unlike those two it also changes the route, because each brand has
+ * its own landing page -- but it persists the choice as well, so leaving for a
+ * page both brands share (About, Services, the dashboard) keeps the palette
+ * you picked.
  *
- * No mounted-guard is needed: unlike locale and theme, nothing here is read
- * from localStorage, so the server and the client agree on first render.
+ * Both names come from Settings, so renaming either in admin renames it here.
  */
 export default function BrandSwitch() {
-  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const { business_name, care_business_name } = useBranding();
-  const brand = brandFromPathname(pathname);
+  const brand = useBrand();
+
+  function select(next: Brand) {
+    // Persisted before navigating so the destination resolves to the new
+    // brand on arrival rather than reading the previous one for a frame.
+    storeBrand(next);
+    router.push(next === "care" ? CARE_PREFIX : "/");
+  }
 
   return (
     <ButtonGroup size="sm">
       <Button
         variant={brand === "lab" ? "primary" : "outline"}
-        onPress={() => router.push("/")}
+        onPress={() => select("lab")}
         aria-pressed={brand === "lab"}
+        className="whitespace-nowrap"
       >
         {business_name}
       </Button>
       <Button
         variant={brand === "care" ? "primary" : "outline"}
-        onPress={() => router.push(CARE_PREFIX)}
+        onPress={() => select("care")}
         aria-pressed={brand === "care"}
+        className="whitespace-nowrap"
       >
         {care_business_name}
       </Button>
