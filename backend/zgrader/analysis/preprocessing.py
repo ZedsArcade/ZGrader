@@ -21,7 +21,13 @@ def load_image(path: str | Path) -> np.ndarray:
 
 
 def _largest_contour(binary: np.ndarray) -> np.ndarray | None:
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # CHAIN_APPROX_NONE, not SIMPLE. SIMPLE compresses a straight run to its
+    # two endpoints, which is exactly the wrong thing here: a cleanly cut card
+    # is mostly straight runs, so its boundary arrived as a handful of points
+    # and geometry.py had nothing to fit a line through. The corner and area
+    # figures derived below are identical either way; this only keeps the
+    # points in between, which is where edge roughness lives.
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     if not contours:
         return None
     return max(contours, key=cv2.contourArea)
@@ -41,12 +47,15 @@ def _order_points(pts: np.ndarray) -> np.ndarray:
 
 def warp_to_points(image: np.ndarray, box: np.ndarray) -> np.ndarray:
     """Perspective-warp `image` so the quadrilateral `box` (4 points, any
-    order) becomes an axis-aligned rectangle. Point-agnostic: used both for
-    an auto-detected box (detect_boundary) and for a user-confirmed crop
-    (ScanImage.crop_points from the manual crop-adjust UI) -- the same
-    homography corrects in-plane rotation and true keystone/perspective
-    distortion together, so a separate "deskew"/"tilt" step is unnecessary
-    once real corner points are known.
+    order) becomes an axis-aligned rectangle. The homography corrects in-plane
+    rotation and true keystone/perspective distortion together, so a separate
+    "deskew"/"tilt" step is unnecessary once real corner points are known.
+
+    **Not the analysis path.** The output size comes from the quad's own edge
+    lengths, so px/mm varies per scan and the card's true 63:88 aspect is never
+    imposed -- `rectify` exists because both of those matter. This remains for
+    the crop-preview and boundary-suggestion flows, which want to show a user
+    exactly the quad they supplied.
     """
     rect = _order_points(box)
     (tl, tr, br, bl) = rect
@@ -146,6 +155,11 @@ def detect_boundary(
         "rect_angle": rect_angle,
         "box_points": box.tolist(),
         "contour_area_px": float(cv2.contourArea(contour)),
+        # The boundary itself, not just its four-point summary. geometry.py
+        # fits a line to each side from these; the quad above only decides
+        # which points belong to which side. Never persisted -- `info` is
+        # discarded by every caller but this one.
+        "contour": contour.reshape(-1, 2).astype(np.float64),
     }
     return box, info
 
@@ -183,9 +197,202 @@ def locate_and_deskew(
     image: np.ndarray, min_area_fraction: float = 0.15, max_area_fraction: float = 0.95
 ) -> tuple[np.ndarray, dict]:
     """Convenience wrapper: detect the boundary and warp to it in one call.
-    Used by the migration backfill and the operator flatbed-drop path
-    (zgrader.worker.watcher._register_new_scans), which auto-confirm a
-    scan's crop_points at registration time rather than routing through the
-    manual crop-adjust UI."""
+
+    Predates `rectify` and shares its shortcomings (see warp_to_points): no
+    canonical scale, no line fitting, no aspect correction. Kept because the
+    migration backfill and a good deal of the test suite want a plain deskewed
+    card without needing to know the physical dimensions. Nothing in the
+    analysis pipeline should call it."""
     box, info = detect_boundary(image, min_area_fraction, max_area_fraction)
     return warp_to_points(image, box), info
+
+
+# --- Canonical rectification -------------------------------------------------
+#
+# Everything above produces a card image whose size comes from the detected
+# quad's own edge lengths, so px/mm varies per scan and the card's true
+# 63:88 aspect -- a known physical fact -- is never used. What follows fixes
+# both: the output raster is the card's real shape, and its scale is one
+# number rather than an average of two axes that can disagree.
+
+#: How far outside the supplied crop to look for the real card boundary, as a
+#: fraction of the crop's size. Thresholding needs to see backing on both
+#: sides of the edge, so the region of interest must contain some; a crop
+#: placed exactly on the boundary would otherwise leave nothing to detect
+#: against. Generous enough to recover a crop dragged well inside the card.
+ROI_MARGIN_FRACTION = 0.10
+
+#: Fractional deviation from the card's true aspect ratio beyond which the
+#: measured region is reported as not card-shaped.
+#:
+#: ARBITRARY, but bounded by measurement rather than picked. Across the fixture
+#: set the legitimate captures land at 0.0002-0.0005, the deliberately bad one
+#: at 0.036, and the tilted one at 0.049 -- perspective survives the
+#: opposite-edge averaging in _canonical_size more than expected, and that is
+#: the number the threshold has to clear. At 0.12 it sits about 2.5x above the
+#: worst honest fixture, which means it catches a crop wrong by roughly an
+#: eighth of a card dimension (about 8mm across) and nothing subtler.
+#:
+#: That is a coarse net on purpose. It is a second signal, not the primary
+#: one: a crop this pipeline could not verify already carries
+#: GEOMETRY_UNVERIFIED regardless of its shape.
+MAX_ASPECT_DEVIATION = 0.12
+
+
+class RectifiedCard:
+    """A deskewed card plus the provenance of the geometry that produced it.
+
+    `px_per_mm` here is exact rather than inferred: the output raster was
+    *built* at that scale from the card's known physical size, so it is no
+    longer an average of two axis measurements that a bad crop can pull apart.
+    """
+
+    def __init__(
+        self,
+        image: np.ndarray,
+        px_per_mm: float,
+        geometry: dict,
+        limitations: tuple[str, ...],
+    ):
+        self.image = image
+        self.px_per_mm = px_per_mm
+        self.geometry = geometry
+        self.limitations = limitations
+
+
+def _expand_roi(quad: np.ndarray, shape: tuple[int, int]) -> tuple[int, int, int, int]:
+    h, w = shape[:2]
+    x0, y0 = quad.min(axis=0)
+    x1, y1 = quad.max(axis=0)
+    margin_x = (x1 - x0) * ROI_MARGIN_FRACTION
+    margin_y = (y1 - y0) * ROI_MARGIN_FRACTION
+    return (
+        int(max(0, np.floor(x0 - margin_x))),
+        int(max(0, np.floor(y0 - margin_y))),
+        int(min(w, np.ceil(x1 + margin_x))),
+        int(min(h, np.ceil(y1 + margin_y))),
+    )
+
+
+def _canonical_size(
+    apexes: np.ndarray, width_mm: float, height_mm: float
+) -> tuple[int, int, float, float, float]:
+    """Output raster dimensions, its px/mm, and the observed aspect deviation.
+
+    The scale is the *larger* of the two axes' observed resolutions, so the
+    better-resolved axis is never thrown away -- a perspective warp resamples
+    regardless, and discarding real detail to avoid interpolating some is the
+    wrong trade.
+    """
+    tl, tr, br, bl = apexes
+    # Opposite edges averaged rather than maxed: under perspective the near
+    # edge is longer and the far edge shorter by roughly the same factor, so
+    # the mean is much closer to the true dimension than either one.
+    width_px = 0.5 * (np.linalg.norm(tr - tl) + np.linalg.norm(br - bl))
+    height_px = 0.5 * (np.linalg.norm(bl - tl) + np.linalg.norm(br - tr))
+
+    # A card scanned sideways is still a card. Without this the canonical
+    # raster would squash a landscape capture into portrait and every
+    # millimetre figure downstream would be wrong by the aspect ratio.
+    if width_mm != height_mm:
+        upright = abs((width_px / max(1e-6, height_px)) - (width_mm / height_mm))
+        sideways = abs((width_px / max(1e-6, height_px)) - (height_mm / width_mm))
+        if sideways < upright:
+            width_mm, height_mm = height_mm, width_mm
+
+    px_per_mm = max(width_px / width_mm, height_px / height_mm)
+    observed_aspect = width_px / max(1e-6, height_px)
+    expected_aspect = width_mm / height_mm
+    deviation = abs(observed_aspect / expected_aspect - 1.0)
+
+    out_w = max(2, int(round(width_mm * px_per_mm)))
+    out_h = max(2, int(round(height_mm * px_per_mm)))
+    return out_w, out_h, px_per_mm, deviation, expected_aspect
+
+
+def rectify(
+    image: np.ndarray,
+    width_mm: float,
+    height_mm: float,
+    roi_quad: np.ndarray | None = None,
+) -> RectifiedCard:
+    """Deskew to a canonical raster, fitting the card's edges to find it.
+
+    When `roi_quad` is given -- the customer's four dragged crop handles -- it
+    is used as a *hint* about where to look, never as the geometry itself. The
+    old behaviour warped straight to those handles, which made every
+    measurement a function of where someone dropped a corner: half a
+    millimetre inside the card and the damage is cropped away before anything
+    sees it. The crop still does the job it exists for (rejecting background
+    and neighbouring cards); it just no longer decides where the card's edges
+    are.
+
+    Falling back to the supplied quad is not silent. `limitations` carries
+    GEOMETRY_UNVERIFIED, and the caller attaches it to the categories that
+    depend on the boundary being right.
+    """
+    from zgrader.analysis import assessment, geometry
+
+    offset = np.zeros(2)
+    search = image
+    if roi_quad is not None:
+        roi_quad = np.asarray(roi_quad, dtype=np.float64).reshape(4, 2)
+        x0, y0, x1, y1 = _expand_roi(roi_quad, image.shape)
+        if x1 - x0 >= 8 and y1 - y0 >= 8:
+            search = image[y0:y1, x0:x1]
+            offset = np.array([x0, y0], dtype=np.float64)
+
+    limitations: list[str] = []
+    fitted = None
+    try:
+        box, info = detect_boundary(search)
+        fitted = geometry.fit_card_geometry(search, info["contour"], box)
+    except ValueError:
+        box = None
+
+    if fitted is not None:
+        apexes = fitted.apexes + offset
+        geometry_block = fitted.as_dict()
+        # The fit ran inside the region of interest, so its apexes are in ROI
+        # coordinates. The warp above already adds the offset; the recorded
+        # copy has to as well, or the stored geometry describes a card
+        # somewhere else in the photo whenever a crop was supplied.
+        geometry_block["apexes"] = [
+            [round(float(x), 2), round(float(y), 2)] for x, y in apexes
+        ]
+    elif roi_quad is not None:
+        # Detection failed inside the region of interest, or the fit was not
+        # trustworthy. The customer's crop is the only geometry left, so it
+        # stands -- and every category that depends on the boundary is told
+        # that is what happened.
+        apexes = _order_points(roi_quad.astype("float32")).astype(np.float64)
+        geometry_block = {"method": "user_crop", "apexes": apexes.round(2).tolist(), "sides": {}}
+        limitations.append(assessment.GEOMETRY_UNVERIFIED)
+    elif box is not None:
+        apexes = _order_points(box).astype(np.float64) + offset
+        geometry_block = {"method": "coarse_quad", "apexes": apexes.round(2).tolist(), "sides": {}}
+        limitations.append(assessment.GEOMETRY_UNVERIFIED)
+    else:
+        raise ValueError(
+            "Could not locate a card-sized region in the scan -- check scanner "
+            "backing contrast and that the card is fully within the scan bed."
+        )
+
+    out_w, out_h, px_per_mm, deviation, expected = _canonical_size(apexes, width_mm, height_mm)
+    if deviation > MAX_ASPECT_DEVIATION:
+        # The region being measured is not the shape of a card. Usually a crop
+        # placed short on one axis; occasionally a detection that caught the
+        # scanner lid. Either way every millimetre figure derived from it is
+        # scaled wrong, and saying so beats reporting them to two decimals.
+        limitations.append(assessment.GEOMETRY_ASPECT_MISMATCH)
+
+    destination = np.array(
+        [[0, 0], [out_w - 1, 0], [out_w - 1, out_h - 1], [0, out_h - 1]], dtype="float32"
+    )
+    matrix = cv2.getPerspectiveTransform(apexes.astype("float32"), destination)
+    card = cv2.warpPerspective(image, matrix, (out_w, out_h))
+
+    geometry_block["px_per_mm"] = round(float(px_per_mm), 3)
+    geometry_block["aspect_deviation"] = round(float(deviation), 4)
+    geometry_block["expected_aspect"] = round(float(expected), 4)
+    return RectifiedCard(card, float(px_per_mm), geometry_block, tuple(limitations))

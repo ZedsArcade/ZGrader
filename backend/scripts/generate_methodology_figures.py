@@ -37,14 +37,21 @@ from zgrader.analysis.centering import measure_centering  # noqa: E402
 from zgrader.analysis.corners import corner_crops, measure_corners  # noqa: E402
 from zgrader.analysis.creases import detect_creases  # noqa: E402
 from zgrader.analysis.edges import measure_edges  # noqa: E402
-from zgrader.analysis.preprocessing import locate_and_deskew  # noqa: E402
+from zgrader.analysis.preprocessing import rectify  # noqa: E402
 from zgrader.analysis.regions import build_regions  # noqa: E402
 from zgrader.analysis.surface import measure_surface  # noqa: E402
 
-# Card geometry. 300 px/inch is plenty for a figure that renders ~700px wide
-# on the page, and keeps the committed figures small.
+# Card geometry. The figures are downscaled to ~720px before being written,
+# so this only sets the resolution the detectors see -- and that has to clear
+# the pipeline's own comfortable-capture threshold (see
+# capture.RESOLUTION_COMFORTABLE_PX_PER_MM, 25 px/mm). At the previous 300dpi
+# the demonstration card sat at 11.8 px/mm, below even the hard floor, so the
+# pipeline declined to score the corners and edges of the very card published
+# to illustrate how it scores corners and edges. 800dpi is 31.5 px/mm, clear
+# of both, and the committed JPEGs are unchanged in size because of the
+# downscale.
 CARD_W_MM, CARD_H_MM = 63.0, 88.0
-RENDER_DPI = 300
+RENDER_DPI = 800
 
 FLAG = (220, 30, 30)
 ACCENT = (0, 140, 200)
@@ -408,12 +415,17 @@ def generate(output_dir: Path) -> dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     scan = build_demo_scan()
-    card, _info = locate_and_deskew(scan)
-    px_per_mm = scale.px_per_mm(card.shape[:2], CARD_W_MM, CARD_H_MM)
+    # The same entry point the pipeline uses, not locate_and_deskew. These
+    # figures are published as a description of the shipped detector, so
+    # drawing them from a preprocessing path production no longer takes would
+    # make the /methodology page describe software that does not exist.
+    rectified = rectify(scan, CARD_W_MM, CARD_H_MM)
+    card = rectified.image
+    px_per_mm = rectified.px_per_mm
 
     centering = measure_centering(card, px_per_mm)
-    corners = measure_corners(card)
-    edges = measure_edges(card)
+    corners = measure_corners(card, px_per_mm=px_per_mm)
+    edges = measure_edges(card, px_per_mm=px_per_mm)
     surface, mask = measure_surface(card)
     creases = detect_creases(card, px_per_mm)
 

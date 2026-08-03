@@ -12,7 +12,7 @@ already covered by its own tests.
 
 import numpy as np
 
-from zgrader.analysis import centering, corners, edges, preprocessing, scale, surface
+from zgrader.analysis import centering, corners, edges, preprocessing, surface
 
 # Rounded before comparison. Small enough to catch a real retune, loose enough
 # that a different OpenCV or BLAS build doesn't produce phantom drift on the
@@ -31,14 +31,29 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
     "corners.per_corner.top_left.whitening_score" is a useful failure message;
     "corners changed" is not.
     """
-    card, _info = preprocessing.locate_and_deskew(image)
-    px_per_mm = scale.px_per_mm(card.shape[:2], width_mm, height_mm)
+    # The same entry point the pipeline uses, so the harness measures what
+    # ships. No roi_quad: a fixture has no customer crop, and passing one would
+    # test the hint path rather than detection.
+    rectified = preprocessing.rectify(image, width_mm, height_mm)
+    card = rectified.image
+    px_per_mm = rectified.px_per_mm
 
     metrics: dict[str, float] = {
         "px_per_mm": _round(px_per_mm),
         "card_height_px": float(card.shape[0]),
         "card_width_px": float(card.shape[1]),
+        # Geometry drifts before scores do -- a change to the edge fit shows up
+        # here as a moved apex or a changed roughness long before it has moved
+        # a category score enough to notice.
+        "geometry.fitted": float(rectified.geometry["method"] == "ransac"),
+        "geometry.aspect_deviation": _round(rectified.geometry["aspect_deviation"]),
+        "geometry.limitation_count": float(len(rectified.limitations)),
     }
+    for name, side in sorted(rectified.geometry.get("sides", {}).items()):
+        metrics[f"geometry.{name}.inlier_fraction"] = _round(side["inlier_fraction"])
+        metrics[f"geometry.{name}.roughness_px"] = _round(side["roughness_px"])
+        metrics[f"geometry.{name}.max_excursion_px"] = _round(side["max_excursion_px"])
+        metrics[f"geometry.{name}.bow_px"] = _round(side["bow_px"])
 
     def _record_assessment(prefix: str, result: dict) -> None:
         """Confidence and the interval are customer-visible claims, so drift in

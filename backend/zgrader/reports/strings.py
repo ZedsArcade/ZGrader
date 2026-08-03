@@ -184,6 +184,15 @@ LIMITATION_LABELS = {
             "The card occupies enough pixels to show obvious damage but not enough to "
             "judge fine wear, so this reading is held to a wider range."
         ),
+        "geometry_unverified": (
+            "The card's edges could not be located automatically, so measurements were "
+            "taken from the submitted crop instead. If that crop sits slightly inside or "
+            "outside the card, every distance measured from it shifts with it."
+        ),
+        "geometry_aspect_mismatch": (
+            "The measured area is not the shape of a card, which means the millimetre "
+            "figures on this report are scaled wrong on at least one axis."
+        ),
     },
     "es": {
         "surface_diffuse_light": (
@@ -212,6 +221,15 @@ LIMITATION_LABELS = {
             "La carta ocupa píxeles suficientes para mostrar daños evidentes pero no "
             "para juzgar el desgaste fino, así que esta lectura se mantiene en un rango "
             "más amplio."
+        ),
+        "geometry_unverified": (
+            "No se pudieron localizar automáticamente los filos de la carta, así que las "
+            "medidas se tomaron del recorte enviado. Si ese recorte queda algo por dentro "
+            "o por fuera de la carta, toda distancia medida desde él se desplaza con él."
+        ),
+        "geometry_aspect_mismatch": (
+            "El área medida no tiene la forma de una carta, lo que significa que las "
+            "cifras en milímetros de este informe están mal escaladas en al menos un eje."
         ),
     },
 }

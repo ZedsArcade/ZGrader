@@ -151,6 +151,10 @@ export const en = {
         "The card is too small in this photo for wear at this scale to be visible — a closer photo would let it be measured.",
       capture_modest_resolution:
         "Big enough in frame to show obvious damage, not to judge fine wear — so this reading is held to a wider range.",
+      geometry_unverified:
+        "The card's edges couldn't be located automatically, so this was measured from the submitted crop instead.",
+      geometry_aspect_mismatch:
+        "The measured area isn't the shape of a card, so the millimetre figures are scaled wrong on at least one axis.",
     },
     comparisonTitle: "Multi-company comparison",
     comparisonSubtitle:
@@ -277,8 +281,11 @@ export const en = {
     fileTooLarge: "That image is too large.",
   },
   cropAdjust: {
-    title: "Confirm the card's corners",
-    instructions: "Drag the 4 handles onto the exact corners of the card, then confirm.",
+    title: "Confirm which card to analyse",
+    // No longer "the exact corners". The handles used to be the geometry every
+    // measurement was taken from, so precision mattered; they are now a hint
+    // about where to look, and the edges are found from the card itself.
+    instructions: "Drag the 4 handles roughly onto the card's corners, then confirm. They don't need to be exact — the card's edges are found automatically.",
     confirmButton: "Confirm crop",
     confirming: "Confirming…",
     loadFailed: "Couldn't load the photo for cropping.",
@@ -442,7 +449,7 @@ export const en = {
       "Tell us the game and the card. It takes a moment, and it gives your card a reference code you can track.",
     step2Title: "Add a photo, or send the card",
     step2Body:
-      "Upload a clear, flat photo of the front (and the back if you have it), or send the card in and we'll scan it properly. You'll confirm the crop so the measurements are taken from the card itself, not the background.",
+      "Upload a clear, flat photo of the front (and the back if you have it), or send the card in and we'll scan it properly. You'll confirm a rough crop so we know which card in the photo you mean; the exact edges are then found automatically, so the crop doesn't have to be perfect.",
     step3Title: "The analysis runs",
     step3Body:
       "Centering is measured from the border widths, corners and edges are checked for whitening and wear, and the surface is scanned for scratches and creases. It usually takes moments.",
@@ -458,7 +465,7 @@ export const en = {
       "Centering is measured and is the most reliable of the four. Corners and edges are good. Surface is the weakest: a flatbed scan uses diffuse light, while a grading company uses raking light that casts shadows along scratches, so faint surface defects can be missed and print texture can occasionally be flagged.",
     faq3Q: "Why did it flag something that isn't there?",
     faq3A:
-      "Usually text or print texture read as a scratch, or a crop that clipped into the card. You can dismiss any finding you disagree with. Where the remaining findings still support a score, it updates immediately; where dismissing leaves nothing to measure from, the original measurement stands rather than jumping to a perfect score. The report then carries a clear notice that it was adjusted by you.",
+      "Usually text or print texture read as a scratch. You can dismiss any finding you disagree with. Where the remaining findings still support a score, it updates immediately; where dismissing leaves nothing to measure from, the original measurement stands rather than jumping to a perfect score. The report then carries a clear notice that it was adjusted by you.",
     faq4Q: "What if the photo isn't perfect?",
     faq4A:
       "Photograph the card flat, straight on, filling most of the frame, in even light with no glare. You'll get a chance to adjust the crop before the analysis runs, and there's a snap-to-edge helper if your corners aren't quite right.",
@@ -483,7 +490,7 @@ export const en = {
 
     prepTitle: "Before anything is measured",
     prepBody:
-      "The card is found in the photo, straightened, and cropped to its own edges -- you confirm that crop yourself, because every measurement afterwards is taken from it. Scale then comes from the card's real physical size, not from the image file. A phone photo's stored DPI has nothing to do with how many pixels cover the card, so we work from the fact that a standard card is 63mm by 88mm. That's why the report gives you millimetres you can check with a ruler.",
+      "The card is found in the photo, straightened, and cropped to its own edges. A line is fitted along each of the four sides, using the straight parts and ignoring the corners, and the four corner points come from where those lines cross -- so a corner with a piece missing still has a known ideal tip to measure the loss against. The lines are placed to a fraction of a pixel, which matters because a whole pixel is already a meaningful share of the wear being measured. The crop you confirm tells us where to look, but it doesn't decide where the card's edges are; that comes from the card. Scale then comes from the card's real physical size, not from the image file. A phone photo's stored DPI has nothing to do with how many pixels cover the card, so we work from the fact that a standard card is 63mm by 88mm. That's why the report gives you millimetres you can check with a ruler.",
 
     centeringTitle: "Centering",
     centeringMeasures: "What it measures",

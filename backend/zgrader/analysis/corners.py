@@ -2,32 +2,34 @@
 saturation drop-off from the tip inward, since worn corners fray to the white
 cardstock underneath.
 
-WHY ROUNDING IS NO LONGER SCORED
+WHY ROUNDING IS STILL NOT SCORED
 --------------------------------
 This module used to derive a second sub-score, `rounding_score`, from how much
 scanner backing (near-black) bled into the pixel at crop[0, 0]. That reasoning
-only holds when crop[0, 0] is the card's *ideal* sharp-corner apex, which is
-true when preprocessing.locate_and_deskew produced the crop -- it warps the
-card's tightest bounding rectangle onto the output image's corners, so a
-rounded or chipped corner leaves backing visible at the apex.
+only holds when crop[0, 0] is the card's *ideal* sharp-corner apex, so that a
+rounded or chipped corner leaves backing visible there.
 
-But that is not the production path. pipeline._load_deskewed_card warps to
-ScanImage.crop_points, and for every self-serve upload those points come from
-the customer dragging four handles in the crop-adjust UI (see
-api/routers/submissions.py's upload_scan and the confirm-crop flow). So the
-measurement became a function of where the customer dropped a handle, not of
-the card: crop a hair inside the card and every corner reads 10.0 regardless
-of damage; crop a hair outside and every corner reads 0.0. It was half of each
-corner's score and therefore half of this category's score.
+It was removed because that premise was false in production: the pipeline
+warped to ScanImage.crop_points, and for every self-serve upload those points
+were four handles the customer dragged. The measurement was a function of
+where someone dropped a handle, not of the card -- crop a hair inside and
+every corner read 10.0 regardless of damage; a hair outside and every corner
+read 0.0 -- and it was half of this category's score.
 
-It is kept below as an unscored diagnostic (`backing_bleed_fraction`,
-`rounding_score`) because it is still meaningful on the operator flatbed path,
-where the watcher auto-confirms crop_points from detect_boundary -- but
-nothing on the row records which path produced the crop, so it cannot be
-trusted for scoring. Real material-loss measurement (corner area deficit in
-mm^2, measured against apexes recovered by RANSAC line fitting) replaces it
-properly in a later phase; until then this category deliberately measures
-whitening only and says so in its flags.
+**The premise now holds again.** preprocessing.rectify warps to apexes that
+geometry.py obtains by intersecting lines fitted to the four sides, with a
+margin excluded at each end, so the apex is where the corner *would* be if it
+were perfect and a chipped corner genuinely does leave backing at crop[0, 0].
+The customer's crop is only a region-of-interest hint.
+
+It stays unscored anyway, and deliberately. `10 - 12 * backing_fraction` is an
+uncalibrated guess at what a given amount of missing material is worth, and
+the whole point of restoring the apexes is to measure that loss properly --
+corner area deficit in mm^2 against the known apex, which is the next phase.
+Re-enabling the old heuristic in the meantime would put a number back in front
+of customers on the strength of a constant nobody derived. So this category
+still measures whitening only and still says so in its flags;
+`backing_bleed_fraction` remains a diagnostic, now a trustworthy one.
 
 Heuristic v1: thresholds are starting points to be tuned against real sample
 scans, not derived from an official published methodology.

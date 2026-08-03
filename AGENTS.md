@@ -23,9 +23,22 @@ training data, so read `node_modules/next/dist/docs/` before writing frontend co
 
 These were each arrived at the hard way and are cheap to break by accident.
 
-**Scale comes from the card's physical size, never image DPI.** `analysis/scale.py` divides pixels
-per card by millimetres per card. A phone photo's EXIF DPI bears no relation to how many pixels
-cover the card — using it once reported a 244mm crease on an 88mm-tall card.
+**Scale comes from the card's physical size, never image DPI.** A phone photo's EXIF DPI bears no
+relation to how many pixels cover the card — using it once reported a 244mm crease on an 88mm-tall
+card. `preprocessing.rectify` now enforces this by construction: it *builds* the card raster at a
+chosen px/mm from the known millimetre dimensions, so the scale is definitional rather than
+measured back off the image. `analysis/scale.py`'s `px_per_mm` is the older measured form, still
+correct but no longer on the analysis path.
+
+**Measurement geometry comes from fitted card edges, never from the customer's crop.**
+`analysis/geometry.py` fits a RANSAC line to each side — excluding a margin at both ends, so
+intersecting adjacent lines recovers the *ideal* apex even where a corner is chipped — and
+`preprocessing.rectify` warps to those apexes. `ScanImage.crop_points` is passed in as a
+region-of-interest hint and nothing more. It used to be the geometry itself, which made every
+number a function of where four handles were dragged: a crop half a millimetre inside the card
+removed the damage from the image before any detector saw it. When the fit has to fall back to the
+supplied crop, the result carries `GEOMETRY_UNVERIFIED` and every category's confidence is halved —
+that fallback must never become silent.
 
 **Emails are stored lowercased behind a unique index on `lower(email)`.** Every user lookup must
 compare with `func.lower(...)` — see `_find_by_email` in `api/routers/auth.py`. A single
@@ -107,6 +120,12 @@ ends in `_test`, and it forces the scans/reports directories to a fresh temp dir
 rather than honouring the environment. Neither is decoration — without the first, a typo drops the
 production schema; without the second, any shell with `ZGRADER_SCANS_DIR` exported deletes customer
 scans.
+
+**Only one suite at a time against a given database.** The per-run temp directories make the
+*files* concurrency-safe and it is easy to read that as the whole story, but the schema is shared:
+a second pytest process deletes rows out from under the first. It surfaces as an
+`ObjectDeletedError` on an unrelated row in whichever run lost the race — which reads exactly like
+a product bug. If you need two at once, give the second its own `ZGRADER_TEST_DATABASE_URL`.
 
 `zgrader_test` is pytest's scratch space and nothing else. `conftest` builds it with
 `create_all`, so it lacks the raw-SQL indexes the migrations create (`ix_users_email_lower`) — it is

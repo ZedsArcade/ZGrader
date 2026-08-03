@@ -110,6 +110,8 @@ def _persist_side(
     side: ScanSide,
     card_image: np.ndarray,
     px_per_mm: float,
+    geometry: dict | None = None,
+    geometry_limitations: tuple[str, ...] = (),
 ) -> dict[AnalysisCategory, dict]:
     reports_dir.mkdir(parents=True, exist_ok=True)
     results: dict[AnalysisCategory, dict] = {}
@@ -129,6 +131,21 @@ def _persist_side(
 
     for category, analyzer in _ANALYZERS.items():
         result, extra = analyzer(card_image, px_per_mm)
+        # Geometry is established once per scan, not once per category, so it
+        # is folded in here rather than threaded through four analyser
+        # signatures to be used the same way in each. It only devalues a
+        # reading; it never rescues one.
+        if geometry_limitations:
+            result["measurements"]["assessment"] = assessment.with_limitations(
+                result["measurements"].get("assessment"),
+                geometry_limitations,
+                result["raw_score"],
+            )
+        if geometry is not None:
+            # Unscored, and stored on every category because each one measures
+            # from this boundary. The per-side residuals are what a later phase
+            # turns into an edge-roughness channel.
+            result["measurements"]["card_geometry"] = geometry
         image = _annotate_category(category, card_image, result, extra)
         image_path = reports_dir / f"{side.value}_{category.value}.png"
         image.save(image_path)
@@ -282,18 +299,22 @@ def _persist_combined(
         )
 
 
-def _load_deskewed_card(scan: ScanImage) -> np.ndarray:
+def _load_deskewed_card(
+    scan: ScanImage, width_mm: float, height_mm: float
+) -> preprocessing.RectifiedCard:
+    """Rectify one scan to a canonical raster.
+
+    The customer's crop points are passed as a region-of-interest hint, not as
+    the card's geometry. This used to warp straight to them, which made every
+    downstream measurement a function of where four handles were dragged: a
+    crop half a millimetre inside the card removed the damage from the image
+    before anything looked at it, and one half a millimetre outside put
+    scanner backing where the card's edge should be. The crop still rejects
+    background and neighbouring cards, which is what it is for.
+    """
     image = preprocessing.load_image(scan.file_path)
-    if scan.crop_points is not None:
-        points = np.array(scan.crop_points, dtype="float32")
-        return preprocessing.warp_to_points(image, points)
-    # Only reachable if boundary auto-detection failed at registration/
-    # migration-backfill time and crop_points stayed NULL -- run_analysis is
-    # otherwise only invoked once _advance_submission has confirmed this
-    # side via Submission.confirmed_sides, so crop_points is normally
-    # always set by this point.
-    card_image, _info = preprocessing.locate_and_deskew(image)
-    return card_image
+    roi = np.array(scan.crop_points, dtype="float32") if scan.crop_points is not None else None
+    return preprocessing.rectify(image, width_mm, height_mm, roi_quad=roi)
 
 
 def run_analysis(db: Session, submission: Submission) -> None:
@@ -319,7 +340,7 @@ def run_analysis(db: Session, submission: Submission) -> None:
     width_mm, height_mm = scale.dimensions_for(db, submission.card.game if submission.card else None)
 
     try:
-        front_card = _load_deskewed_card(front_scan)
+        front = _load_deskewed_card(front_scan, width_mm, height_mm)
     except ValueError as exc:
         raise PipelineError(f"Front scan preprocessing failed: {exc}") from exc
     front_results = _persist_side(
@@ -327,14 +348,19 @@ def run_analysis(db: Session, submission: Submission) -> None:
         submission,
         reports_dir,
         ScanSide.front,
-        front_card,
-        scale.px_per_mm(front_card.shape[:2], width_mm, height_mm),
+        front.image,
+        # Exact, not inferred: the raster was built at this scale from the
+        # card's known physical size, so it is no longer an average of two
+        # axis measurements that a bad crop can pull apart.
+        front.px_per_mm,
+        front.geometry,
+        front.limitations,
     )
 
     back_results = None
     if back_scan is not None:
         try:
-            back_card = _load_deskewed_card(back_scan)
+            back = _load_deskewed_card(back_scan, width_mm, height_mm)
         except ValueError as exc:
             raise PipelineError(f"Back scan preprocessing failed: {exc}") from exc
         back_results = _persist_side(
@@ -342,8 +368,10 @@ def run_analysis(db: Session, submission: Submission) -> None:
             submission,
             reports_dir,
             ScanSide.back,
-            back_card,
-            scale.px_per_mm(back_card.shape[:2], width_mm, height_mm),
+            back.image,
+            back.px_per_mm,
+            back.geometry,
+            back.limitations,
         )
 
     _persist_combined(db, submission, front_results, back_results)

@@ -218,7 +218,12 @@ async def upload_scan(
     self-serve photo is inconsistent, untrusted input (handheld angle,
     cluttered background), so the client must walk the user through the
     crop-adjust UI (GET .../suggest-crop, then POST .../confirm-crop) before
-    analysis runs."""
+    analysis runs.
+
+    Those points are a region-of-interest hint, not the geometry: the card's
+    edges are fitted from the image itself (see analysis/geometry.py), so the
+    crop selects which card in the photo is meant and rejects the background,
+    and no longer has to be placed accurately."""
     submission = _get_owned_submission(code, user, db)
 
     if submission.status not in _UPLOADABLE_STATUSES:

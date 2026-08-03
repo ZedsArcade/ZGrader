@@ -51,6 +51,10 @@ EDGES_PARTIAL = "edges_partial"
 CAPTURE_TOO_LOW_RESOLUTION = "capture_too_low_resolution"
 #: Enough resolution to spot gross damage, not enough to grade it finely.
 CAPTURE_MODEST_RESOLUTION = "capture_modest_resolution"
+#: The card's edges could not be fitted, so the boundary is the supplied crop.
+GEOMETRY_UNVERIFIED = "geometry_unverified"
+#: What was measured is not the shape of a card, so its scale is wrong.
+GEOMETRY_ASPECT_MISMATCH = "geometry_aspect_mismatch"
 
 ALL_LIMITATION_CODES = (
     SURFACE_DIFFUSE_LIGHT,
@@ -60,6 +64,8 @@ ALL_LIMITATION_CODES = (
     EDGES_PARTIAL,
     CAPTURE_TOO_LOW_RESOLUTION,
     CAPTURE_MODEST_RESOLUTION,
+    GEOMETRY_UNVERIFIED,
+    GEOMETRY_ASPECT_MISMATCH,
 )
 
 MEASURED = "measured"
@@ -88,6 +94,18 @@ CONFIDENCE_SURFACE = 0.4
 #: a white-bordered card photographed small is worse than either alone, and a
 #: fixed value would hide that.
 CONFIDENCE_MODEST_RESOLUTION_FACTOR = 0.6
+
+#: Applied when the card's boundary could not be fitted and a supplied crop
+#: stands in for it. ARBITRARY, and deliberately harsh: every distance these
+#: categories measure is measured *from* that boundary, so if it is in the
+#: wrong place the reading is not merely noisier, it is measuring a different
+#: line. Kept above zero because a hand-placed crop is usually close.
+CONFIDENCE_UNVERIFIED_GEOMETRY_FACTOR = 0.5
+
+#: Applied when the measured region is not card-shaped. Harsher still: the
+#: aspect error means the pixel-to-millimetre scale is wrong on at least one
+#: axis, so every figure in millimetres is wrong by a factor nobody knows.
+CONFIDENCE_ASPECT_MISMATCH_FACTOR = 0.35
 
 #: ARBITRARY. Below this mean HSV saturation (0-255) in a corner's reference
 #: region, the border is pale enough that "lost saturation" barely registers --
@@ -139,6 +157,51 @@ def measured(score: float, confidence: float, limitations: tuple[str, ...] = ())
         score_high=high,
         limitations=limitations,
     )
+
+
+#: How much each limitation that can be discovered *outside* a category costs
+#: that category's confidence. Kept as data so pipeline.py applies them in one
+#: pass rather than every analyser learning about geometry.
+EXTERNAL_LIMITATION_FACTORS = {
+    GEOMETRY_UNVERIFIED: CONFIDENCE_UNVERIFIED_GEOMETRY_FACTOR,
+    GEOMETRY_ASPECT_MISMATCH: CONFIDENCE_ASPECT_MISMATCH_FACTOR,
+}
+
+
+def with_limitations(
+    block: dict | None, codes: tuple[str, ...], score: float | None = None
+) -> dict | None:
+    """Attach limitations discovered after a category finished measuring.
+
+    Geometry is established once per scan, not once per category, so threading
+    it into all four analysers would put the same argument in four signatures
+    to be used the same way. This applies it in one place instead.
+
+    Confidence is multiplied, never overwritten -- a card whose corners were
+    already only a whitening estimate and whose boundary is also unverified is
+    worse off than either alone. An unmeasurable block keeps its zero
+    confidence and simply gains the codes: there is no reading to devalue, but
+    the reasons still belong in the record.
+    """
+    if block is None or not codes:
+        return block
+
+    updated = dict(block)
+    updated["limitations"] = sorted(set(block.get("limitations", ())) | set(codes))
+    if block["state"] != MEASURED:
+        return updated
+
+    confidence = block["confidence"]
+    for code in codes:
+        confidence *= EXTERNAL_LIMITATION_FACTORS.get(code, 1.0)
+    updated["confidence"] = round(confidence, 2)
+    # The interval has to follow the confidence, or a reading whose trust just
+    # halved keeps advertising the same precision. It is recomputed from the
+    # score rather than from the old interval's midpoint, because the interval
+    # is clamped to 0-10 and a score near either end is not at its midpoint.
+    if score is not None:
+        updated["score_low"], updated["score_high"] = interval_for(score, confidence)
+    return updated
 
 
 def unmeasurable(limitations: tuple[str, ...]) -> Assessment:
