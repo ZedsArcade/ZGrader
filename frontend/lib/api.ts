@@ -347,6 +347,19 @@ export interface Quota {
   resets_at: string | null;
 }
 
+/** Whether this deployment has Google sign-in configured. Asked before
+ *  rendering the button, so an install without an OAuth client shows no
+ *  button rather than one that dead-ends. */
+export async function getGoogleStatus(): Promise<{ enabled: boolean }> {
+  return request("/auth/google/status");
+}
+
+/** Full-page navigation, not fetch: the OAuth flow is a browser redirect to
+ *  Google and back, so it has to leave the SPA. */
+export function googleStartUrl(next = "/dashboard"): string {
+  return `${API_BASE}/auth/google/start?next=${encodeURIComponent(next)}`;
+}
+
 export async function getQuota(token: string): Promise<Quota> {
   return request("/submissions/quota", { headers: authHeaders(token) });
 }

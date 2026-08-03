@@ -1,11 +1,15 @@
 import uuid
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from zgrader.api.deps import get_current_user
+from zgrader.auth import google as google_oauth
+from zgrader.config import config
 from zgrader.api.ratelimit import (
     login_rate_limit,
     note_failed_login,
@@ -31,12 +35,13 @@ from zgrader.email.notifications import (
     send_password_reset_email,
     send_verification_email,
 )
-from zgrader.models import AuditLog, User, UserRole
+from zgrader.models import GOOGLE, AuditLog, Identity, User, UserRole
 from zgrader.models.settings import get_or_create_settings
 from zgrader.storage import purge_submission_files
 from zgrader.schemas.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    GoogleStatusOut,
     RegisterRequest,
     ResendVerificationRequest,
     ResetPasswordRequest,
@@ -168,10 +173,14 @@ def login(
     # form_data.username carries the email (OAuth2PasswordRequestForm's field
     # name is fixed to "username" by the spec it implements).
     user = _find_by_email(db, form_data.username)
-    if user is None:
+    if user is None or not user.has_usable_password:
         # Spend the same time a real password check costs. Short-circuiting
         # here would answer ~1000x faster for an unknown address, which is a
         # readable signal for whether an account exists.
+        #
+        # A Google-only account takes this branch too, and gets the identical
+        # message: saying "this address signs in with Google" would confirm
+        # the address is registered to anyone who guessed it.
         waste_password_comparison()
         note_failed_login(request)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
@@ -230,6 +239,14 @@ def change_password(
 ) -> TokenResponse:
     """Requires the current password, so a borrowed session can't lock the
     real owner out."""
+    if not user.has_usable_password:
+        # A Google-only account has no current password to prove. Setting one
+        # goes through the reset-by-email flow instead, which proves control
+        # of the inbox rather than of a password that never existed.
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "This account signs in with Google. Use 'forgotten password' to set a password.",
+        )
     if not verify_password(payload.current_password, user.hashed_password):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Current password is incorrect")
 
@@ -314,3 +331,119 @@ def delete_account(
     for code in codes:
         purge_submission_files(code)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/google/status", response_model=GoogleStatusOut)
+def google_status() -> GoogleStatusOut:
+    """Whether this deployment offers Google sign-in.
+
+    The frontend asks before rendering the button, so an install that hasn't
+    registered an OAuth client shows no button rather than one that dead-ends
+    on a misconfiguration.
+    """
+    return GoogleStatusOut(enabled=config.google_enabled)
+
+
+@router.get("/google/start")
+def google_start(next: str = "/dashboard") -> RedirectResponse:
+    """Send the browser to Google's account chooser."""
+    if not config.google_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Google sign-in is not configured")
+    return RedirectResponse(
+        google_oauth.authorization_url(google_oauth.issue_state(next)),
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+    )
+
+
+def _google_failure(message: str) -> RedirectResponse:
+    """Hand the browser back to the login page with a readable reason.
+
+    Errors go in the query string rather than the fragment because they carry
+    nothing sensitive -- unlike the token on the success path below.
+    """
+    return RedirectResponse(
+        f"{config.site_url.rstrip('/')}/login?{urlencode({'oauth_error': message})}",
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+    )
+
+
+@router.get("/google/callback")
+def google_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    """Where Google returns the user.
+
+    Ends in a redirect either way, because the browser is here as a result of
+    a navigation -- returning JSON would leave the person looking at raw text.
+
+    On success the session token travels in the URL *fragment*. A fragment is
+    never sent to a server, so it stays out of access logs, proxy logs and the
+    Referer header, which a query parameter would not.
+    """
+    if not config.google_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Google sign-in is not configured")
+    if error or not code or not state:
+        # The user pressed cancel on Google's consent screen, or the callback
+        # was reached without a code.
+        return _google_failure("Google sign-in was cancelled.")
+
+    try:
+        next_path = google_oauth.verify_state(state)
+        subject, email = google_oauth.exchange_code_for_profile(code)
+    except google_oauth.GoogleAuthError as exc:
+        return _google_failure(str(exc))
+
+    identity = (
+        db.query(Identity)
+        .filter(Identity.provider == GOOGLE, Identity.provider_user_id == subject)
+        .first()
+    )
+
+    if identity is not None:
+        user = identity.user
+    else:
+        existing = _find_by_email(db, email)
+        if existing is not None:
+            # Refused rather than linked. Linking on a matching address is how
+            # an account gets taken over: anyone who can obtain a provider
+            # account bearing someone else's address inherits their account.
+            # Requiring the password proves the two are the same person.
+            return _google_failure(
+                "An account already exists for that email address. "
+                "Sign in with your password instead."
+            )
+        user = User(
+            email=email,
+            hashed_password=None,
+            # Google states the address is verified (checked during exchange),
+            # which is the same proof our own emailed link provides -- so this
+            # account skips the verification step rather than being stranded
+            # behind an SMTP setup it never needed.
+            is_verified=True,
+            role=UserRole.client,
+        )
+        db.add(user)
+        db.flush()
+        db.add(Identity(user_id=user.id, provider=GOOGLE, provider_user_id=subject))
+        db.add(
+            AuditLog(
+                submission_id=None,
+                user_id=user.id,
+                action="account_created_via_google",
+                detail={"email": email},
+            )
+        )
+
+    user.last_login_at = utcnow()
+    db.commit()
+
+    token = create_access_token(str(user.id), user.token_version)
+    base = config.site_url.rstrip("/")
+    return RedirectResponse(
+        f"{base}/auth/google#{urlencode({'token': token, 'next': next_path})}",
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+    )

@@ -296,6 +296,17 @@ export const es: Dictionary = {
     ctaTitle: "¿Tiene una carta que le genera dudas?",
     ctaBody: "Haga una revisión gratuita y vea el resultado antes de comprometerse a nada.",
   },
+  googleAuth: {
+    button: "Continuar con Google",
+    divider: "o",
+    signingIn: "Iniciando sesión…",
+    oneMoment: "Un momento mientras terminamos de iniciar su sesión.",
+    problemTitle: "No se completó el inicio de sesión",
+    missingToken: "Ese enlace no traía una sesión. Inténtelo de nuevo.",
+    failed: "No pudimos completar el inicio de sesión. Inténtelo de nuevo.",
+    backToLogin: "Volver a iniciar sesión",
+    errorPrefix: "Inicio de sesión con Google:",
+  },
   quota: {
     chipRemaining: "{n} análisis restantes",
     chipExhausted: "Sin análisis disponibles",

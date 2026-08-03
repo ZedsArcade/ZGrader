@@ -62,6 +62,13 @@ class UpdateProfileRequest(BaseModel):
     marketing_consent: bool | None = None
 
 
+class GoogleStatusOut(BaseModel):
+    """Whether this deployment has Google sign-in configured, so the frontend
+    can decide whether to render the button at all."""
+
+    enabled: bool
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
