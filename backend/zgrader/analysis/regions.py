@@ -349,6 +349,13 @@ def build_regions(
     px_per_mm comes from the card's physical size (see analysis/scale.py),
     not the image file's DPI metadata.
     """
+    if result["raw_score"] is None:
+        # An unscored category has no findings to break out. Every region
+        # carries a severity, and both values are claims: "ok" asserts that
+        # part of the card was checked and is clean, "flag" asserts a defect.
+        # Neither is available when the category declined to measure, and the
+        # reason is already carried by the assessment's limitation codes.
+        return []
     if category == AnalysisCategory.corners:
         return _build_corner_regions(card_shape, language, result)
     if category == AnalysisCategory.edges:

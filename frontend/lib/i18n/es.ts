@@ -142,6 +142,10 @@ export const es: Dictionary = {
       centering_no_frame:
         "No hay un borde impreso claro con el que medir: normal en cartas de ilustración completa.",
       edges_partial: "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
+      capture_too_low_resolution:
+        "La carta es demasiado pequeña en esta foto para que el desgaste a esta escala sea visible: una foto más cercana permitiría medirlo.",
+      capture_modest_resolution:
+        "Ocupa lo suficiente para mostrar daños evidentes, no para juzgar el desgaste fino, así que esta lectura se mantiene en un rango más amplio.",
     },
     comparisonTitle: "Comparación entre compañías",
     comparisonSubtitle:
