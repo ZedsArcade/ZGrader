@@ -132,6 +132,17 @@ export const es: Dictionary = {
     foilLabel: "Foil",
     lowerConfidence: "menor confiabilidad",
     unmeasurable: "No medible",
+    limitation: {
+      surface_diffuse_light:
+        "Iluminada de forma uniforme y no en ángulo, así que pueden pasarse por alto arañazos finos.",
+      corners_whitening_only:
+        "Solo decoloración: una esquina redondeada que no ha cambiado de color no se mide.",
+      corners_pale_border:
+        "Este borde es pálido, y el desgaste de esquinas se ve como pérdida de color, así que hay poco contraste.",
+      centering_no_frame:
+        "No hay un borde impreso claro con el que medir: normal en cartas de ilustración completa.",
+      edges_partial: "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
+    },
     comparisonTitle: "Comparación entre compañías",
     comparisonSubtitle:
       "Puntos de discrepancia que podrían afectar cómo cada compañía trata esta carta. Esto no es una calificación numérica predicha por ninguna compañía.",

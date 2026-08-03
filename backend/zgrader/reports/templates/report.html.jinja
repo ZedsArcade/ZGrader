@@ -45,12 +45,19 @@
           <td class="category-name">
             {{ category_labels[row.category] }}
             {%- if row.category in lower_confidence_categories %} <span class="lower-confidence-badge">{{ strings.lower_confidence_badge }}</span>{% endif %}
+            {#- What actually constrained this reading. Printed under the
+                category rather than as a footnote, so it sits next to the
+                number it qualifies instead of somewhere a reader can skip. -#}
+            {%- for note in row.limitation_notes %}
+            <div class="limitation-note">{{ note }}</div>
+            {%- endfor %}
           </td>
           <td>{{ '%.1f' % row.front_score if row.front_score is not none else '—' }}</td>
           <td>{{ '%.1f' % row.back_score if row.back_score is not none else '—' }}</td>
           <td class="combined-score">
             {%- if row.adjusted %}<span class="original-score">{{ strings.adjusted_original_prefix }} {{ '%.1f' % row.original_combined_score }}</span> {% endif -%}
-            {{ '%.1f' % row.combined_score if row.combined_score is not none else '—' }}
+            {%- if row.unmeasurable %}<span class="unmeasurable">{{ strings.unmeasurable }}</span>
+            {%- else %}{{ '%.1f' % row.combined_score if row.combined_score is not none else '—' }}{% endif -%}
             {%- if row.adjusted %} <span class="adjusted-tag">{{ strings.adjusted_title_suffix }}</span>{% endif -%}
           </td>
         </tr>

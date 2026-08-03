@@ -135,6 +135,19 @@ export const en = {
     // category. Deliberately not "0" or "N/A" -- it should read as a decision
     // we made, not as data that went missing.
     unmeasurable: "Not measurable",
+    // Keyed by the limitation codes in backend analysis/assessment.py. Stored
+    // as codes so the wording can change here without re-analysing any card.
+    limitation: {
+      surface_diffuse_light:
+        "Lit evenly rather than at an angle, so faint scratches can be missed.",
+      corners_whitening_only:
+        "Discolouration only — a rounded corner that hasn't changed colour isn't measured.",
+      corners_pale_border:
+        "This border is pale, and corner wear shows as a loss of colour, so there's little to see it against.",
+      centering_no_frame:
+        "No clear printed border to measure against — normal on full-art cards.",
+      edges_partial: "Some edges couldn't be sampled and were left out of this score.",
+    },
     comparisonTitle: "Multi-company comparison",
     comparisonSubtitle:
       "Points of contention that may affect how each company treats this card. This is not a predicted numeric grade from any company.",
