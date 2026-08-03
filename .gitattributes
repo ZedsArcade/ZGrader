@@ -1,0 +1,12 @@
+# Real card photographs used by the analysis drift harness are large binaries
+# that would otherwise bloat every clone forever. Only this directory is
+# tracked by LFS -- the synthetic fixtures are generated from code and the
+# committed sample scans are small, so neither needs it.
+#
+# Requires `git lfs install` on any machine that clones the repo, including
+# the deployment host. See backend/tests/fixtures/real_scans/README.md.
+backend/tests/fixtures/real_scans/*.jpg filter=lfs diff=lfs merge=lfs -text
+backend/tests/fixtures/real_scans/*.jpeg filter=lfs diff=lfs merge=lfs -text
+backend/tests/fixtures/real_scans/*.png filter=lfs diff=lfs merge=lfs -text
+backend/tests/fixtures/real_scans/*.tif filter=lfs diff=lfs merge=lfs -text
+backend/tests/fixtures/real_scans/*.tiff filter=lfs diff=lfs merge=lfs -text

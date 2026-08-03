@@ -46,6 +46,18 @@ diffusely; a grader uses raking light that casts a shadow along a scratch. Faint
 and printed text is sometimes flagged. Don't remove the caveat — it's load-bearing for trust and it's
 on the public `/methodology` page.
 
+**Every change under `analysis/` must be checked for per-fixture drift.** `scripts/fixture_drift.py`
+runs 22 synthetic fixtures — bordered, full-art, foil, white-bordered, damaged, and deliberately bad
+captures — through the detectors and diffs them against `tests/fixtures/drift_baseline.json`.
+`tests/test_fixture_drift.py` fails if anything moved, so it can't be forgotten. When a change is
+intended, `python scripts/fixture_drift.py --update` records it, and the resulting baseline diff is
+the reviewable statement of what the change did to each kind of card. This matters because an
+aggregate score hides the interesting case: a retune that sharpens bordered cards while wrecking
+full-art centering reads as an improvement until someone looks per fixture.
+
+Fixtures must stay deterministic — seed any noise — or the baseline reports drift that isn't there
+and everyone learns to ignore it.
+
 **Retuning an analysis threshold means regenerating the published figures.** `/methodology`
 describes the detector's behaviour to customers, illustrated by images produced by the real
 pipeline. After changing anything in `analysis/`, run
