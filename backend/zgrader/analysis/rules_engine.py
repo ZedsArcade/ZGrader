@@ -98,6 +98,14 @@ def evaluate(db: Session, submission: Submission) -> list[GradingCompanyComparis
                 severity_word=severity_words[severity],
             )
         elif rule.metric_key == "raw_score":
+            if result.raw_score is None:
+                # Unmeasurable. A missing measurement cannot be in or out of a
+                # company's tolerance, so this category simply produces no
+                # comparison row -- the same way an absent worse_side_pct is
+                # skipped above. Emitting "major" here would turn "we could not
+                # tell" into "this card has a problem", which is the exact
+                # confident-wrongness the nullable column exists to prevent.
+                continue
             raw_score = float(result.raw_score)
             severity = _severity_for_score(raw_score, rule.thresholds)
             category_word = CATEGORY_LABELS["es"][rule.category].lower() if is_es else rule.category

@@ -199,7 +199,10 @@ def _build_centering_regions(card_shape: tuple[int, int], language: str, result:
     h, w = card_shape
     is_es = language == "es"
     score = result["raw_score"]
-    if score >= _FLAG_THRESHOLD:
+    # No score means centering was unmeasurable, so there is no frame to draw
+    # and nothing to flag. Drawing a box would assert a measurement that was
+    # explicitly declined.
+    if score is None or score >= _FLAG_THRESHOLD:
         return []
 
     m = result["measurements"]

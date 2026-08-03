@@ -116,7 +116,14 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
         back = sides.get(AnalysisSide.back)
         if combined and combined.flags.get("lower_confidence"):
             lower_confidence_categories.append(category)
-        combined_score = float(combined.raw_score) if combined else None
+        # None when unmeasurable as well as when the row is absent. The
+        # template already renders an em dash for a missing score, so both
+        # read as "no number" rather than as zero.
+        combined_score = (
+            float(combined.raw_score)
+            if combined is not None and combined.raw_score is not None
+            else None
+        )
         # Pristine auto-detected score, stashed by pipeline._persist_combined
         # -- shown struck-through beside the adjusted score when the client
         # dismissed findings that changed this category.

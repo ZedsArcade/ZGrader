@@ -49,9 +49,23 @@ export interface SubmissionSummary {
 export interface AnalysisResult {
   category: string;
   side: "front" | "back" | "combined";
-  raw_score: number;
+  /** null means unmeasurable: the pipeline looked and could not tell. That is
+   *  a different answer from a low score, and must never be rendered as 0. */
+  raw_score: number | null;
   measurements: Record<string, unknown>;
   flags: Record<string, unknown>;
+}
+
+/** Lives inside an AnalysisResult's measurements.assessment -- what the score
+ *  is worth, next to the score itself. See backend analysis/assessment.py. */
+export interface Assessment {
+  state: "measured" | "unmeasurable";
+  confidence: number;
+  score_low: number | null;
+  score_high: number | null;
+  /** Codes, not sentences: the wording is chosen at render time so it can be
+   *  localised and reworded without re-analysing the card. */
+  limitations: string[];
 }
 
 // Lives inside a non-"combined" AnalysisResult's measurements.regions --
