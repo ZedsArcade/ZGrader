@@ -36,6 +36,7 @@ scans, not derived from an official published methodology.
 import cv2
 import numpy as np
 
+from zgrader.analysis import scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.corners
@@ -70,7 +71,7 @@ def _analyze_corner(crop: np.ndarray) -> dict:
     ref_region = hsv[int(size * 0.6) : size, 0 : max(2, int(size * 0.15)), 1]
     ref_sat = float(np.mean(ref_region)) if ref_region.size else tip_sat
     whitening_delta = max(0.0, ref_sat - tip_sat)
-    whitening_score = float(np.clip(10.0 - whitening_delta / 8.0, 0.0, 10.0))
+    whitening_score = scoring.corner_whitening_score(whitening_delta)
 
     # Unscored diagnostic -- see the module docstring for why this no longer
     # contributes to combined_score. Retained because it is still informative
