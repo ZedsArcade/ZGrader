@@ -46,6 +46,10 @@ services:
       # Locked-out recovery: forces the password above onto the account on the
       # next start. Set true, redeploy, log in, set it back to false.
       ZGRADER_ADMIN_RESET_PASSWORD: ${ZGRADER_ADMIN_RESET_PASSWORD:-false}
+      # Google sign-in. Leave both blank to keep it switched off; the button
+      # only appears when the backend reports it configured.
+      ZGRADER_GOOGLE_CLIENT_ID: ${ZGRADER_GOOGLE_CLIENT_ID:-}
+      ZGRADER_GOOGLE_CLIENT_SECRET: ${ZGRADER_GOOGLE_CLIENT_SECRET:-}
       ZGRADER_AI_ENABLED: ${ZGRADER_AI_ENABLED:-false}
       ZGRADER_AI_ENDPOINT: ${ZGRADER_AI_ENDPOINT:-}
       ZGRADER_AI_MODEL: ${ZGRADER_AI_MODEL:-}

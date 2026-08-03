@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Input, Label, TextField } from "@heroui/react";
 import Button from "@/components/Button";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
+import OAuthErrorToast from "@/components/OAuthErrorToast";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
 import { toastError } from "@/lib/toast";
@@ -33,6 +35,11 @@ export default function LoginPage() {
 
   return (
     <Card className="mx-auto max-w-md">
+      {/* Suspended so reading search params doesn't opt this prerendered
+          page out of static generation. */}
+      <Suspense fallback={null}>
+        <OAuthErrorToast />
+      </Suspense>
       <Card.Header>
         <Card.Title>{t.login.title}</Card.Title>
       </Card.Header>
@@ -56,6 +63,10 @@ export default function LoginPage() {
             {t.login.forgotPassword}
           </Link>
         </form>
+
+        <div className="mt-4">
+          <GoogleSignInButton />
+        </div>
       </Card.Content>
     </Card>
   );

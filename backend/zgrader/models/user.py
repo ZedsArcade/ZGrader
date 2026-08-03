@@ -17,7 +17,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Nullable since Google sign-in arrived: an account created that way has
+    # no password and never had one. Every read has to cope with None -- see
+    # the login path, which must still burn the same time rather than
+    # answering fast and revealing that the address exists without one.
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role"), default=UserRole.client, nullable=False
@@ -88,3 +92,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     subscriptions: Mapped[list["Subscription"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )
+    identities: Mapped[list["Identity"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+    @property
+    def has_usable_password(self) -> bool:
+        """False for an account that only signs in through a provider."""
+        return bool(self.hashed_password)

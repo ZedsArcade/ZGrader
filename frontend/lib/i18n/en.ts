@@ -298,6 +298,19 @@ export const en = {
   // palette. Kept as its own block rather than folded into `services` so the
   // two sides of the business can diverge in copy without stepping on each
   // other.
+  googleAuth: {
+    button: "Continue with Google",
+    divider: "or",
+    signingIn: "Signing you in…",
+    oneMoment: "One moment while we finish signing you in.",
+    problemTitle: "Sign-in didn't complete",
+    missingToken: "That sign-in link didn't carry a session. Please try again.",
+    failed: "We couldn't complete the sign-in. Please try again.",
+    backToLogin: "Back to sign in",
+    // Shown on the login page when the callback bounces back with a reason --
+    // most often the address already having a password account.
+    errorPrefix: "Google sign-in:",
+  },
   quota: {
     chipRemaining: "{n} checks left",
     chipExhausted: "No checks left",

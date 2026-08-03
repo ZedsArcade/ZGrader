@@ -68,6 +68,19 @@ class ZGraderConfig(BaseSettings):
     # credential for that account.
     admin_reset_password: bool = False
 
+    # Google sign-in. Off unless both are set, so a deployment that hasn't
+    # registered an OAuth client simply doesn't offer the button rather than
+    # showing one that fails. The redirect URI registered with Google must be
+    # <site_url>/api/auth/google/callback -- the browser reaches the backend
+    # through the Next.js /api rewrite, so it is the public origin Google
+    # sends the user back to, not the container.
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+
+    @property
+    def google_enabled(self) -> bool:
+        return bool(self.google_client_id and self.google_client_secret)
+
     # Optional external vision-model hook for extra "AI-assisted" analysis
     # observations. Off by default; when disabled the pipeline is unchanged.
     ai_enabled: bool = False
