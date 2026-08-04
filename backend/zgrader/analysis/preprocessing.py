@@ -245,6 +245,14 @@ class RectifiedCard:
     `px_per_mm` here is exact rather than inferred: the output raster was
     *built* at that scale from the card's known physical size, so it is no
     longer an average of two axis measurements that a bad crop can pull apart.
+
+    `mask` is where the card's material actually is, in the same canonical
+    space as `image`. Because the raster is the card's *ideal* rectangle, any
+    zero in that mask is material the card should have and does not -- which
+    is what makes corner loss measurable in mm^2 rather than as a fraction of
+    an arbitrary box. It is None when detection failed and a supplied crop
+    stood in, because then there is no boundary to have found: nothing is
+    claimed instead of claiming a perfect rectangle.
     """
 
     def __init__(
@@ -253,11 +261,13 @@ class RectifiedCard:
         px_per_mm: float,
         geometry: dict,
         limitations: tuple[str, ...],
+        mask: np.ndarray | None = None,
     ):
         self.image = image
         self.px_per_mm = px_per_mm
         self.geometry = geometry
         self.limitations = limitations
+        self.mask = mask
 
 
 def _expand_roi(quad: np.ndarray, shape: tuple[int, int]) -> tuple[int, int, int, int]:
@@ -344,9 +354,18 @@ def rectify(
 
     limitations: list[str] = []
     fitted = None
+    material = None
     try:
         box, info = detect_boundary(search)
         fitted = geometry.fit_card_geometry(search, info["contour"], box)
+        # Where the card's material actually is, as one filled region. Built
+        # from the *chosen contour* rather than from the raw threshold, so
+        # dark artwork inside the card cannot read as a hole in it -- the only
+        # question this mask has to answer is what is card and what is not.
+        material = np.zeros(search.shape[:2], dtype=np.uint8)
+        cv2.drawContours(
+            material, [info["contour"].round().astype(np.int32)], -1, 255, thickness=-1
+        )
     except ValueError:
         box = None
 
@@ -392,7 +411,25 @@ def rectify(
     matrix = cv2.getPerspectiveTransform(apexes.astype("float32"), destination)
     card = cv2.warpPerspective(image, matrix, (out_w, out_h))
 
+    canonical_mask = None
+    if material is not None:
+        # The mask is warped in the ROI's own coordinates, so it needs the
+        # homography composed with the crop offset rather than the homography
+        # alone -- otherwise it lands displaced by the crop and every corner
+        # reads as destroyed.
+        shift = np.array(
+            [[1.0, 0.0, -offset[0]], [0.0, 1.0, -offset[1]], [0.0, 0.0, 1.0]], dtype="float64"
+        )
+        # INTER_NEAREST: this is a label image, and interpolating between
+        # "card" and "not card" invents a fringe of half-material around every
+        # edge, which at a corner is exactly the quantity being measured.
+        canonical_mask = cv2.warpPerspective(
+            material, (matrix @ shift).astype("float32"), (out_w, out_h), flags=cv2.INTER_NEAREST
+        )
+
     geometry_block["px_per_mm"] = round(float(px_per_mm), 3)
     geometry_block["aspect_deviation"] = round(float(deviation), 4)
     geometry_block["expected_aspect"] = round(float(expected), 4)
-    return RectifiedCard(card, float(px_per_mm), geometry_block, tuple(limitations))
+    return RectifiedCard(
+        card, float(px_per_mm), geometry_block, tuple(limitations), canonical_mask
+    )

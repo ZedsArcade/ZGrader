@@ -46,6 +46,42 @@ def _rng(seed: int) -> np.random.Generator:
     return np.random.default_rng(seed)
 
 
+#: Die-cut corner radius of a real trading card, in millimetres -- about a 3mm
+#: diameter. Kept here rather than imported from the analysis package on
+#: purpose: a fixture that derives its ground truth from the code under test
+#: cannot contradict it, which is the one thing a fixture is for.
+_CORNER_RADIUS_MM = 1.5
+
+
+def _round_corners(card: np.ndarray, radius_px: int) -> np.ndarray:
+    """Cut the card's four corners to a radius, leaving backing behind them.
+
+    Anti-aliased, because a real die cut crossing a sensor pixel produces an
+    intermediate value and the sub-pixel edge fitting downstream is built to
+    read exactly that. A hard binary cut would hand it a cleaner signal than
+    any real photograph contains.
+    """
+    h, w = card.shape[:2]
+    supersample = 4
+    big = np.zeros((h * supersample, w * supersample), dtype=np.uint8)
+    r = radius_px * supersample
+    cv2.rectangle(big, (r, 0), (w * supersample - r, h * supersample), 255, -1)
+    cv2.rectangle(big, (0, r), (w * supersample, h * supersample - r), 255, -1)
+    for cx, cy in (
+        (r, r),
+        (w * supersample - r, r),
+        (r, h * supersample - r),
+        (w * supersample - r, h * supersample - r),
+    ):
+        cv2.circle(big, (cx, cy), r, 255, -1)
+    alpha = cv2.resize(big, (w, h), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
+
+    backing = np.zeros_like(card, dtype=np.float32)
+    return (card.astype(np.float32) * alpha[:, :, None] + backing * (1 - alpha[:, :, None])).astype(
+        np.uint8
+    )
+
+
 def _add_foil_texture(card: np.ndarray, seed: int) -> None:
     """Approximate holo: bright, high-local-variance speckle in broad bands.
 
@@ -185,6 +221,19 @@ def make_card_scan(
         )
 
     # Place on a dark scanner-backing canvas with a comfortable margin.
+    # Real cards are die-cut to a rounded corner, roughly 1.5mm radius. Every
+    # fixture used to have perfect square corners, which made them the easiest
+    # possible input for corner analysis: the measurement that matters there is
+    # material missing *beyond* the factory rounding, and a square-cornered
+    # card has no factory rounding to forgive. The nominal subtraction was
+    # therefore never exercised, and a clean corner's small area deficit was
+    # contour-tracing noise being read as if it were a corner radius.
+    #
+    # Applied after every card feature so damage painted at a corner is cut by
+    # the same curve the real card would have been.
+    corner_radius_px = max(2, int(round(_CORNER_RADIUS_MM * card_h / height_mm)))
+    card = _round_corners(card, corner_radius_px)
+
     margin = int(min(card_w, card_h) * 0.08)
     canvas_w, canvas_h = card_w + margin * 2, card_h + margin * 2
     canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)

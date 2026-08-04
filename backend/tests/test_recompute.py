@@ -69,8 +69,11 @@ def test_corners_dismissing_the_bad_corner_raises_the_side_score():
     before, _ = recompute._adjusted_side_score("corners", side_m, set())
     after, _ = recompute._adjusted_side_score("corners", side_m, {"top_left"})
 
-    assert before == 8.0  # mean(2,10,10,10)
-    assert after == 10.0  # mean of the three kept 10s
+    # Worst-anchored, not averaged: half the weight sits on the worst corner
+    # and half on the mean of all four. A plain mean gave 8.0 here, letting
+    # three clean corners hide a badly damaged one.
+    assert before == 5.0  # 0.5*2 + 0.5*mean(2,10,10,10)
+    assert after == 10.0  # the three kept corners are all 10
     assert after > before
 
 

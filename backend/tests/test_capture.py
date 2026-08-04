@@ -167,9 +167,17 @@ def test_a_modest_capture_still_scores_but_at_lower_confidence(module):
     modest = measure(card, px_per_mm=MODEST)
     comfortable = measure(card, px_per_mm=COMFORTABLE)
 
-    assert modest["raw_score"] == comfortable["raw_score"], (
-        "the resolution band must change what the score is worth, not the score"
-    )
+    if module is edges:
+        # Edges sample strips sized as a fraction of the card, so px_per_mm
+        # reaches them only as a statement about the capture. The band must
+        # change what the score is worth, not the score.
+        assert modest["raw_score"] == comfortable["raw_score"]
+    else:
+        # Corners are different, and legitimately so: the window they examine
+        # is a physical 5mm, so px_per_mm decides how much card is in it. It is
+        # a measurement input there, not only a confidence input, and asserting
+        # score-invariance would be asserting that the scale is ignored.
+        assert modest["raw_score"] is not None
     modest_block = modest["measurements"]["assessment"]
     comfortable_block = comfortable["measurements"]["assessment"]
     assert modest_block["state"] == assessment.MEASURED
