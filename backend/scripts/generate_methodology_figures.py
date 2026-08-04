@@ -281,8 +281,10 @@ def figure_centering(card: np.ndarray, result: dict, out: Path) -> None:
 
 
 def figure_corner(card: np.ndarray, result: dict, out: Path) -> None:
-    """The two regions a corner's score is a comparison between."""
-    crops = corner_crops(card)
+    """The two regions a corner's whitening reading is a comparison between."""
+    # The window that was actually measured -- a physical 5mm now, not a
+    # fraction of the card, so it must come from the measurement.
+    crops = corner_crops(card, size=result["measurements"].get("corner_window_px"))
     crop = crops["top_left"]
     size = crop.shape[0]
     zoom = max(4, 420 // max(1, size))
@@ -304,9 +306,17 @@ def figure_corner(card: np.ndarray, result: dict, out: Path) -> None:
               stroke_width=3, stroke_fill=(255, 255, 255))
 
     info = result["measurements"]["per_corner"]["top_left"]
+    # Both channels, because the score is both. A single number here would
+    # have to pick one and the figure would then illustrate half the method.
+    caption = (
+        f"lighter by {info['lightness_rise']:.0f}, "
+        f"colour down {info['chroma_loss']:.0f}"
+    )
+    if info.get("excess_area_mm2"):
+        caption += f"   |   {info['excess_area_mm2']:.1f}mm² missing"
     draw.text(
         (size * zoom - 8, size * zoom - 8),
-        f"saturation {info['tip_saturation']:.0f} vs {info['reference_saturation']:.0f}",
+        caption,
         font=font,
         fill=(20, 20, 20),
         anchor="rd",
@@ -424,7 +434,7 @@ def generate(output_dir: Path) -> dict[str, object]:
     px_per_mm = rectified.px_per_mm
 
     centering = measure_centering(card, px_per_mm)
-    corners = measure_corners(card, px_per_mm=px_per_mm)
+    corners = measure_corners(card, px_per_mm=px_per_mm, mask=rectified.mask)
     edges = measure_edges(card, px_per_mm=px_per_mm)
     surface, mask = measure_surface(card)
     creases = detect_creases(card, px_per_mm)

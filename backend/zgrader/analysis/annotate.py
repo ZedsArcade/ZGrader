@@ -110,11 +110,21 @@ def annotate_centering(card_image: np.ndarray, measurements: dict) -> Image.Imag
     return img
 
 
-def annotate_corners(card_image: np.ndarray, per_corner: dict, corner_fraction: float = 0.12) -> Image.Image:
+def annotate_corners(card_image: np.ndarray, measurements: dict) -> Image.Image:
+    """Four zoomed corner tiles, drawn on exactly the window that was measured.
+
+    Takes the whole measurements dict rather than just `per_corner` so the
+    window size comes from the measurement itself. It used to be re-derived
+    here from a fraction, which is how an overlay quietly stops describing the
+    number printed on it -- the corner window is now a physical 5mm, not a
+    fraction of the card.
+    """
     h, w = card_image.shape[:2]
-    size = max(8, int(min(h, w) * corner_fraction))
+    per_corner = measurements["per_corner"]
+    size = measurements.get("corner_window_px") or max(8, int(min(h, w) * 0.12))
+    size = max(2, min(int(size), min(h, w)))
     zoom = 3
-    crops = corner_crops(card_image, corner_fraction)
+    crops = corner_crops(card_image, size=size)
 
     tiles = {}
     for name, crop in crops.items():

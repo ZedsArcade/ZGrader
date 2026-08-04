@@ -45,23 +45,41 @@ class PipelineError(Exception):
     pass
 
 
-def _analyze_centering(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, None]:
+# Every analyser takes the same three inputs, whether or not it uses all of
+# them: the rectified card, its exact scale, and the card mask in that same
+# raster (None when detection could not supply one). Uniform signatures keep
+# the dispatch table below a table rather than four special cases.
+
+
+def _analyze_centering(
+    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None
+) -> tuple[dict, None]:
     return centering.measure_centering(card_image, px_per_mm), None
 
 
-def _analyze_corners(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, None]:
-    return corners.measure_corners(card_image, px_per_mm=px_per_mm), None
+def _analyze_corners(
+    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None
+) -> tuple[dict, None]:
+    return corners.measure_corners(card_image, px_per_mm=px_per_mm, mask=mask), None
 
 
-def _analyze_edges(card_image: np.ndarray, px_per_mm: float) -> tuple[dict, None]:
+def _analyze_edges(
+    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None
+) -> tuple[dict, None]:
     return edges.measure_edges(card_image, px_per_mm=px_per_mm), None
+
+
+def _analyze_surface(
+    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None
+) -> tuple[dict, np.ndarray]:
+    return surface.measure_surface(card_image)
 
 
 _ANALYZERS = {
     AnalysisCategory.centering: _analyze_centering,
     AnalysisCategory.corners: _analyze_corners,
     AnalysisCategory.edges: _analyze_edges,
-    AnalysisCategory.surface: lambda card_image, px_per_mm: surface.measure_surface(card_image),
+    AnalysisCategory.surface: _analyze_surface,
 }
 
 
@@ -82,7 +100,7 @@ def _annotate_category(category: AnalysisCategory, card_image: np.ndarray, resul
     if category == AnalysisCategory.centering:
         return annotate.annotate_centering(card_image, result["measurements"])
     if category == AnalysisCategory.corners:
-        return annotate.annotate_corners(card_image, result["measurements"]["per_corner"])
+        return annotate.annotate_corners(card_image, result["measurements"])
     if category == AnalysisCategory.edges:
         return annotate.annotate_edges(card_image, result["measurements"]["per_edge"])
     if category == AnalysisCategory.surface:
@@ -112,6 +130,7 @@ def _persist_side(
     px_per_mm: float,
     geometry: dict | None = None,
     geometry_limitations: tuple[str, ...] = (),
+    mask: np.ndarray | None = None,
 ) -> dict[AnalysisCategory, dict]:
     reports_dir.mkdir(parents=True, exist_ok=True)
     results: dict[AnalysisCategory, dict] = {}
@@ -130,7 +149,7 @@ def _persist_side(
     ai_observations = _run_ai_analysis(card_image, side.value, language, submission.submission_code)
 
     for category, analyzer in _ANALYZERS.items():
-        result, extra = analyzer(card_image, px_per_mm)
+        result, extra = analyzer(card_image, px_per_mm, mask)
         # Geometry is established once per scan, not once per category, so it
         # is folded in here rather than threaded through four analyser
         # signatures to be used the same way in each. It only devalues a
@@ -355,6 +374,7 @@ def run_analysis(db: Session, submission: Submission) -> None:
         front.px_per_mm,
         front.geometry,
         front.limitations,
+        front.mask,
     )
 
     back_results = None
@@ -372,6 +392,7 @@ def run_analysis(db: Session, submission: Submission) -> None:
             back.px_per_mm,
             back.geometry,
             back.limitations,
+            back.mask,
         )
 
     _persist_combined(db, submission, front_results, back_results)

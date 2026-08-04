@@ -55,6 +55,18 @@ def _adjusted_side_score(
             # Submission.dismissed_regions and the report's Client Adjustments
             # section).
             return None, None
+        if category == "corners":
+            # Corners are worst-anchored, not averaged, so this has to go
+            # through the same function the pipeline used or the two disagree
+            # the moment nothing has even been dismissed. That is exactly the
+            # drift analysis/scoring.py exists to prevent, and it reappeared
+            # here the instant the aggregation changed -- caught by
+            # test_no_dismissals_reproduces_the_pipeline_score_exactly, which
+            # is the whole reason that test is worded the way it is.
+            #
+            # Applied to the kept subset: the client disputed a finding, so the
+            # remaining findings are what defines the worst corner.
+            return round(scoring.corners_category_score(kept), 2), None
         return round(float(sum(kept) / len(kept)), 2), None
 
     if category == "centering":

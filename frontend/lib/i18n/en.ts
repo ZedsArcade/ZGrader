@@ -141,9 +141,9 @@ export const en = {
       surface_diffuse_light:
         "Lit evenly rather than at an angle, so faint scratches can be missed.",
       corners_whitening_only:
-        "Discolouration only — a rounded corner that hasn't changed colour isn't measured.",
+        "The card's outline couldn't be established, so only discolouration was checked — a corner worn blunt but not discoloured isn't caught.",
       corners_pale_border:
-        "This border is pale, and corner wear shows as a loss of colour, so there's little to see it against.",
+        "This border is pale, so the colour half of the corner check has little to work with. Missing material is still measured.",
       centering_no_frame:
         "No clear printed border to measure against — normal on full-art cards.",
       edges_partial: "Some edges couldn't be sampled and were left out of this score.",
@@ -509,17 +509,18 @@ export const en = {
 
     cornersTitle: "Corners",
     cornersMeasures: "What it measures",
-    cornersMeasuresBody: "Whitening at each of the four corners.",
+    cornersMeasuresBody:
+      "How much card is missing from each of the four corners, in square millimetres, and how far each has frayed toward the white cardstock underneath.",
     cornersHow: "How",
     cornersHowBody:
-      "A worn corner frays toward the white cardstock underneath, so colour intensity drops off at the tip. Each corner is compared against a reference patch a little further in on the same card -- the difference is the wear.",
+      "Two separate measurements. For shape: the four corner points are worked out by extending the card's fitted edges until they cross, which gives the tip a perfect corner would have had, and anything missing inside that ideal corner is measured as an area. A card is die-cut to a rounded corner of about 1.5mm, so that much is expected and forgiven; what is left over is wear. For colour: the tip is compared against the same border a little further along the edge, in a colour space that separates how light something is from how colourful it is, because a frayed corner goes both lighter and less colourful. The worse of the two readings sets the corner's score, rather than the sum -- a chipped corner is nearly always a whitened one too, and a card should not be penalised twice for one piece of damage. The card's worst corner then carries half the weight of the whole category.",
     cornersWrong: "Where it goes wrong",
     cornersWrongBody:
-      "This measures discolouration, not shape. A corner that has been rounded or knocked flat without changing colour is not caught here, and we would rather tell you that than quietly score it as clean -- measuring missing material properly is work still to come. The thresholds are tuned from real scans rather than taken from any published standard, and because the signal is a loss of colour, a corner whose artwork is naturally pale reads as slightly worn while a white border can hide genuine whitening altogether.",
+      "The area measurement has a resolution limit. The card's outline is worked out to whole pixels, which at a typical photo works out to about a quarter of a square millimetre of uncertainty, so wear finer than roughly a half-millimetre nick is not reported at all -- we would rather miss it than invent it. The 1.5mm allowance for the factory cut is a standard figure rather than one measured from your specific card, so a card cut to a tighter or looser radius will read slightly worn or slightly generously. The colour half still struggles on a white or very pale border, where there is little colour to lose; the area half does not care what colour the border is, which is why those cards are no longer the blind spot they were. None of the thresholds come from any published grading standard.",
     cornersAlt:
-      "A magnified top-left corner of the demonstration card, with the tip region and the reference region outlined, and their colour intensity values shown.",
+      "A magnified top-left corner of the demonstration card, with the tip region and the reference region outlined, and the measured change in lightness and colour shown.",
     cornersCaption:
-      "The tip against its reference. A big drop means the corner has worn toward bare card.",
+      "The tip against its reference. Lighter and less colourful means the corner has worn toward bare card; missing area is measured separately, against the corner point the card would have had.",
 
     edgesTitle: "Edges",
     edgesMeasures: "What it measures",

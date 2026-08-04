@@ -163,12 +163,13 @@ LIMITATION_LABELS = {
             "print lines can be missed."
         ),
         "corners_whitening_only": (
-            "Corners were assessed for discolouration only. Material loss — a rounded "
-            "or knocked corner that has not changed colour — is not measured."
+            "The card's outline could not be established for this scan, so corners were "
+            "assessed for discolouration only. A corner worn blunt without changing "
+            "colour is not caught in that case."
         ),
         "corners_pale_border": (
-            "This card's border is pale, and corner wear is detected as a loss of "
-            "colour, so there is little for it to show up against."
+            "This card's border is pale, so the colour half of the corner assessment has "
+            "little to work with. Material missing from the corner is still measured."
         ),
         "centering_no_frame": (
             "No clear printed border was found to measure against, which is normal on "
@@ -200,12 +201,14 @@ LIMITATION_LABELS = {
             "pasarse por alto arañazos finos y líneas de impresión."
         ),
         "corners_whitening_only": (
-            "Las esquinas se evaluaron solo por decoloración. La pérdida de material "
-            "—una esquina redondeada o aplastada que no ha cambiado de color— no se mide."
+            "No se pudo establecer el contorno de la carta en este escaneo, así que las "
+            "esquinas se evaluaron solo por decoloración. Una esquina desgastada que no "
+            "ha cambiado de color no se detecta en ese caso."
         ),
         "corners_pale_border": (
-            "El borde de esta carta es pálido, y el desgaste de esquinas se detecta como "
-            "pérdida de color, así que hay poco contraste sobre el que aparezca."
+            "El borde de esta carta es pálido, así que la parte del análisis basada en el "
+            "color tiene poco con lo que trabajar. El material que falta en la esquina "
+            "sí se mide."
         ),
         "centering_no_frame": (
             "No se encontró un borde impreso claro con el que medir, algo normal en "

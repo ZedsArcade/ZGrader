@@ -90,7 +90,7 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
 
     _record_assessment("centering", cen)
 
-    cor = corners.measure_corners(card, px_per_mm=px_per_mm)
+    cor = corners.measure_corners(card, px_per_mm=px_per_mm, mask=rectified.mask)
     # Corners and edges can now decline to score on a capture too small for
     # the wear to exist in. The per-corner/per-edge numbers are still computed
     # and still tracked -- they are the diagnostics a later retune gets
@@ -99,7 +99,14 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
         metrics["corners.raw_score"] = _round(cor["raw_score"])
     for name, info in cor["measurements"]["per_corner"].items():
         metrics[f"corners.{name}.combined_score"] = _round(info["combined_score"])
-        metrics[f"corners.{name}.whitening_score"] = _round(info["whitening_score"])
+        metrics[f"corners.{name}.lightness_rise"] = _round(info["lightness_rise"])
+        metrics[f"corners.{name}.chroma_loss"] = _round(info["chroma_loss"])
+        if info.get("excess_area_mm2") is not None:
+            # The measurement this phase exists for. Tracked in mm^2 because
+            # that is the unit it is reported in -- drift in a physical
+            # quantity is the kind worth noticing.
+            metrics[f"corners.{name}.excess_area_mm2"] = _round(info["excess_area_mm2"])
+            metrics[f"corners.{name}.apex_offset_mm"] = _round(info["apex_offset_mm"])
 
     _record_assessment("corners", cor)
 

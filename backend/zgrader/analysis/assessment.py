@@ -83,8 +83,20 @@ UNMEASURABLE = "unmeasurable"
 
 CONFIDENCE_CENTERING_CLEAN_FRAME = 0.9
 CONFIDENCE_CENTERING_NO_FRAME = 0.2
-CONFIDENCE_CORNERS = 0.7
+#: Corners now measure material loss in mm^2 as well as discolouration, which
+#: is a physical quantity against a known apex rather than a colour comparison.
+#: That is a materially better position than the whitening-only reading this
+#: number described before, hence the rise.
+CONFIDENCE_CORNERS = 0.8
+#: No card mask, so discolouration is all there was.
+CONFIDENCE_CORNERS_WHITENING_ONLY = 0.55
+#: Pale border *and* no material measurement -- the old worst case, where the
+#: only channel available is the one the border defeats.
 CONFIDENCE_CORNERS_PALE_BORDER = 0.35
+#: Pale border but material loss measured. One channel of two is weak, which is
+#: a far better position than the line above and should not be scored as if it
+#: were the same.
+CONFIDENCE_CORNERS_PALE_BORDER_WITH_MATERIAL = 0.6
 CONFIDENCE_EDGES = 0.75
 CONFIDENCE_EDGES_PARTIAL = 0.4
 CONFIDENCE_SURFACE = 0.4
@@ -107,11 +119,14 @@ CONFIDENCE_UNVERIFIED_GEOMETRY_FACTOR = 0.5
 #: axis, so every figure in millimetres is wrong by a factor nobody knows.
 CONFIDENCE_ASPECT_MISMATCH_FACTOR = 0.35
 
-#: ARBITRARY. Below this mean HSV saturation (0-255) in a corner's reference
-#: region, the border is pale enough that "lost saturation" barely registers --
-#: which is the documented blind spot for white-bordered cards. A white border
-#: sits near 0-10; 40 leaves room for genuinely pale colours too.
-PALE_BORDER_SATURATION = 40.0
+#: ARBITRARY. Below this mean CIELAB chroma in a corner's reference region, the
+#: border has too little colour for "lost colour" to register -- the documented
+#: blind spot for white-bordered cards. A white border sits near 0-5.
+#:
+#: Chroma, not HSV saturation: corners.py now measures whitening in Lab, where
+#: lightness and colourfulness are separate axes. Saturation conflated them,
+#: so a dark border scored as pale on a scale meant to detect colourless ones.
+PALE_BORDER_CHROMA = 25.0
 
 #: At zero confidence the interval spans this far either side of the score.
 #: Chosen so 0.9 confidence gives roughly +/-0.5 and 0.4 gives +/-3.0 -- wide

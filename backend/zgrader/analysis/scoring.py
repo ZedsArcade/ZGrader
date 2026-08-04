@@ -96,10 +96,66 @@ def combine_sides_by_name(scores_by_side: dict[str, float]) -> float | None:
 # claiming to reproduce any company's actual cutoffs.
 CENTERING_POINTS_PER_PCT = 1.0 / 5.0
 
-# ARBITRARY. A saturation deficit of 80 (out of 255) takes a corner to zero.
-# Nothing measured this; it was chosen so the synthetic whitened corner scored
-# badly enough to be visible.
-CORNER_SATURATION_DEFICIT_FOR_ZERO = 80.0
+# --- Corners ---------------------------------------------------------------
+#
+# DERIVED, from geometry. A factory corner is not a right angle -- it is
+# die-cut to a radius of roughly 1.5mm, so a perfect corner is *already*
+# missing area relative to the ideal rectangle the card is rectified to. A
+# quarter-circle of radius r inset into a square corner leaves r^2(1 - pi/4)
+# empty, which at 1.5mm is 0.48mm^2. Without forgiving it every mint card
+# would read as damaged.
+#
+# **What the fixtures do and do not confirm.** They are generated with this
+# same 1.5mm radius, so measuring 0.48mm^2 back off them confirms the
+# measurement chain end to end -- mask, rectification, inset calibration and
+# area arithmetic all agree with the geometry for a known ground truth. That
+# is worth having and is asserted in test_corners.py. It says nothing about
+# whether 1.5mm is the right number for a real Pokemon card, because the
+# fixture radius was set from the same assumption. Only a real card measured
+# with calipers settles that.
+#
+# One constant for every game today. CardDimensionReference is where a
+# per-game radius would live once anyone measures one.
+NOMINAL_CORNER_RADIUS_MM = 1.5
+
+# REASONED, from the measurement's own resolution. The card mask is binary, so
+# its boundary sits a whole number of pixels inside the ideal edge and the
+# calibration that removes that bias can only remove whole pixels too. One
+# pixel at ~24 px/mm across a 5mm window is 0.21mm^2, and that is what a
+# *mint* corner's residual deficit turned out to be -- enough to stop any card
+# scoring 10 on corners, which is a claim about cards rather than about the
+# measurement.
+#
+# Deficits below this are therefore not reported as damage. Nothing is gained
+# by resolving differences smaller than the noise that produces them, and a
+# systematic sag on every clean card is worse than a slightly blunt detector:
+# it biases every number downstream in the same direction. The cost is real
+# and worth stating -- wear finer than about a half-millimetre nick is now
+# invisible here, because it is genuinely indistinguishable from quantisation.
+CORNER_AREA_NOISE_FLOOR_MM2 = 0.25
+
+# ARBITRARY. Excess material loss, over and above that factory rounding, that
+# drives a corner to zero. 4mm^2 beyond nominal is roughly a 3mm bite out of
+# the tip -- unambiguous damage on a card that is 63mm across.
+CORNER_EXCESS_AREA_FOR_ZERO_MM2 = 4.0
+
+# ARBITRARY, both. Whitening is now measured in CIELAB against a local
+# reference on the same border: a frayed corner gets *lighter* (L up) and
+# *less colourful* (chroma down). These are the deltas, in OpenCV's 8-bit Lab
+# units, that take a corner to zero on their own.
+#
+# The previous single HSV-saturation threshold is gone. Saturation conflates
+# the two effects and is unstable where value is low, so a dark border and a
+# whitened one could produce the same number.
+CORNER_LIGHTNESS_RISE_FOR_ZERO = 60.0
+CORNER_CHROMA_LOSS_FOR_ZERO = 60.0
+
+# ARBITRARY. How much the worst corner anchors the category, against the mean
+# of all four. A plain mean let three clean corners hide one destroyed corner
+# by a factor of four, which no grading company does -- corners are graded on
+# the worst one, and a card with a single crushed tip is not three-quarters
+# mint. Kept below 1.0 so the other three still count for something.
+CORNER_WORST_WEIGHT = 0.5
 
 # ARBITRARY, both. A whitened fraction alone can cost 15 points and a single
 # contiguous run another 10, so either can zero an edge on its own. The run
@@ -125,15 +181,70 @@ def centering_score(worse_side_pct: float) -> float:
     return _clip_score(10.0 - (worse_side_pct - 50.0) * CENTERING_POINTS_PER_PCT)
 
 
-def corner_whitening_score(saturation_deficit: float) -> float:
-    """How much colour a corner has lost relative to card a little further in.
+def nominal_corner_deficit_mm2(radius_mm: float = NOMINAL_CORNER_RADIUS_MM) -> float:
+    """Area a *perfect* factory corner is missing from a square corner.
 
-    The deficit is in HSV saturation units (0-255); zero means the tip is as
-    saturated as its reference and nothing has frayed toward bare cardstock.
+    The card is rectified to its ideal rectangle, so a rounded corner leaves
+    real empty area there. This is the amount to forgive before calling
+    anything damage.
+    """
+    return (1.0 - np.pi / 4.0) * radius_mm * radius_mm
+
+
+def corner_material_penalty(excess_area_mm2: float) -> float:
+    """Points lost to material that is missing beyond the factory rounding."""
+    return _clip_score(10.0 * excess_area_mm2 / CORNER_EXCESS_AREA_FOR_ZERO_MM2)
+
+
+def corner_whitening_penalty(lightness_rise: float, chroma_loss: float) -> float:
+    """Points lost to a corner having frayed toward bare cardstock.
+
+    Both channels describe the same physical event from different directions,
+    so the worse of the two is taken rather than their sum. On real wear they
+    move together -- exposed core is lighter *and* less colourful -- and adding
+    them would count one defect twice.
     """
     return _clip_score(
-        10.0 - (10.0 * saturation_deficit / CORNER_SATURATION_DEFICIT_FOR_ZERO)
+        10.0
+        * max(
+            max(0.0, lightness_rise) / CORNER_LIGHTNESS_RISE_FOR_ZERO,
+            max(0.0, chroma_loss) / CORNER_CHROMA_LOSS_FOR_ZERO,
+        )
     )
+
+
+def corner_score(
+    excess_area_mm2: float | None, lightness_rise: float, chroma_loss: float
+) -> float:
+    """One corner, from material loss and whitening together.
+
+    The worse of the two penalties applies, not their sum, for the same reason
+    the two whitening channels combine that way: a chipped corner is almost
+    always a whitened one, and a card should not be punished twice for a single
+    piece of damage. The trade is that a corner which is genuinely both scores
+    no worse than its worst aspect -- the first thing to revisit against real
+    graded cards.
+
+    `excess_area_mm2` is None when no card mask was available, in which case
+    the corner is scored on whitening alone and the category says so.
+    """
+    whitening = corner_whitening_penalty(lightness_rise, chroma_loss)
+    if excess_area_mm2 is None:
+        return _clip_score(10.0 - whitening)
+    return _clip_score(10.0 - max(corner_material_penalty(excess_area_mm2), whitening))
+
+
+def corners_category_score(per_corner_scores: list[float]) -> float:
+    """Worst-anchored, not a plain mean.
+
+    A mean of four let one destroyed corner cost only a quarter of the
+    category. Corners are judged on the worst one, so it carries half the
+    weight by itself and the mean of all four carries the rest: 10/10/10/0
+    lands at 3.75 rather than 7.5.
+    """
+    worst = min(per_corner_scores)
+    mean = float(np.mean(per_corner_scores))
+    return _clip_score(CORNER_WORST_WEIGHT * worst + (1.0 - CORNER_WORST_WEIGHT) * mean)
 
 
 def edge_score(whitened_fraction: float, longest_run_fraction: float) -> float:

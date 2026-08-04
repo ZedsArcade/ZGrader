@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 
 from zgrader.analysis import edges, surface
+from zgrader.analysis import scoring
 from zgrader.models import AnalysisCategory
 
 MAX_SURFACE_REGIONS = 6
@@ -69,12 +70,40 @@ _EDGE_LABELS_ES = {
 
 
 def _corner_note(name: str, info: dict, is_es: bool) -> str:
-    # Whitening only -- corners.py no longer scores rounding/material loss
-    # (see its module docstring), so the note must not claim it was assessed.
+    """Name the defect that was actually found, not the category.
+
+    Corners now measure two different things, so a note saying "whitening" on a
+    corner flagged for a missing 2mm^2 of card would be describing the wrong
+    defect -- and the millimetre figure is the part a customer can check
+    against the card in their hand.
+    """
     label = (_CORNER_LABELS_ES if is_es else _CORNER_LABELS_EN)[name]
+    score = info["combined_score"]
+    excess = info.get("excess_area_mm2")
+    # Which channel drove the score decides which sentence is true. Material
+    # loss leads when it is the larger penalty, since that is the more concrete
+    # finding of the two.
+    material_led = (
+        excess is not None
+        and scoring.corner_material_penalty(excess)
+        >= scoring.corner_whitening_penalty(
+            info.get("lightness_rise", 0.0), info.get("chroma_loss", 0.0)
+        )
+        and excess > 0.0
+    )
+    if material_led:
+        if is_es:
+            return (
+                f"Pérdida de material en la {label}: falta aprox. {excess:.1f}mm² "
+                f"más allá del redondeo de fábrica (puntuación {score:.1f}/10)."
+            )
+        return (
+            f"Material loss on the {label}: about {excess:.1f}mm² missing beyond the "
+            f"factory rounding (score {score:.1f}/10)."
+        )
     if is_es:
-        return f"Blanqueamiento detectado en la {label} (puntuación {info['combined_score']:.1f}/10)."
-    return f"Whitening detected on the {label} (score {info['combined_score']:.1f}/10)."
+        return f"Blanqueamiento detectado en la {label} (puntuación {score:.1f}/10)."
+    return f"Whitening detected on the {label} (score {score:.1f}/10)."
 
 
 def _edge_note(name: str, info: dict, is_es: bool) -> str:
@@ -136,8 +165,11 @@ def _region(
 def _build_corner_regions(card_shape: tuple[int, int], language: str, result: dict) -> list[dict]:
     h, w = card_shape
     is_es = language == "es"
-    corner_fraction = result["measurements"].get("corner_fraction", 0.12)
-    size = max(8, int(min(h, w) * corner_fraction))
+    # Read from the measurement rather than re-derived, so the box drawn is the
+    # window that was actually examined. The corner window is a physical 5mm
+    # now, not a fraction of the card.
+    size = result["measurements"].get("corner_window_px") or max(8, int(min(h, w) * 0.12))
+    size = max(2, min(int(size), min(h, w)))
     inset = max(1, int(size * 0.08))
 
     boxes = {

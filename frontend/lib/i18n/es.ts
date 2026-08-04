@@ -136,9 +136,9 @@ export const es: Dictionary = {
       surface_diffuse_light:
         "Iluminada de forma uniforme y no en ángulo, así que pueden pasarse por alto arañazos finos.",
       corners_whitening_only:
-        "Solo decoloración: una esquina redondeada que no ha cambiado de color no se mide.",
+        "No se pudo establecer el contorno de la carta, así que solo se comprobó la decoloración: una esquina desgastada pero sin decolorar no se detecta.",
       corners_pale_border:
-        "Este borde es pálido, y el desgaste de esquinas se ve como pérdida de color, así que hay poco contraste.",
+        "Este borde es pálido, así que la mitad del análisis basada en el color tiene poco con lo que trabajar. El material que falta sí se mide.",
       centering_no_frame:
         "No hay un borde impreso claro con el que medir: normal en cartas de ilustración completa.",
       edges_partial: "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
@@ -496,17 +496,18 @@ export const es: Dictionary = {
 
     cornersTitle: "Esquinas",
     cornersMeasures: "Qué mide",
-    cornersMeasuresBody: "Blanqueamiento en cada una de las cuatro esquinas.",
+    cornersMeasuresBody:
+      "Cuánto cartón falta en cada una de las cuatro esquinas, en milímetros cuadrados, y cuánto se ha deshilachado cada una hacia el cartón blanco de debajo.",
     cornersHow: "Cómo",
     cornersHowBody:
-      "Una esquina desgastada se deshilacha hacia el cartón blanco de debajo, así que la intensidad del color cae en la punta. Cada esquina se compara con una zona de referencia un poco más adentro de la misma carta: la diferencia es el desgaste.",
+      "Dos medidas distintas. Para la forma: los cuatro vértices se obtienen prolongando los filos ajustados de la carta hasta que se cruzan, lo que da la punta que habría tenido una esquina perfecta, y todo lo que falte dentro de esa esquina ideal se mide como superficie. Una carta se troquela con un redondeo de aproximadamente 1,5mm, así que esa parte se espera y se perdona; lo que sobra es desgaste. Para el color: la punta se compara con el mismo borde un poco más allá del filo, en un espacio de color que separa cuán clara es una zona de cuán colorida es, porque una esquina deshilachada se vuelve a la vez más clara y menos colorida. La peor de las dos lecturas fija la puntuación de la esquina, en lugar de sumarse: una esquina astillada casi siempre está también blanqueada, y no se debe penalizar dos veces un mismo daño. La peor esquina de la carta pesa después la mitad de toda la categoría.",
     cornersWrong: "En qué se equivoca",
     cornersWrongBody:
-      "Esto mide la decoloración, no la forma. Una esquina redondeada o aplastada que no haya cambiado de color no se detecta aquí, y preferimos decírtelo antes que puntuarla como impecable sin más: medir bien el material que falta es trabajo pendiente. Los umbrales están ajustados a partir de escaneos reales, no tomados de ninguna norma publicada, y como la señal es una pérdida de color, una esquina cuya ilustración es naturalmente pálida parece algo desgastada, mientras que un borde blanco puede ocultar por completo un blanqueamiento real.",
+      "La medida de superficie tiene un límite de resolución. El contorno de la carta se determina con precisión de píxeles enteros, lo que en una foto típica supone alrededor de un cuarto de milímetro cuadrado de incertidumbre, así que el desgaste más fino que una muesca de medio milímetro no se informa en absoluto: preferimos no verlo a inventarlo. El margen de 1,5mm del troquelado es una cifra estándar y no una medida de su carta concreta, así que una carta cortada con un radio más ajustado o más amplio parecerá algo desgastada o algo generosa. La parte del color sigue teniendo dificultades con un borde blanco o muy pálido, donde hay poco color que perder; la parte de la superficie no depende del color del borde, y por eso esas cartas ya no son el punto ciego que eran. Ninguno de los umbrales procede de una norma de calificación publicada.",
     cornersAlt:
-      "La esquina superior izquierda ampliada de la carta de demostración, con la zona de la punta y la de referencia resaltadas y sus valores de intensidad de color.",
+      "La esquina superior izquierda ampliada de la carta de demostración, con la zona de la punta y la de referencia resaltadas y el cambio medido de luminosidad y color.",
     cornersCaption:
-      "La punta frente a su referencia. Una caída grande significa que la esquina se ha desgastado hasta el cartón.",
+      "La punta frente a su referencia. Más clara y menos colorida significa que la esquina se ha desgastado hacia el cartón; la superficie que falta se mide aparte, contra el vértice que la carta habría tenido.",
 
     edgesTitle: "Bordes",
     edgesMeasures: "Qué mide",
