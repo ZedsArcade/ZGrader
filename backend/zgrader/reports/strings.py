@@ -176,6 +176,11 @@ LIMITATION_LABELS = {
             "full-art cards where the artwork runs to the edge."
         ),
         "edges_partial": "Some edges could not be sampled and were left out of this score.",
+        "edges_thin_border": (
+            "This card's printed border is too narrow to sample clean card beside the cut "
+            "on one or more edges, so those edges were assessed on the straightness of "
+            "the cut alone rather than on discolouration."
+        ),
         "capture_too_low_resolution": (
             "The card occupies too few pixels in this photo for wear at this scale to "
             "be visible, so it was not scored. A closer or higher-resolution photo "
@@ -215,6 +220,11 @@ LIMITATION_LABELS = {
             "cartas de ilustración completa donde el arte llega hasta el filo."
         ),
         "edges_partial": "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
+        "edges_thin_border": (
+            "El borde impreso de esta carta es demasiado estrecho para muestrear cartón "
+            "limpio junto al filo en uno o más lados, así que esos lados se evaluaron solo "
+            "por la rectitud del corte y no por la decoloración."
+        ),
         "capture_too_low_resolution": (
             "La carta ocupa muy pocos píxeles en esta foto para que el desgaste a esta "
             "escala sea visible, así que no se puntuó. Una foto más cercana o de mayor "

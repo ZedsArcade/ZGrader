@@ -165,6 +165,21 @@ CORNER_WORST_WEIGHT = 0.5
 EDGE_WHITENED_FRACTION_WEIGHT = 15.0
 EDGE_LONGEST_RUN_WEIGHT = 10.0
 
+# --- Edges, geometric channel ----------------------------------------------
+#
+# REASONED. These describe how far the cut wanders from the straight line
+# fitted through it, in millimetres, and they are the only edge measurement
+# that works on a border with no colour to lose.
+#
+# A 1mm bite out of an edge is unmistakable damage on a 63mm card -- visible
+# across a room, and the kind of thing that caps a grade outright. Roughness is
+# a standard deviation rather than a single excursion, so it is a much smaller
+# quantity: 0.3mm of wander along a whole edge is a chewed edge, where a clean
+# factory cut measured on the fixtures sits near zero and a deliberately bad
+# capture reaches 0.09mm.
+EDGE_NICK_DEPTH_FOR_ZERO_MM = 1.0
+EDGE_ROUGHNESS_FOR_ZERO_MM = 0.30
+
 # ARBITRARY. 5% of the card flagged drives surface to zero.
 SURFACE_ANOMALY_FRACTION_FOR_ZERO = 0.05
 
@@ -247,16 +262,44 @@ def corners_category_score(per_corner_scores: list[float]) -> float:
     return _clip_score(CORNER_WORST_WEIGHT * worst + (1.0 - CORNER_WORST_WEIGHT) * mean)
 
 
-def edge_score(whitened_fraction: float, longest_run_fraction: float) -> float:
-    """Both how much of an edge is whitened and how concentrated it is.
+def clip_score(value: float) -> float:
+    """Public alias -- edges builds its score from two penalties and needs to
+    clamp the result itself."""
+    return _clip_score(value)
+
+
+def edge_photometric_penalty(whitened_fraction: float, longest_run_fraction: float) -> float:
+    """Points lost to an edge having frayed toward bare cardstock.
 
     Graders weight a single long chip more heavily than the same amount of
     speckle, which is why the run term exists at all rather than area alone.
     """
     return _clip_score(
+        whitened_fraction * EDGE_WHITENED_FRACTION_WEIGHT
+        + longest_run_fraction * EDGE_LONGEST_RUN_WEIGHT
+    )
+
+
+def edge_geometric_penalty(max_excursion_mm: float, roughness_mm: float) -> float:
+    """Points lost to the cut not being straight.
+
+    The worse of the two, not their sum: a deep nick raises the roughness that
+    measures it, so adding them would count the same excursion twice.
+    """
+    return _clip_score(
         10.0
-        - whitened_fraction * EDGE_WHITENED_FRACTION_WEIGHT
-        - longest_run_fraction * EDGE_LONGEST_RUN_WEIGHT
+        * max(
+            max_excursion_mm / EDGE_NICK_DEPTH_FOR_ZERO_MM,
+            roughness_mm / EDGE_ROUGHNESS_FOR_ZERO_MM,
+        )
+    )
+
+
+def edge_score(whitened_fraction: float, longest_run_fraction: float) -> float:
+    """Photometric-only edge score. Kept because recompute and the tests reach
+    for it; the pipeline combines both channels in edges.measure_edges."""
+    return _clip_score(
+        10.0 - edge_photometric_penalty(whitened_fraction, longest_run_fraction)
     )
 
 

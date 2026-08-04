@@ -45,32 +45,33 @@ class PipelineError(Exception):
     pass
 
 
-# Every analyser takes the same three inputs, whether or not it uses all of
-# them: the rectified card, its exact scale, and the card mask in that same
-# raster (None when detection could not supply one). Uniform signatures keep
-# the dispatch table below a table rather than four special cases.
+# Every analyser takes the same four inputs, whether or not it uses all of
+# them: the rectified card, its exact scale, the card mask in that same raster,
+# and the fitted geometry. Uniform signatures keep the dispatch table below a
+# table rather than four special cases, and mean adding an input to one
+# analyser does not reshape the loop that calls them.
 
 
 def _analyze_centering(
-    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None
+    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None, geometry: dict | None
 ) -> tuple[dict, None]:
     return centering.measure_centering(card_image, px_per_mm), None
 
 
 def _analyze_corners(
-    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None
+    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None, geometry: dict | None
 ) -> tuple[dict, None]:
     return corners.measure_corners(card_image, px_per_mm=px_per_mm, mask=mask), None
 
 
 def _analyze_edges(
-    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None
+    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None, geometry: dict | None
 ) -> tuple[dict, None]:
-    return edges.measure_edges(card_image, px_per_mm=px_per_mm), None
+    return edges.measure_edges(card_image, px_per_mm=px_per_mm, geometry=geometry), None
 
 
 def _analyze_surface(
-    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None
+    card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None, geometry: dict | None
 ) -> tuple[dict, np.ndarray]:
     return surface.measure_surface(card_image)
 
@@ -149,7 +150,7 @@ def _persist_side(
     ai_observations = _run_ai_analysis(card_image, side.value, language, submission.submission_code)
 
     for category, analyzer in _ANALYZERS.items():
-        result, extra = analyzer(card_image, px_per_mm, mask)
+        result, extra = analyzer(card_image, px_per_mm, mask, geometry)
         # Geometry is established once per scan, not once per category, so it
         # is folded in here rather than threaded through four analyser
         # signatures to be used the same way in each. It only devalues a

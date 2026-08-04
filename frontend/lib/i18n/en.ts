@@ -147,6 +147,8 @@ export const en = {
       centering_no_frame:
         "No clear printed border to measure against — normal on full-art cards.",
       edges_partial: "Some edges couldn't be sampled and were left out of this score.",
+      edges_thin_border:
+        "This card's border is too narrow to sample clean card beside the cut, so those edges were judged on the straightness of the cut alone.",
       capture_too_low_resolution:
         "The card is too small in this photo for wear at this scale to be visible — a closer photo would let it be measured.",
       capture_modest_resolution:
@@ -525,16 +527,17 @@ export const en = {
     edgesTitle: "Edges",
     edgesMeasures: "What it measures",
     edgesMeasuresBody:
-      "Whitening along each edge, and whether it runs continuously or is just a speck.",
+      "Two things: whitening along each edge, and how straight the cut actually is, measured in millimetres.",
     edgesHow: "How",
     edgesHowBody:
-      "A thin strip along each edge is compared with a reference strip immediately inside it. The reference is deliberately local: plenty of cards have a border that differs from the artwork in the middle, and comparing an edge against the centre of the card would flag every one of them. A long unbroken run of whitening counts for more than the same amount scattered about, because that's how it's actually judged.",
+      "For whitening: the printed border is located first, by looking inward from the cut until the colour changes, and only card from inside that border is used as the reference. This matters more than it sounds -- the reference used to sit at a fixed depth, and on a card whose border is narrower than that, it landed on the artwork instead. The comparison then measured the difference between a border and the art it frames, which is a design feature, not wear. A long unbroken run counts for more than the same amount scattered about, because that is how it is actually judged. For shape: a line is fitted along each cut and the distance the real edge wanders from it is recorded, so a nick is measured as a physical depth in millimetres rather than inferred from colour. The worse of the two readings sets the edge's score, not their sum -- a frayed edge is usually both, and it should not be penalised twice for one piece of damage.",
     edgesWrong: "Where it goes wrong",
     edgesWrongBody:
-      "On a card with an unusually narrow border, the reference strip can land on the artwork instead of the border, and the comparison then measures a design change rather than wear.",
+      "If the border is narrower than about a millimetre and a half, there is no clean card to compare against beside the cut, and that edge is judged on shape alone -- the report says so when it happens rather than guessing. The shape measurement describes the cut, so it cannot see wear that has discoloured the card without deforming it, and the colour measurement cannot see a bevelled or chewed edge that kept its colour; each covers the other's blind spot, which is why both are taken. Foil and holo texture near an edge can still register as either.",
     edgesAlt:
-      "A magnified right edge of the demonstration card showing a white worn run inside the sampled edge strip, next to its reference strip.",
-    edgesCaption: "The sampled strip, its reference, and the whitened run between them.",
+      "A magnified right edge of the demonstration card showing a white worn run inside the sampled edge strip, next to the reference strip taken from within the printed border.",
+    edgesCaption:
+      "The sampled strip and its reference, taken from inside the located border rather than at a fixed depth.",
 
     surfaceTitle: "Surface",
     surfaceMeasures: "What it measures",
