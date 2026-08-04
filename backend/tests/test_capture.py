@@ -164,20 +164,25 @@ def test_a_modest_capture_still_scores_but_at_lower_confidence(module):
     card, _ = _card("pokemon_front")
     measure = module.measure_corners if module is corners else module.measure_edges
 
-    modest = measure(card, px_per_mm=MODEST)
-    comfortable = measure(card, px_per_mm=COMFORTABLE)
+    # Straddling the threshold rather than at the extremes of each band, and
+    # both close to the fixture's true ~23.6 px/mm. Since this phase, the scale
+    # decides how much card the sampling windows cover -- a 5mm corner box, a
+    # 0.4mm edge strip -- so claiming 45 px/mm for a 23.6 px/mm image halves
+    # every apparent millimetre and can push a genuinely samplable border under
+    # the minimum. That is the analyser behaving correctly on the scale it was
+    # given; it just makes the two readings incomparable, which is not what
+    # this test is about.
+    modest = measure(card, px_per_mm=24.0)
+    comfortable = measure(card, px_per_mm=26.0)
 
-    if module is edges:
-        # Edges sample strips sized as a fraction of the card, so px_per_mm
-        # reaches them only as a statement about the capture. The band must
-        # change what the score is worth, not the score.
-        assert modest["raw_score"] == comfortable["raw_score"]
-    else:
-        # Corners are different, and legitimately so: the window they examine
-        # is a physical 5mm, so px_per_mm decides how much card is in it. It is
-        # a measurement input there, not only a confidence input, and asserting
-        # score-invariance would be asserting that the scale is ignored.
-        assert modest["raw_score"] is not None
+    # Both categories now sample physical windows -- a 5mm corner box, a
+    # 0.4mm edge strip beside a located border -- so px_per_mm is a
+    # measurement input to each, not only a statement about the capture.
+    # Asserting score-invariance here would be asserting that the scale is
+    # ignored. What the band must change is what the reading is *worth*, which
+    # is what the assertions below check.
+    assert modest["raw_score"] is not None
+    assert comfortable["raw_score"] is not None
     modest_block = modest["measurements"]["assessment"]
     comfortable_block = comfortable["measurements"]["assessment"]
     assert modest_block["state"] == assessment.MEASURED

@@ -142,6 +142,8 @@ export const es: Dictionary = {
       centering_no_frame:
         "No hay un borde impreso claro con el que medir: normal en cartas de ilustración completa.",
       edges_partial: "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
+      edges_thin_border:
+        "El borde de esta carta es demasiado estrecho para muestrear cartón limpio junto al filo, así que esos lados se juzgaron solo por la rectitud del corte.",
       capture_too_low_resolution:
         "La carta es demasiado pequeña en esta foto para que el desgaste a esta escala sea visible: una foto más cercana permitiría medirlo.",
       capture_modest_resolution:
@@ -512,16 +514,17 @@ export const es: Dictionary = {
     edgesTitle: "Bordes",
     edgesMeasures: "Qué mide",
     edgesMeasuresBody:
-      "El blanqueamiento a lo largo de cada borde, y si es un tramo continuo o solo una mota.",
+      "Dos cosas: el blanqueamiento a lo largo de cada filo y cuán recto es realmente el corte, medido en milímetros.",
     edgesHow: "Cómo",
     edgesHowBody:
-      "Se compara una franja fina de cada borde con una franja de referencia justo por dentro. La referencia es local a propósito: muchas cartas tienen un borde distinto de la ilustración central, y comparar un borde con el centro de la carta las marcaría todas. Un tramo largo e ininterrumpido de blanqueamiento pesa más que la misma cantidad repartida, porque así es como se juzga en realidad.",
+      "Para el blanqueamiento: primero se localiza el borde impreso, mirando hacia dentro desde el filo hasta que cambia el color, y solo se usa como referencia cartón de dentro de ese borde. Esto importa más de lo que parece: antes la referencia estaba a una profundidad fija y, en una carta con el borde más estrecho que esa profundidad, caía sobre la ilustración. La comparación medía entonces la diferencia entre el borde y el arte que enmarca, que es un rasgo de diseño y no desgaste. Un tramo largo e ininterrumpido pesa más que la misma cantidad repartida, porque así es como se juzga en realidad. Para la forma: se ajusta una recta a cada corte y se registra cuánto se aparta de ella el filo real, de modo que una muesca se mide como una profundidad física en milímetros en lugar de deducirse del color. La peor de las dos lecturas fija la puntuación del filo, no su suma: un filo deshilachado suele presentar ambas cosas y no debe penalizarse dos veces por un mismo daño.",
     edgesWrong: "En qué se equivoca",
     edgesWrongBody:
-      "En una carta de borde inusualmente estrecho, la franja de referencia puede caer sobre la ilustración en lugar del borde, y entonces la comparación mide un cambio de diseño en vez de desgaste.",
+      "Si el borde mide menos de milímetro y medio aproximadamente, no hay cartón limpio con el que comparar junto al filo, y ese lado se juzga solo por la forma; el informe lo indica cuando ocurre en lugar de adivinar. La medida de forma describe el corte, así que no puede ver un desgaste que haya decolorado la carta sin deformarla, y la medida de color no puede ver un filo biselado o mordido que conservó su color; cada una cubre el punto ciego de la otra, y por eso se toman ambas. La textura foil u holográfica cerca de un filo aún puede registrarse en cualquiera de las dos.",
     edgesAlt:
-      "El borde derecho ampliado de la carta de demostración, con un tramo blanco desgastado dentro de la franja muestreada, junto a su franja de referencia.",
-    edgesCaption: "La franja muestreada, su referencia y el tramo blanqueado entre ambas.",
+      "El borde derecho ampliado de la carta de demostración, con un tramo blanco desgastado dentro de la franja muestreada, junto a la franja de referencia tomada de dentro del borde impreso.",
+    edgesCaption:
+      "La franja muestreada y su referencia, tomada de dentro del borde localizado en vez de a una profundidad fija.",
 
     surfaceTitle: "Superficie",
     surfaceMeasures: "Qué mide",

@@ -47,6 +47,8 @@ CORNERS_PALE_BORDER = "corners_pale_border"
 CENTERING_NO_FRAME = "centering_no_frame"
 #: One or more edges could not be sampled and were left out of the score.
 EDGES_PARTIAL = "edges_partial"
+#: The printed border is too narrow to sample clean card beside the cut.
+EDGES_THIN_BORDER = "edges_thin_border"
 #: The card occupies too few pixels for wear of this scale to exist in the image.
 CAPTURE_TOO_LOW_RESOLUTION = "capture_too_low_resolution"
 #: Enough resolution to spot gross damage, not enough to grade it finely.
@@ -62,6 +64,7 @@ ALL_LIMITATION_CODES = (
     CORNERS_PALE_BORDER,
     CENTERING_NO_FRAME,
     EDGES_PARTIAL,
+    EDGES_THIN_BORDER,
     CAPTURE_TOO_LOW_RESOLUTION,
     CAPTURE_MODEST_RESOLUTION,
     GEOMETRY_UNVERIFIED,
@@ -99,6 +102,11 @@ CONFIDENCE_CORNERS_PALE_BORDER = 0.35
 CONFIDENCE_CORNERS_PALE_BORDER_WITH_MATERIAL = 0.6
 CONFIDENCE_EDGES = 0.75
 CONFIDENCE_EDGES_PARTIAL = 0.4
+#: Border too narrow for a photometric reference, so the edge rests on its
+#: geometric channel alone. Lower than a full reading, well above a guess --
+#: the shape measurement is real and is the one that works on a colourless
+#: border.
+CONFIDENCE_EDGES_THIN_BORDER = 0.5
 CONFIDENCE_SURFACE = 0.4
 
 #: Applied to corners and edges on a modest capture. Multiplicative rather than

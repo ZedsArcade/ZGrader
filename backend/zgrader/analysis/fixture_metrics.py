@@ -110,14 +110,22 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
 
     _record_assessment("corners", cor)
 
-    edg = edges.measure_edges(card, px_per_mm=px_per_mm)
+    edg = edges.measure_edges(card, px_per_mm=px_per_mm, geometry=rectified.geometry)
     if edg["raw_score"] is not None:
         metrics["edges.raw_score"] = _round(edg["raw_score"])
     for name, info in edg["measurements"]["per_edge"].items():
         if info.get("score") is None:
             continue
         metrics[f"edges.{name}.score"] = _round(info["score"])
-        metrics[f"edges.{name}.whitened_fraction"] = _round(info["whitened_fraction"])
+        if "whitened_fraction" in info:
+            metrics[f"edges.{name}.whitened_fraction"] = _round(info["whitened_fraction"])
+            # The border width the reference was taken from. Drift here means
+            # the transition detector moved, which changes what every
+            # photometric edge reading was compared against.
+            metrics[f"edges.{name}.border_width_mm"] = _round(info["border_width_mm"])
+        if info.get("geometric_measured"):
+            metrics[f"edges.{name}.max_excursion_mm"] = _round(info["max_excursion_mm"])
+            metrics[f"edges.{name}.roughness_mm"] = _round(info["roughness_mm"])
 
     _record_assessment("edges", edg)
 
