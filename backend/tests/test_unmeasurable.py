@@ -135,3 +135,51 @@ def test_combining_sides_never_invents_a_score(front, back, expected):
     from zgrader.analysis import scoring
 
     assert scoring.combine_front_back(front, back) == expected
+
+
+def test_the_api_serialises_a_null_score_instead_of_returning_500(db_session):
+    """The gap that reached production.
+
+    Everything inside the pipeline was updated when raw_score became nullable
+    -- the rules engine, the report builder, recompute, the Jinja template, and
+    the frontend's own TypeScript type, which has said `number | null` all
+    along. The Pydantic response model was not, and stayed a bare `float`.
+
+    So the pipeline correctly declined to score a category, wrote NULL, and
+    then FastAPI refused to serialise its own response: every request for that
+    submission returned 500 with a ResponseValidationError, confirm-crop
+    included. It failed on the first real card that proved a category can be
+    unmeasurable.
+
+    This exercises the HTTP boundary rather than the model, because that is
+    where the mismatch lived. Asserting the field is Optional would have been a
+    restatement of the annotation, and would have passed against the broken
+    code just as readily once someone "fixed" it by changing the annotation
+    alone.
+    """
+    from fastapi.testclient import TestClient
+
+    from zgrader.api.main import app
+    from zgrader.models import Submission
+
+    client = TestClient(app)
+    token = register_and_verify(client, "nullscore@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/submissions", headers=headers, json={"game": "pokemon", "card_name": "Unmeasurable"}
+    )
+    assert created.status_code in (200, 201), created.text
+    code = created.json()["submission_code"]
+
+    submission = db_session.query(Submission).filter_by(submission_code=code).one()
+    _add_result(db_session, submission, AnalysisCategory.centering, None)
+    _add_result(db_session, submission, AnalysisCategory.corners, 8.0)
+    db_session.commit()
+
+    resp = client.get(f"/submissions/{code}", headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    by_category = {r["category"]: r["raw_score"] for r in resp.json()["analysis_results"]}
+    assert by_category["centering"] is None, "an unmeasurable category must serialise as null"
+    assert by_category["corners"] == 8.0

@@ -59,7 +59,16 @@ class AnalysisResultOut(BaseModel):
 
     category: str
     side: str
-    raw_score: float
+    # Nullable, and the whole point of the column being nullable: a category
+    # that could not be measured has no score, which is a different answer from
+    # a bad one. This stayed a bare `float` when AnalysisResult.raw_score became
+    # nullable, so the moment a real card produced an unmeasurable category --
+    # a full-art centering read, or corners on a capture below the resolution
+    # floor -- FastAPI refused to serialise its own response and every request
+    # touching that submission returned 500, confirm-crop included. The
+    # pipeline was right; the contract at the edge was the last thing still
+    # insisting every category has a number.
+    raw_score: float | None
     measurements: dict
     flags: dict
 
