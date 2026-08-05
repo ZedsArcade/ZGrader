@@ -146,6 +146,7 @@ def make_card_scan(
     border_frac: float = 0.06,
     lr_offset_frac: float = 0.0,
     tb_offset_frac: float = 0.0,
+    frame_tilt_frac: float = 0.0,
     whiten_top_left_corner: bool = False,
     clip_top_left_corner: bool = False,
     whiten_right_edge: bool = False,
@@ -181,9 +182,27 @@ def make_card_scan(
         top = base_border_h + tb_shift
         bottom = base_border_h - tb_shift
 
-        cv2.rectangle(
-            card, (left, top), (card_w - right, card_h - bottom), inner_color, thickness=-1
-        )
+        if frame_tilt_frac:
+            # A diamond cut: the card trimmed at an angle to its own printing,
+            # so the border widens steadily down one side and narrows down the
+            # other. Its *average* width is unchanged, which is the point --
+            # a card like this reads as perfectly centred to any measurement
+            # that takes one number per side, and graders penalise it anyway.
+            shift = int(base_border_w * frame_tilt_frac)
+            quad = np.array(
+                [
+                    [left - shift, top],
+                    [card_w - right - shift, top],
+                    [card_w - right + shift, card_h - bottom],
+                    [left + shift, card_h - bottom],
+                ],
+                dtype=np.int32,
+            )
+            cv2.fillPoly(card, [quad], inner_color)
+        else:
+            cv2.rectangle(
+                card, (left, top), (card_w - right, card_h - bottom), inner_color, thickness=-1
+            )
     else:
         # Borderless: artwork runs to the cut edge, so there is no inner frame
         # to find. This is the case centering genuinely cannot measure without
@@ -318,6 +337,9 @@ FIXTURES: tuple[tuple[str, tuple[float, float], dict], ...] = (
     # --- damage, isolated so a change can be attributed ---
     ("damage_corner_clipped", _POKEMON, dict(clip_top_left_corner=True)),
     ("damage_edge_whitened", _POKEMON, dict(whiten_right_edge=True)),
+    # Printed straight, trimmed crooked. Averages to a centred card, so it is
+    # the case a per-side median cannot see at all.
+    ("centering_diamond_cut", _POKEMON, dict(frame_tilt_frac=0.14)),
     ("damage_surface_scratch", _POKEMON, dict(add_surface_scratch=True)),
     (
         "damage_all",

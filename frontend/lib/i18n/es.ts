@@ -141,6 +141,8 @@ export const es: Dictionary = {
         "Este borde es pálido, así que la mitad del análisis basada en el color tiene poco con lo que trabajar. El material que falta sí se mide.",
       centering_no_frame:
         "No hay un borde impreso claro con el que medir: normal en cartas de ilustración completa.",
+      centering_partial_frame:
+        "Se encontró borde impreso en algunos lados pero no en todos, así que esto se apoya en menos filos de lo habitual.",
       edges_partial: "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
       edges_thin_border:
         "El borde de esta carta es demasiado estrecho para muestrear cartón limpio junto al filo, así que esos lados se juzgaron solo por la rectitud del corte.",
@@ -487,10 +489,10 @@ export const es: Dictionary = {
       "El ancho del borde impreso en los cuatro lados, y cuán desigual fue el corte de la carta.",
     centeringHow: "Cómo",
     centeringHowBody:
-      "Se recorren veinte líneas hacia dentro desde cada borde cortado, buscando el salto de brillo más marcado: el punto donde el borde impreso se encuentra con el canto de la carta. Se toma el valor central de esas veinte, para que una línea anómala no distorsione el resultado. Los cuatro anchos se convierten en una proporción izquierda/derecha y superior/inferior.",
+      "Se muestrea el color del propio borde impreso justo por dentro de cada filo y luego se busca hacia dentro dónde deja de coincidir con él: ese es el canto interior del borde. Hacerlo en cada posición a lo largo de un lado, y no en unas pocas líneas, da una recta que puede ajustarse en lugar de un único número. De ese ajuste salen dos cosas. Los anchos del borde dan la habitual proporción izquierda/derecha y superior/inferior. La *pendiente* da algo que un solo número por lado no puede dar: si el borde corre paralelo al corte o se ensancha de forma constante a lo largo de él. Una carta puede estar impresa recta y cortada torcida, y entonces promedia una proporción perfecta aunque se vea visiblemente sesgada; los calificadores lo penalizan aparte, y nosotros también.",
     centeringWrong: "En qué se equivoca",
     centeringWrongBody:
-      "Una carta full-art u holográfica no tiene un borde limpio que localizar. El software lo detecta en vez de adivinar: si las veinte líneas no coinciden entre sí, la lectura se marca como de menor confianza y así se indica en su informe.",
+      "Una carta de ilustración completa no tiene un borde limpio que encontrar, y el software lo dice en lugar de adivinar: si muy pocas posiciones a lo largo de un lado encuentran borde, o lo que encuentran no es recto, el centrado se informa como no medible en vez de darle un número verosímil. Una carta holográfica es el caso intermedio incómodo: el patrón dispersa las lecturas individuales, así que el ancho del borde se sigue midiendo tomando el lado en conjunto pero la comprobación de corte torcido no queda disponible, y el informe indica cuál es el caso. El margen de sesgo que se tolera antes de penalizar es criterio nuestro, no una norma publicada.",
     centeringAlt:
       "La carta de demostración con el borde impreso resaltado y los cuatro anchos de borde etiquetados en milímetros.",
     centeringCaption:

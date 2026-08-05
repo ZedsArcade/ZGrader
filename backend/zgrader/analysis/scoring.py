@@ -96,6 +96,19 @@ def combine_sides_by_name(scores_by_side: dict[str, float]) -> float | None:
 # claiming to reproduce any company's actual cutoffs.
 CENTERING_POINTS_PER_PCT = 1.0 / 5.0
 
+# ARBITRARY. A diamond cut -- the card trimmed at an angle to its own printing
+# -- shows as the border width changing steadily along one side. This is the
+# end-to-end change, in millimetres, that takes centering to zero on its own.
+#
+# It is a defect in its own right, not a symptom of being off-centre: a card
+# can average out to a perfect 50/50 split and still be visibly crooked,
+# because the mean of a widening border is the width at its middle. Graders
+# treat it separately and so does this.
+#
+# 1.5mm across an 88mm side is a border half again as wide at one end as the
+# other on a typical 4mm border -- unmistakable to the eye.
+CENTERING_TILT_FOR_ZERO_MM = 1.5
+
 # --- Corners ---------------------------------------------------------------
 #
 # DERIVED, from geometry. A factory corner is not a right angle -- it is
@@ -188,12 +201,33 @@ def _clip_score(value: float) -> float:
     return float(np.clip(value, 0.0, 10.0))
 
 
-def centering_score(worse_side_pct: float) -> float:
-    """50/50 -> 10.0, 100/0 -> 0.0, linear in between.
+def centering_offset_penalty(worse_side_pct: float) -> float:
+    """Points lost to the card being cut off-centre.
 
     `worse_side_pct` is the larger share of a ratio, e.g. 58 for a 58/42 split.
     """
-    return _clip_score(10.0 - (worse_side_pct - 50.0) * CENTERING_POINTS_PER_PCT)
+    return _clip_score((worse_side_pct - 50.0) * CENTERING_POINTS_PER_PCT)
+
+
+def centering_tilt_penalty(tilt_mm: float) -> float:
+    """Points lost to the cut running at an angle to the printing."""
+    return _clip_score(10.0 * abs(tilt_mm) / CENTERING_TILT_FOR_ZERO_MM)
+
+
+def centering_score(worse_side_pct: float, tilt_mm: float = 0.0) -> float:
+    """50/50 and square -> 10.0.
+
+    The worse of the two penalties applies, not their sum. They are genuinely
+    different defects rather than two views of one -- unlike the pairs in
+    corners and edges -- so the reason here is different too: a grade is capped
+    by a card's worst flaw, which is how the companies describe their own
+    process. Summing would punish a card twice for being imperfect in two
+    independent ways.
+    """
+    return _clip_score(
+        10.0
+        - max(centering_offset_penalty(worse_side_pct), centering_tilt_penalty(tilt_mm))
+    )
 
 
 def nominal_corner_deficit_mm2(radius_mm: float = NOMINAL_CORNER_RADIUS_MM) -> float:

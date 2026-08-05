@@ -175,6 +175,10 @@ LIMITATION_LABELS = {
             "No clear printed border was found to measure against, which is normal on "
             "full-art cards where the artwork runs to the edge."
         ),
+        "centering_partial_frame": (
+            "A printed border was found on some sides of this card but not all of them, "
+            "so the centering figures rest on fewer edges than usual."
+        ),
         "edges_partial": "Some edges could not be sampled and were left out of this score.",
         "edges_thin_border": (
             "This card's printed border is too narrow to sample clean card beside the cut "
@@ -218,6 +222,10 @@ LIMITATION_LABELS = {
         "centering_no_frame": (
             "No se encontró un borde impreso claro con el que medir, algo normal en "
             "cartas de ilustración completa donde el arte llega hasta el filo."
+        ),
+        "centering_partial_frame": (
+            "Se encontró un borde impreso en algunos lados de esta carta pero no en todos, "
+            "así que las cifras de centrado se apoyan en menos filos de lo habitual."
         ),
         "edges_partial": "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
         "edges_thin_border": (
