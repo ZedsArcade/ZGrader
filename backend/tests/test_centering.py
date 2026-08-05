@@ -86,7 +86,11 @@ def test_a_diamond_cut_is_caught_even_though_the_ratio_looks_perfect():
 
     assert max(reading["lr_ratio"]) < 52.0, "the ratio should look almost perfect"
     assert reading["tilt_mm"] > 0.5, "the tilt is the whole defect and must be seen"
-    assert result["raw_score"] < 6.0, "a visibly skewed card must not score well"
+    # Measured and reported, not scored -- see scoring.CENTERING_TILT_SCORED.
+    # Real photographs put about 1.2mm of noise on this measurement, which is
+    # wider than the whole range it was being scored over, so the score was
+    # largely reporting which photograph had been taken.
+    assert result["raw_score"] is not None
 
 
 def test_opposite_sides_tilt_in_opposite_directions():

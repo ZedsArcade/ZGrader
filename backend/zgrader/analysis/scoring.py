@@ -96,18 +96,30 @@ def combine_sides_by_name(scores_by_side: dict[str, float]) -> float | None:
 # claiming to reproduce any company's actual cutoffs.
 CENTERING_POINTS_PER_PCT = 1.0 / 5.0
 
-# ARBITRARY. A diamond cut -- the card trimmed at an angle to its own printing
-# -- shows as the border width changing steadily along one side. This is the
-# end-to-end change, in millimetres, that takes centering to zero on its own.
+# A diamond cut -- the card trimmed at an angle to its own printing -- shows as
+# the border width changing steadily along one side. It is a defect in its own
+# right, not a symptom of being off-centre: a card can average out to a perfect
+# 50/50 split and still be visibly crooked, because the mean of a widening
+# border is the width at its middle.
 #
-# It is a defect in its own right, not a symptom of being off-centre: a card
-# can average out to a perfect 50/50 split and still be visibly crooked,
-# because the mean of a widening border is the width at its middle. Graders
-# treat it separately and so does this.
+# **It is measured and reported, and deliberately not scored.** On synthetics
+# a clean card's tilt is exactly 0.000mm, which said nothing about the
+# measurement's precision. Real photographs did: across six shots of one card
+# the tilt read 0.18, 0.35, 0.46, 0.52, 0.85 and 1.43mm. The card did not
+# change, so that is roughly 1.2mm of noise -- and the threshold that took
+# centering to zero was 1.5mm. The noise nearly spanned the entire scoring
+# range, so the score was mostly reporting which photograph had been taken.
+# The synthetic diamond-cut fixture sits at 0.876mm, inside that noise, so
+# even the case built to demonstrate the feature could not be distinguished
+# from a clean card photographed twice.
 #
-# 1.5mm across an 88mm side is a border half again as wide at one end as the
-# other on a typical 4mm border -- unmistakable to the eye.
-CENTERING_TILT_FOR_ZERO_MM = 1.5
+# A quantity whose noise spans its own scoring range cannot be scored, and
+# that is a statement about this measurement rather than about diamond cuts.
+# Scoring it again needs either a tilt measurement stable to well under a
+# millimetre on hand-held captures, or cards with known miscuts to calibrate
+# against. Until then it rides along as a diagnostic, the same way the edge
+# residuals and the capture metrics did before they earned a threshold.
+CENTERING_TILT_SCORED = False
 
 # --- Corners ---------------------------------------------------------------
 #
@@ -210,8 +222,15 @@ def centering_offset_penalty(worse_side_pct: float) -> float:
 
 
 def centering_tilt_penalty(tilt_mm: float) -> float:
-    """Points lost to the cut running at an angle to the printing."""
-    return _clip_score(10.0 * abs(tilt_mm) / CENTERING_TILT_FOR_ZERO_MM)
+    """Points lost to the cut running at an angle to the printing.
+
+    Currently always zero -- see CENTERING_TILT_SCORED. Kept as a named
+    function rather than deleted because the measurement still happens and the
+    mapping is the thing that needs calibrating, not the detector.
+    """
+    if not CENTERING_TILT_SCORED:
+        return 0.0
+    return _clip_score(10.0 * abs(tilt_mm))
 
 
 def centering_score(worse_side_pct: float, tilt_mm: float = 0.0) -> float:
@@ -223,6 +242,8 @@ def centering_score(worse_side_pct: float, tilt_mm: float = 0.0) -> float:
     by a card's worst flaw, which is how the companies describe their own
     process. Summing would punish a card twice for being imperfect in two
     independent ways.
+
+    The tilt term contributes nothing at present; see CENTERING_TILT_SCORED.
     """
     return _clip_score(
         10.0

@@ -237,10 +237,31 @@ def _fit_side(band: np.ndarray, px_per_mm: float) -> dict:
             "coverage": round(coverage, 3),
             "residual_mm": round(residual_mm, 3),
         }
+
     if fitted:
         def depth_at(position: float) -> float:
             return float((offset - normal[0] * position) / normal[1])
 
+        # A fitted frame has to exist along the *whole* side. If the line puts
+        # the border narrower than the minimum at either end, it is not
+        # describing a frame -- and the difference between the ends, which is
+        # the tilt, is then an artefact rather than a diamond cut.
+        #
+        # This matters because tilt is scored. Real photographs produced tilts
+        # of 12.4mm and 14.3mm on a 63mm card, which is not a miscut, it is the
+        # border detector landing at very different depths at the two ends of a
+        # side. Both scored a confident 0.00. On 5_AngleShot the fit implied a
+        # border 0.23mm wide at one end and 14.5mm at the other.
+        #
+        # No new threshold is needed: the frame must simply still be a frame at
+        # both ends. The genuine diamond-cut fixture passes comfortably -- a
+        # 3.8mm border with 0.88mm of tilt runs 3.36mm to 4.24mm -- so this
+        # bounds the artefact without blunting the measurement it protects.
+        ends = (depth_at(0.0), depth_at(length - 1.0))
+        if min(ends) < MIN_BORDER_WIDTH_MM * px_per_mm:
+            fitted = False
+
+    if fitted:
         width_px = depth_at(length / 2.0)
         tilt_px = depth_at(length - 1.0) - depth_at(0.0)
         return {
