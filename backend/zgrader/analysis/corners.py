@@ -113,6 +113,30 @@ def corner_crops(
     }
 
 
+#: Fraction of the canonical raster that may be missing from the card mask
+#: before the mask is judged not to describe a card at all.
+#:
+#: The raster *is* the card's ideal rectangle, so a sound mask fills essentially
+#: all of it. Measured across 29 real photographs the separation is stark:
+#: every trustworthy corner reading came from a mask 99.85-99.89% filled, while
+#: the unreliable ones were missing 2% to 56%. Those were not cards with
+#: material missing -- they were photographs where thresholding caught the desk,
+#: a shadow or a glare bloom, and corners then measured 24mm^2 of "loss" against
+#: a boundary that was not the card's.
+#:
+#: 1% sits an order of magnitude above the sound cases and well below the
+#: failures. For scale, genuine damage is far smaller still: a 2.5mm corner chip
+#: is about 6mm^2, or 0.11% of a card, so real wear never approaches this.
+#:
+#: The consequence of tripping it is *not* a bad score. Material loss becomes
+#: unmeasurable and the category falls back to whitening alone, declaring
+#: CORNERS_WHITENING_ONLY -- the same honest degradation used when no mask is
+#: supplied at all. A wrong boundary must not be allowed to produce a confident
+#: number, which is what it was doing: the same card scored 0.00 in one
+#: photograph and 9.52 in another.
+MAX_MASK_MISSING_FRACTION = 0.01
+
+
 #: Distance from the apex, in millimetres, beyond which the card's boundary is
 #: straight edge rather than corner. Used to calibrate the mask's own boundary
 #: offset -- see _edge_inset_px. Comfortably outside the ~1.5mm factory radius.
@@ -300,10 +324,14 @@ def measure_corners(
     """
     size = _window_px(card_image, px_per_mm)
     crops = corner_crops(card_image, size=size, corner_fraction=corner_fraction)
+    mask_usable = mask is not None and mask.shape[:2] == card_image.shape[:2]
+    mask_missing = float(np.mean(mask == 0)) if mask_usable else 1.0
+    if mask_usable and mask_missing > MAX_MASK_MISSING_FRACTION:
+        # The mask is not describing a card. See MAX_MASK_MISSING_FRACTION.
+        mask_usable = False
+
     mask_crops = (
-        corner_crops(mask, size=size, corner_fraction=corner_fraction)
-        if mask is not None and mask.shape[:2] == card_image.shape[:2]
-        else {}
+        corner_crops(mask, size=size, corner_fraction=corner_fraction) if mask_usable else {}
     )
     can_measure_material = bool(mask_crops) and px_per_mm is not None and px_per_mm > 0
 
@@ -344,6 +372,7 @@ def measure_corners(
         "corner_window_px": size,
         "mean_reference_chroma": round(mean_reference_chroma, 1),
         "material_measured": can_measure_material,
+        "mask_missing_fraction": round(mask_missing, 5),
     }
 
     if too_low_resolution:

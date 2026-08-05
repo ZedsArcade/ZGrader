@@ -75,8 +75,52 @@ def warp_to_points(image: np.ndarray, box: np.ndarray) -> np.ndarray:
     return cv2.warpPerspective(image, matrix, (max_width, max_height))
 
 
+#: A candidate reaching this close to every image border, as a fraction of the
+#: image's own dimensions, is the photograph rather than anything in it.
+_FRAME_SPAN_FRACTION = 0.98
+
+
+def _spans_whole_frame(contour: np.ndarray, image_w: int, image_h: int) -> bool:
+    """Whether a candidate is really just the whole photograph.
+
+    The aspect test cannot catch this one, and the reason is unlucky
+    arithmetic: a 3000x4000 phone frame has an aspect of 0.750 against a card's
+    0.716, which is under 5% out. The frame is card-shaped.
+
+    What separates them is margin. A card photographed with any background
+    visible around it does not reach the edge of the frame on all four sides;
+    the frame does, by definition. One real shot detected a region of
+    2999x3999 in a 3000x4000 image and every measurement downstream was taken
+    against the photograph's own border.
+    """
+    x, y, w, h = cv2.boundingRect(contour.astype(np.int32))
+    return (
+        w >= image_w * _FRAME_SPAN_FRACTION
+        and h >= image_h * _FRAME_SPAN_FRACTION
+    )
+
+
+def _aspect_error(contour: np.ndarray, expected_aspect: float) -> float:
+    """How far a candidate region's shape is from a card's, as a fraction.
+
+    Orientation-agnostic: a card photographed sideways is still a card, so the
+    reciprocal is tried too and the better of the two wins.
+    """
+    (_cx, _cy), (rw, rh), _angle = cv2.minAreaRect(contour)
+    if rw <= 0 or rh <= 0:
+        return float("inf")
+    observed = rw / rh
+    return min(
+        abs(observed / expected_aspect - 1.0),
+        abs((1.0 / observed) / expected_aspect - 1.0),
+    )
+
+
 def detect_boundary(
-    image: np.ndarray, min_area_fraction: float = 0.15, max_area_fraction: float = 0.95
+    image: np.ndarray,
+    min_area_fraction: float = 0.15,
+    max_area_fraction: float = 0.95,
+    expected_aspect: float | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Find the card's outer boundary and return its 4 corner points (any
     order) plus info about the detected contour, for annotation/debugging
@@ -105,14 +149,19 @@ def detect_boundary(
     blurred = cv2.GaussianBlur(value_channel, (5, 5), 0)
     _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    image_area = image.shape[0] * image.shape[1]
+    image_h, image_w = image.shape[:2]
+    image_area = image_h * image_w
     candidates: list[tuple[float, np.ndarray]] = []
     for candidate_binary in (binary, cv2.bitwise_not(binary)):
         contour = _largest_contour(candidate_binary)
-        if contour is not None:
-            area = cv2.contourArea(contour)
-            if image_area * min_area_fraction <= area <= image_area * max_area_fraction:
-                candidates.append((area, contour))
+        if contour is None:
+            continue
+        area = cv2.contourArea(contour)
+        if not (image_area * min_area_fraction <= area <= image_area * max_area_fraction):
+            continue
+        if _spans_whole_frame(contour, image_w, image_h):
+            continue
+        candidates.append((area, contour))
 
     if not candidates:
         raise ValueError(
@@ -120,7 +169,30 @@ def detect_boundary(
             "backing contrast and that the card is fully within the scan bed."
         )
 
-    _, contour = max(candidates, key=lambda c: c[0])
+    # Pick the candidate that is most *card-shaped*, not the largest.
+    #
+    # Taking the largest assumes the card is the biggest bright thing in the
+    # frame, which holds only when the background is darker than the card.
+    # Measured on real photographs it frequently is not: a card at HSV value
+    # 77 on a desk at 122 gave a "card" spanning 42% of the frame with an
+    # aspect of 0.932, and one shot detected the entire photograph -- 93.9% of
+    # the frame, aspect 0.750 -- which slipped under the area ceiling and was
+    # then fitted happily, because a photograph's own edges are straight lines.
+    #
+    # Every downstream number inherited that: px/mm came out at ~47.5, which is
+    # the frame width divided by 63mm rather than anything about the card, and
+    # corners then measured 24mm^2 of "missing material" against a boundary
+    # that was not the card's.
+    #
+    # The card's aspect ratio is known -- it is the one piece of information
+    # about the subject we have for free -- so it decides. Area only breaks
+    # ties between candidates that are equally card-shaped.
+    if expected_aspect:
+        _, contour = min(
+            candidates, key=lambda c: (round(_aspect_error(c[1], expected_aspect), 2), -c[0])
+        )
+    else:
+        _, contour = max(candidates, key=lambda c: c[0])
 
     rect_center, rect_size, rect_angle = cv2.minAreaRect(contour)
     rect_area = rect_size[0] * rect_size[1]
@@ -356,7 +428,9 @@ def rectify(
     fitted = None
     material = None
     try:
-        box, info = detect_boundary(search)
+        box, info = detect_boundary(
+            search, expected_aspect=min(width_mm, height_mm) / max(width_mm, height_mm)
+        )
         fitted = geometry.fit_card_geometry(search, info["contour"], box)
         # Where the card's material actually is, as one filled region. Built
         # from the *chosen contour* rather than from the raw threshold, so
