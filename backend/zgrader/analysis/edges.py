@@ -48,7 +48,7 @@ defect twice.
 import cv2
 import numpy as np
 
-from zgrader.analysis import assessment, capture, scoring
+from zgrader.analysis import assessment, border, capture, scoring
 from zgrader.models import AnalysisCategory
 
 CATEGORY = AnalysisCategory.edges
@@ -58,9 +58,11 @@ CATEGORY = AnalysisCategory.edges
 # fractions-of-the-card versions meant the strip examined a different amount of
 # actual card on every scan.
 
-#: How far inward to look for the border/artwork transition. Comfortably past
-#: any real card's border without reaching the middle of the artwork.
-MAX_BORDER_SEARCH_MM = 12.0
+#: How far inward to look for the border/artwork transition. Owned by
+#: analysis/border.py, which centering also uses -- two copies of "where does
+#: the border end" would drift apart exactly as two copies of a score mapping
+#: would.
+MAX_BORDER_SEARCH_MM = border.MAX_SEARCH_MM
 
 #: The sliver actually assessed for wear: the cut itself and just behind it.
 OUTER_STRIP_MM = 0.4
@@ -68,7 +70,7 @@ OUTER_STRIP_MM = 0.4
 #: Skipped when establishing what clean border looks like. Without it the
 #: reference would include the frayed zone being measured, and a badly whitened
 #: edge would calibrate itself as normal.
-REFERENCE_INSET_MM = 0.6
+REFERENCE_INSET_MM = border.SAMPLE_INSET_MM
 
 #: Below this much clean border between the inset and the artwork, there is no
 #: room for a reference that is not partly artwork. The edge is still reported,
@@ -79,12 +81,7 @@ MIN_REFERENCE_WIDTH_MM = 0.8
 #: corners.py, whose window is defined the same way.
 CORNER_EXCLUSION_FRACTION = 0.12
 
-#: ARBITRARY. Colour step, in 8-bit Lab units, that marks the border/artwork
-#: transition. Measured across the fixture set the real steps are enormous --
-#: 112 and 192 in lightness alone -- so this only has to clear within-border
-#: variation, which on a real photograph is the noisier quantity. Deliberately
-#: well below the observed steps and well above print noise.
-BORDER_TRANSITION_DELTA_E = 25.0
+BORDER_TRANSITION_DELTA_E = border.TRANSITION_DELTA_E
 
 #: ARBITRARY. Per-position whitening, in the combined Lab measure below, above
 #: which that position counts as whitened.
@@ -107,50 +104,10 @@ def _longest_true_run(mask: np.ndarray) -> int:
     return longest
 
 
-def _edge_band(lab: np.ndarray, name: str, exclusion: float, depth_px: int) -> np.ndarray:
-    """A band along one edge, oriented so axis 0 is depth inward from the cut
-    and axis 1 runs along the edge.
-
-    The flips are what let one analysis function serve all four edges, exactly
-    as corner_crops does for corners.
-    """
-    h, w = lab.shape[:2]
-    ex_h, ex_w = int(h * exclusion), int(w * exclusion)
-    depth_px = max(2, min(depth_px, h // 2, w // 2))
-
-    if name == "top":
-        return lab[0:depth_px, ex_w : w - ex_w]
-    if name == "bottom":
-        return lab[h - depth_px : h, ex_w : w - ex_w][::-1]
-    if name == "left":
-        return np.transpose(lab[ex_h : h - ex_h, 0:depth_px], (1, 0, 2))
-    return np.transpose(lab[ex_h : h - ex_h, w - depth_px : w][:, ::-1], (1, 0, 2))
+_edge_band = border.edge_band
 
 
-def _border_depth_px(band: np.ndarray, px_per_mm: float) -> int | None:
-    """Depth at which the printed border gives way to artwork, or None if no
-    such transition is visible within the search window.
-
-    None is a real answer, not a failure: a full-art card has artwork running
-    to the cut, and comparing the outermost sliver against the artwork just
-    behind it is still a valid local comparison. What must not happen is a
-    transition landing *inside* the reference, which is the case this exists to
-    detect.
-    """
-    inset = max(1, int(round(REFERENCE_INSET_MM * px_per_mm)))
-    if band.shape[0] <= inset + 2:
-        return None
-
-    # Median across the edge's length, so a defect at one position cannot move
-    # the profile: this is a question about the card's printing, not its wear.
-    profile = np.median(band, axis=1)
-    reference_colour = np.median(profile[inset : inset + max(2, int(0.5 * px_per_mm))], axis=0)
-    delta = np.linalg.norm(profile - reference_colour, axis=1)
-
-    beyond = np.nonzero(delta[inset:] > BORDER_TRANSITION_DELTA_E)[0]
-    if not len(beyond):
-        return None
-    return int(beyond[0] + inset)
+_border_depth_px = border.transition_depth_px
 
 
 def _analyze_edge(band: np.ndarray, px_per_mm: float) -> dict:

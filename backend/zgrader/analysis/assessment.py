@@ -45,6 +45,8 @@ CORNERS_WHITENING_ONLY = "corners_whitening_only"
 CORNERS_PALE_BORDER = "corners_pale_border"
 #: No clean printed border was found -- full-art, or artwork bleeding to the edge.
 CENTERING_NO_FRAME = "centering_no_frame"
+#: A printed frame was found on some sides but not all of them.
+CENTERING_PARTIAL_FRAME = "centering_partial_frame"
 #: One or more edges could not be sampled and were left out of the score.
 EDGES_PARTIAL = "edges_partial"
 #: The printed border is too narrow to sample clean card beside the cut.
@@ -63,6 +65,7 @@ ALL_LIMITATION_CODES = (
     CORNERS_WHITENING_ONLY,
     CORNERS_PALE_BORDER,
     CENTERING_NO_FRAME,
+    CENTERING_PARTIAL_FRAME,
     EDGES_PARTIAL,
     EDGES_THIN_BORDER,
     CAPTURE_TOO_LOW_RESOLUTION,
@@ -86,6 +89,9 @@ UNMEASURABLE = "unmeasurable"
 
 CONFIDENCE_CENTERING_CLEAN_FRAME = 0.9
 CONFIDENCE_CENTERING_NO_FRAME = 0.2
+#: A frame on some sides only. The ratio still comes from real borders, but
+#: one of the two axes may rest on a single confident side.
+CONFIDENCE_CENTERING_PARTIAL_FRAME = 0.6
 #: Corners now measure material loss in mm^2 as well as discolouration, which
 #: is a physical quantity against a known apex rather than a colour comparison.
 #: That is a materially better position than the whitening-only reading this

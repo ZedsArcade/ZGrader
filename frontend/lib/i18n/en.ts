@@ -146,6 +146,8 @@ export const en = {
         "This border is pale, so the colour half of the corner check has little to work with. Missing material is still measured.",
       centering_no_frame:
         "No clear printed border to measure against — normal on full-art cards.",
+      centering_partial_frame:
+        "A printed border was found on some sides but not all, so this rests on fewer edges than usual.",
       edges_partial: "Some edges couldn't be sampled and were left out of this score.",
       edges_thin_border:
         "This card's border is too narrow to sample clean card beside the cut, so those edges were judged on the straightness of the cut alone.",
@@ -500,10 +502,10 @@ export const en = {
       "The width of the printed border on all four sides, and how unevenly the card was cut.",
     centeringHow: "How",
     centeringHowBody:
-      "Twenty sample lines are scanned inward from each cut edge, looking for the sharpest jump in brightness -- the boundary where the border meets the card's edge. The middle value of those twenty is taken, so one odd line can't skew the result. The four widths become a left/right and top/bottom split.",
+      "The printed border's own colour is sampled just inside each cut, and then we look inward for where the colour stops matching it -- that's the inner edge of the border. Doing this at every position along a side, rather than on a handful of scan lines, gives a line that can be fitted rather than a single number. Two things come out of that fit. The border widths give the familiar left/right and top/bottom split. The *slope* gives something a single number per side cannot: whether the border runs parallel to the cut, or widens steadily along it. A card can be printed straight and trimmed crooked, and it then averages out to a perfect split while being visibly skewed -- graders penalise that separately, and so do we.",
     centeringWrong: "Where it goes wrong",
     centeringWrongBody:
-      "A full-art or holo card has no clean border to find. The software notices this rather than guessing: if the twenty sample lines disagree with each other, the reading is marked lower-confidence and flagged as such in your report.",
+      "A full-art card has no clean border to find, and the software says so rather than guessing: if too few positions along a side turn up a border, or what they turn up is not straight, centering is reported as not measurable instead of given a plausible-looking number. A holo card is the awkward middle case -- the pattern scatters the individual readings, so the border width is still measured from the side as a whole but the check for a crooked trim is not available, and the report says which. The allowance for how skewed a card can be before it is penalised is our judgement, not a published standard.",
     centeringAlt:
       "The demonstration card with the printed border outlined, and each of the four border widths labelled in millimetres.",
     centeringCaption:
