@@ -61,6 +61,8 @@ CAPTURE_MODEST_RESOLUTION = "capture_modest_resolution"
 GEOMETRY_UNVERIFIED = "geometry_unverified"
 #: What was measured is not the shape of a card, so its scale is wrong.
 GEOMETRY_ASPECT_MISMATCH = "geometry_aspect_mismatch"
+#: The card is foil or holo, which every detector here reads less reliably.
+CARD_IS_FOIL = "card_is_foil"
 
 ALL_LIMITATION_CODES = (
     SURFACE_DIFFUSE_LIGHT,
@@ -75,6 +77,7 @@ ALL_LIMITATION_CODES = (
     CAPTURE_MODEST_RESOLUTION,
     GEOMETRY_UNVERIFIED,
     GEOMETRY_ASPECT_MISMATCH,
+    CARD_IS_FOIL,
 )
 
 MEASURED = "measured"
@@ -135,6 +138,22 @@ CONFIDENCE_UNVERIFIED_GEOMETRY_FACTOR = 0.5
 #: aspect error means the pixel-to-millimetre scale is wrong on at least one
 #: axis, so every figure in millimetres is wrong by a factor nobody knows.
 CONFIDENCE_ASPECT_MISMATCH_FACTOR = 0.35
+
+#: Applied to every category on a foil or holo card. ARBITRARY in magnitude,
+#: but the direction is evidenced: measured across the real photographs, foil
+#: degrades every detector here in a way nothing corrects for.
+#:
+#:   centering  the per-position frame fit scatters across the holo pattern,
+#:              so the width falls back to a whole-edge median and the
+#:              diamond-cut check is unavailable entirely
+#:   corners    holo sparkle at the tip moves the Lab whitening reading
+#:   edges      the same, along the cut
+#:   surface    sparkle is what the scratch filter spends most of its effort
+#:              rejecting
+#:
+#: Not a correction, a confidence statement. Nothing here knows how to undo
+#: what foil does to a measurement; it knows the reading is worth less.
+CONFIDENCE_FOIL_FACTOR = 0.75
 
 #: ARBITRARY. Below this mean CIELAB chroma in a corner's reference region, the
 #: border has too little colour for "lost colour" to register -- the documented
@@ -197,6 +216,7 @@ def measured(score: float, confidence: float, limitations: tuple[str, ...] = ())
 EXTERNAL_LIMITATION_FACTORS = {
     GEOMETRY_UNVERIFIED: CONFIDENCE_UNVERIFIED_GEOMETRY_FACTOR,
     GEOMETRY_ASPECT_MISMATCH: CONFIDENCE_ASPECT_MISMATCH_FACTOR,
+    CARD_IS_FOIL: CONFIDENCE_FOIL_FACTOR,
 }
 
 

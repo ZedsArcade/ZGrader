@@ -40,6 +40,31 @@ removed the damage from the image before any detector saw it. When the fit has t
 supplied crop, the result carries `GEOMETRY_UNVERIFIED` and every category's confidence is halved —
 that fallback must never become silent.
 
+**A threshold calibrated against the synthetic fixtures has been wrong on real photographs every
+single time it was checked.** Thirty photographs of seven real cards found five bugs that
+twenty-three synthetic fixtures could not, and each was the same shape: a confident number with
+nothing behind it. Detection reported the whole photograph as the card; corners measured 24mm² of
+"material loss" against a desk; diamond-cut tilt read 14mm on a 63mm card. Synthetic content is
+unnaturally clean — flat fills, no paper fibre, no holo, one connected component in a variance mask
+where a real photo has 237–1183 — so any threshold tuned on it is tuned against the easy case.
+Not always in the same direction, either: some were too sensitive, and one case had no signal at all
+where no threshold setting would have helped. **Before believing a new constant, run
+`scripts/fixture_drift.py` and read the real-photo block at the bottom.**
+
+**A quantity whose noise is comparable to its scoring range must not be scored.** Diamond-cut tilt
+was measured, scored, demonstrated with its own fixture — and then repeat photographs of one
+unchanging card showed it reading 0.18–1.43mm, about 1.2mm of noise against a 1.5mm range. It is now
+measured and reported but contributes nothing to any score (`scoring.CENTERING_TILT_SCORED`). The
+same reasoning set `scoring.CORNER_AREA_NOISE_FLOOR_MM2`. Reporting a difference smaller than the
+noise that produced it is false precision, and it biases every number downstream in one direction.
+
+**When a category gains the ability to decline, something downstream assumes it cannot.** Since
+`raw_score` became nullable this has surfaced four times: the Pydantic response schema (reached
+production as a 500 on every request for the affected submission), the drift harness's reporting,
+`fixture_metrics`, and `recompute`. The guard in `recompute._adjusted_side_score` is written against
+the assessment *state* rather than per category so the fifth is covered. Grep for `raw_score` before
+adding a fifth declining path.
+
 **Emails are stored lowercased behind a unique index on `lower(email)`.** Every user lookup must
 compare with `func.lower(...)` — see `_find_by_email` in `api/routers/auth.py`. A single
 case-sensitive `==` left a production deployment with no operator account, silently, because the
@@ -60,7 +85,7 @@ and printed text is sometimes flagged. Don't remove the caveat — it's load-bea
 on the public `/methodology` page.
 
 **Every change under `analysis/` must be checked for per-fixture drift.** `scripts/fixture_drift.py`
-runs 22 synthetic fixtures — bordered, full-art, foil, white-bordered, damaged, and deliberately bad
+runs 23 synthetic fixtures — bordered, full-art, foil, white-bordered, damaged, and deliberately bad
 captures — through the detectors and diffs them against `tests/fixtures/drift_baseline.json`.
 `tests/test_fixture_drift.py` fails if anything moved, so it can't be forgotten. When a change is
 intended, `python scripts/fixture_drift.py --update` records it, and the resulting baseline diff is
@@ -70,6 +95,14 @@ full-art centering reads as an improvement until someone looks per fixture.
 
 Fixtures must stay deterministic — seed any noise — or the baseline reports drift that isn't there
 and everyone learns to ignore it.
+
+The same harness also measures anything in `backend/tests/fixtures/real_scans/` and prints it
+**without baselining it** — real photographs should move as the pipeline improves, and a test
+demanding they stay fixed would punish the work it was meant to protect. That directory is empty in
+a fresh clone: the operator's own photographs are deliberately not committed, because the repo is
+public. Ask for them before concluding the pipeline is fine, and see that directory's README for
+what to shoot. Nearly every finding in the last round came from photographing *one card several
+times* — the card cannot change between shots, so all the variation is measurement error.
 
 **Retuning an analysis threshold means regenerating the published figures.** `/methodology`
 describes the detector's behaviour to customers, illustrated by images produced by the real
@@ -81,6 +114,24 @@ longer exists. `tests/test_methodology_figures.py` fails if the filter stops rej
 forwards variables named in a service's `environment:` block; anything else in `.env` is invisible
 to the container. `tests/test_compose_env_coverage.py` enforces this against an explicit exclusion
 list.
+
+## How the analysis pipeline fits together
+
+Read in this order; each module depends on the one above it.
+
+| Module | Owns |
+|---|---|
+| `preprocessing.rectify` | The entry point. Detects the card, fits its geometry, warps to a canonical raster built at a known px/mm from the card's physical size. Returns image, scale, geometry and a **card mask** in that same raster. |
+| `geometry.py` | RANSAC line per side with a 12% corner margin excluded, sub-pixel refinement by parabola-fitting the gradient peak along each normal, apexes from intersecting adjacent lines. The margin is what makes an apex *extrapolated*, so a chipped corner has a known ideal tip to measure loss against. |
+| `border.py` | Where the printed border ends. Shared by edges (to place its reference) and centering (because it *is* the measurement). Extracted precisely so the two cannot drift apart. |
+| `capture.py` | Sharpness, resolution, clipping, illumination uniformity. **Only `px_per_mm` gates anything** — the other three track what is *printed* on the card as strongly as how it was photographed, so no absolute threshold works. |
+| `assessment.py` | The output contract: `measured`/`unmeasurable`, confidence, interval, limitation **codes**. `EXTERNAL_LIMITATION_FACTORS` is the hook for anything established once per card rather than per category (geometry provenance, foil). |
+| `scoring.py` | Every measurement→score mapping, each tagged DERIVED / REASONED / ARBITRARY. **Every consumer must route through it** — `recompute.py` is the one that keeps forgetting, twice now. |
+
+Two structural rules that keep being re-learned: a category that cannot measure something returns
+`raw_score = None` rather than a low score, and `build_regions` plus `_annotate_category` both key
+off that being `None` so an unscored category draws no overlay and emits no findings — every region
+severity is a claim, and `ok` asserts that part of the card was checked and is clean.
 
 ## Two traps that have already cost real time
 
@@ -177,6 +228,30 @@ error rather than a runtime hole.
 
 `docs/qa_checklist.md` is the manual end-to-end walkthrough. `docs/deployment.md` covers the
 Cloudflare Tunnel, file ownership on Unraid, and getting into the admin panel.
+
+## Analysis issues that are characterised but unfixed
+
+Diagnosed with evidence, deliberately left rather than patched badly. Each has a measurement behind
+it, so the next attempt starts from where the last one stopped.
+
+- **The border transition threshold fires on real print texture.** `border.TRANSITION_DELTA_E` is 25
+  Lab units, calibrated on synthetic flat fills where the step into artwork is 112–192. Real print
+  crosses 25 routinely. Three distinct cases, not one: a clean profile works; a transient spike
+  before the real transition makes first-crossing fire early; and glare can erase the transition
+  entirely (ΔE never exceeds 11), where no threshold setting helps. A persistence test fixes the
+  latter two but converts seven honest refusals into readings that disagree by up to 5 points across
+  shots of one card — trading ~2 wrong readings for ~7. **Attempted twice, measured, rejected both
+  times.** Card 6 in the photo set still spreads 6.02 on centering. What is missing is a quality
+  signal that declines when a located border is untrustworthy; the cases that need it currently pass
+  the coverage and residual checks.
+- **`capture_worst_case` scores a flat 10.00 on surface.** Its noise generates plenty of raw
+  variance, so it does not trip `surface.MIN_DETAIL_FRACTION` — the noise *masks* scratches rather
+  than erasing them, which needs a noise measure that does not exist yet.
+- **Foil is declared, not detected.** Phase 7 uses `Card.foil` from the customer. Detecting it from
+  the image was tried and rejected: clipped-highlight density separates on per-card averages
+  (5.6–9.1% against 0.6–2.8%) but overlaps badly per photograph — a plain card under high glare
+  reads 10.7%, a foil card in flat light 0.4%. Local variance and sparkle density do not separate at
+  all. Do not reach for those three again without new evidence.
 
 ## Known-open, deliberately
 
