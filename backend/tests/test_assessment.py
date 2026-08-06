@@ -19,7 +19,7 @@ def _analyse(name: str) -> dict:
     image = build_fixture(name)
     card, _info = preprocessing.locate_and_deskew(image)
     px_per_mm = scale.px_per_mm(card.shape[:2], *card_size_mm(name))
-    surface_result, _mask = surface.measure_surface(card)
+    surface_result, _mask = surface.measure_surface(card, px_per_mm=px_per_mm)
     return {
         "centering": centering.measure_centering(card, px_per_mm)["measurements"]["assessment"],
         "corners": corners.measure_corners(card)["measurements"]["assessment"],
@@ -30,7 +30,10 @@ def _analyse(name: str) -> dict:
 
 @pytest.mark.parametrize("category", ["centering", "corners", "edges", "surface"])
 def test_every_category_reports_an_assessment(category):
-    block = _analyse("pokemon_back")[category]
+    # A card with something on its face: pokemon_back is flat fill, and since
+    # surface gained a capture gate it correctly declines on an image with a
+    # raw anomaly fraction of exactly zero.
+    block = _analyse("damage_surface_scratch")[category]
     assert block["state"] == assessment.MEASURED
     assert 0.0 <= block["confidence"] <= 1.0
     assert block["score_low"] <= block["score_high"]
@@ -44,10 +47,19 @@ def test_limitation_codes_are_all_known(category):
         assert code in assessment.ALL_LIMITATION_CODES
 
 
+def test_surface_declines_when_the_image_carries_no_detail():
+    """pokemon_back is a flat generated card: its interior has a raw anomaly
+    fraction of zero, so there was nothing in the image for a scratch to have
+    shown up in. It used to score a flat 10.0."""
+    block = _analyse("pokemon_back")["surface"]
+    assert block["state"] == assessment.UNMEASURABLE
+    assert assessment.SURFACE_NO_DETAIL in block["limitations"]
+
+
 def test_surface_always_admits_the_lighting_limitation():
     """Diffuse light is a property of how the card is captured, not of the
     card, so this is not conditional on anything."""
-    block = _analyse("pokemon_back")["surface"]
+    block = _analyse("damage_surface_scratch")["surface"]
     assert assessment.SURFACE_DIFFUSE_LIGHT in block["limitations"]
     assert block["confidence"] == assessment.CONFIDENCE_SURFACE
 

@@ -39,6 +39,8 @@ import dataclasses
 
 #: Flatbed and phone lighting is diffuse; graders use raking light.
 SURFACE_DIFFUSE_LIGHT = "surface_diffuse_light"
+#: The image carries no fine detail, so no scratch could have shown up in it.
+SURFACE_NO_DETAIL = "surface_no_detail"
 #: Corners are assessed for discolouration only -- material loss is not measured.
 CORNERS_WHITENING_ONLY = "corners_whitening_only"
 #: Whitening is a loss of saturation, so a pale or white border has little to lose.
@@ -62,6 +64,7 @@ GEOMETRY_ASPECT_MISMATCH = "geometry_aspect_mismatch"
 
 ALL_LIMITATION_CODES = (
     SURFACE_DIFFUSE_LIGHT,
+    SURFACE_NO_DETAIL,
     CORNERS_WHITENING_ONLY,
     CORNERS_PALE_BORDER,
     CENTERING_NO_FRAME,

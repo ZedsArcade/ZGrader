@@ -44,6 +44,26 @@ SURFACE_LOWER_CONFIDENCE_FLAG = {
 #
 # Both are described in customer-facing terms on the public /methodology page,
 # and its figures are generated from this code.
+#: Below this raw anomaly fraction, the image carries no fine detail at all
+#: and surface cannot be assessed.
+#:
+#: Every real card has micro-texture: paper fibre, print rosettes, the edges of
+#: its own artwork. A sharp photograph of one flags about 0.4% of the face even
+#: when the card is clean, and a real photograph flags 2.4-3.3%. So a reading
+#: near zero does not mean "nothing is wrong with this card", it means the
+#: image has nothing in it to find -- blur or blown-out glare has removed the
+#: high-frequency content that a scratch would also have lived in.
+#:
+#: Measured on the fixtures: the deliberately soft capture flags 0.0000 and the
+#: glared one 0.0003, against 0.0038 for the same card sharp. Both used to
+#: score a flat 10.00 -- absence of evidence as perfection, which is the
+#: pattern the resolution gate removed from corners and edges. Surface had no
+#: capture gate at all.
+#:
+#: This is content-independent in the way sharpness is not: it asks whether
+#: *this* image has detail, not whether it has as much as some other card.
+MIN_DETAIL_FRACTION = 0.001
+
 MIN_BLOB_AREA_MM2 = 0.5
 MIN_ASPECT_RATIO = 1.8
 MAX_SCRATCH_THICKNESS_MM = 0.85
@@ -125,7 +145,11 @@ def measure_surface(card_image: np.ndarray, corner_exclusion_fraction: float = 0
     # variance threshold noticed. See scratch_like_fraction.
     anomaly_fraction = scratch_like_fraction(anomaly_mask, px_per_mm)
 
-    raw_score = round(score_from_anomaly_fraction(anomaly_fraction), 2)
+    # No fine detail in the image at all means no scratch could have shown up
+    # either. See MIN_DETAIL_FRACTION.
+    no_detail = raw_anomaly_fraction < MIN_DETAIL_FRACTION
+    raw_score = None if no_detail else round(score_from_anomaly_fraction(anomaly_fraction), 2)
+
     measurements = {
         "anomaly_fraction": round(anomaly_fraction, 4),
         # Kept alongside so the gap between "noticed" and "believed" stays
@@ -133,18 +157,32 @@ def measure_surface(card_image: np.ndarray, corner_exclusion_fraction: float = 0
         "raw_anomaly_fraction": round(raw_anomaly_fraction, 4),
         "laplacian_variance": round(laplacian_var, 1),
         "corner_exclusion_fraction": corner_exclusion_fraction,
-        # Always the lowest confidence of the four, and always for the same
-        # reason -- see the limitation note at the top of this module.
-        "assessment": assessment.measured(
+    }
+    if no_detail:
+        measurements["assessment"] = assessment.unmeasurable(
+            (assessment.SURFACE_NO_DETAIL,)
+        ).as_dict()
+        flags = {
+            "lower_confidence": True,
+            "reason": (
+                "This photo carries no fine detail on the card's face -- blur or "
+                "blown-out glare has removed it -- so a scratch could not have "
+                "shown up in it either. Surface was not scored. A sharper photo, "
+                "or one without the glare, would let it be assessed."
+            ),
+        }
+    else:
+        measurements["assessment"] = assessment.measured(
             raw_score,
             assessment.CONFIDENCE_SURFACE,
             (assessment.SURFACE_DIFFUSE_LIGHT,),
-        ).as_dict(),
-    }
+        ).as_dict()
+        flags = SURFACE_LOWER_CONFIDENCE_FLAG
+
     result = {
         "category": CATEGORY,
         "raw_score": raw_score,
         "measurements": measurements,
-        "flags": SURFACE_LOWER_CONFIDENCE_FLAG,
+        "flags": flags,
     }
     return result, anomaly_mask

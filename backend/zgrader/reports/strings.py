@@ -158,6 +158,9 @@ REPORT_STRINGS = {
 # adding one in assessment.py means adding copy in both dicts below.
 LIMITATION_LABELS = {
     "en": {
+        "surface_no_detail": (
+            "This photo carries no fine detail on the card's face, so a scratch could not have shown up in it either. Surface was not scored."
+        ),
         "surface_diffuse_light": (
             "Surface was lit evenly rather than at an angle, so faint scratches and "
             "print lines can be missed."
@@ -205,6 +208,9 @@ LIMITATION_LABELS = {
         ),
     },
     "es": {
+        "surface_no_detail": (
+            "Esta foto no conserva detalle fino en la cara de la carta, así que un arañazo tampoco habría aparecido en ella. La superficie no se puntuó."
+        ),
         "surface_diffuse_light": (
             "La superficie se iluminó de forma uniforme y no en ángulo, así que pueden "
             "pasarse por alto arañazos finos y líneas de impresión."

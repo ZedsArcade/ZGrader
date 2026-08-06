@@ -15,7 +15,7 @@ Dismissed keys are "{side}:{category}:{region_id}", e.g.
 
 from sqlalchemy.orm import Session
 
-from zgrader.analysis import centering, rules_engine, scoring, surface
+from zgrader.analysis import assessment, centering, rules_engine, scoring, surface
 from zgrader.models import AnalysisSide, GradingCompanyComparison, Submission
 
 
@@ -42,6 +42,20 @@ def _adjusted_side_score(
     used to be reported as 10.0 here, which manufactured a perfect score out
     of nothing.
     """
+    # A side the pipeline declined to score cannot have a score re-derived for
+    # it. This is generic rather than per-category on purpose: every time a
+    # category has gained the ability to decline -- corners below the
+    # resolution floor, centering with no frame, surface with no fine detail --
+    # something downstream that assumed a number has had to be found. Checking
+    # the assessment state catches the next one too.
+    #
+    # Caught by test_no_dismissals_reproduces_the_pipeline_score_exactly, which
+    # is worded as an invariant precisely so it fails when the two paths
+    # diverge rather than needing someone to predict how.
+    state = (side_measurements.get("assessment") or {}).get("state")
+    if state is not None and state != assessment.MEASURED:
+        return None, None
+
     regions = side_measurements.get("regions", [])
 
     if category in ("corners", "edges"):

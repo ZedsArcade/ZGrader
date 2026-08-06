@@ -133,6 +133,8 @@ export const es: Dictionary = {
     lowerConfidence: "menor confiabilidad",
     unmeasurable: "No medible",
     limitation: {
+      surface_no_detail:
+        "Esta foto no conserva detalle fino en la cara de la carta, así que un arañazo tampoco habría aparecido: la superficie no se puntuó.",
       surface_diffuse_light:
         "Iluminada de forma uniforme y no en ángulo, así que pueden pasarse por alto arañazos finos.",
       corners_whitening_only:
