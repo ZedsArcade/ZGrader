@@ -158,6 +158,9 @@ REPORT_STRINGS = {
 # adding one in assessment.py means adding copy in both dicts below.
 LIMITATION_LABELS = {
     "en": {
+        "card_is_foil": (
+            "You told us this card is foil or holo. The holographic pattern interferes with every measurement on this report -- it scatters the border detection, moves the corner and edge colour readings, and is the main thing the surface filter has to reject -- so every figure here is held to a wider range than it would be on a plain card."
+        ),
         "surface_no_detail": (
             "This photo carries no fine detail on the card's face, so a scratch could not have shown up in it either. Surface was not scored."
         ),
@@ -208,6 +211,9 @@ LIMITATION_LABELS = {
         ),
     },
     "es": {
+        "card_is_foil": (
+            "Usted nos indicó que esta carta es foil u holográfica. El patrón holográfico interfiere con todas las mediciones de este informe: dispersa la detección del borde, altera las lecturas de color de esquinas y filos, y es lo principal que el filtro de superficie debe descartar, así que todas las cifras se mantienen en un rango más amplio que en una carta normal."
+        ),
         "surface_no_detail": (
             "Esta foto no conserva detalle fino en la cara de la carta, así que un arañazo tampoco habría aparecido en ella. La superficie no se puntuó."
         ),

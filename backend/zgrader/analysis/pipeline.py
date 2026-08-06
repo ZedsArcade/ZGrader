@@ -363,6 +363,27 @@ def run_analysis(db: Session, submission: Submission) -> None:
         front = _load_deskewed_card(front_scan, width_mm, height_mm)
     except ValueError as exc:
         raise PipelineError(f"Front scan preprocessing failed: {exc}") from exc
+    # Foil is a property of the card, not of either photograph, so it joins
+    # the geometry limitations rather than being re-derived per side.
+    #
+    # **Taken from the customer's declaration, not detected.** Detecting it
+    # from the image was tried and rejected on measurement: clipped-highlight
+    # density looked decisive on per-card averages -- foil cards 5.6-9.1% of
+    # the face against 0.6-2.8% for plain ones -- but per photograph it
+    # overlaps badly. A plain card under high glare reads 10.7%, above most
+    # foil shots, while a foil card in flat light reads 0.4%. Clipping cannot
+    # separate foil from glare in a single frame, and local variance and
+    # sparkle density do not separate at all: plain cards score the same or
+    # higher on both.
+    #
+    # So the reliable signal is the one already in the database and never read
+    # until now. Card.foil has been a declared field the analysis ignored.
+    card_limitations = (
+        (assessment.CARD_IS_FOIL,)
+        if submission.card is not None and submission.card.foil
+        else ()
+    )
+
     front_results = _persist_side(
         db,
         submission,
@@ -374,7 +395,7 @@ def run_analysis(db: Session, submission: Submission) -> None:
         # axis measurements that a bad crop can pull apart.
         front.px_per_mm,
         front.geometry,
-        front.limitations,
+        front.limitations + card_limitations,
         front.mask,
     )
 
@@ -392,7 +413,7 @@ def run_analysis(db: Session, submission: Submission) -> None:
             back.image,
             back.px_per_mm,
             back.geometry,
-            back.limitations,
+            back.limitations + card_limitations,
             back.mask,
         )
 

@@ -138,6 +138,8 @@ export const en = {
     // Keyed by the limitation codes in backend analysis/assessment.py. Stored
     // as codes so the wording can change here without re-analysing any card.
     limitation: {
+      card_is_foil:
+        "You told us this card is foil or holo, which interferes with every measurement here — so all of them are held to a wider range.",
       surface_no_detail:
         "This photo has no fine detail on the card's face, so a scratch couldn't have shown up either — surface wasn't scored.",
       surface_diffuse_light:

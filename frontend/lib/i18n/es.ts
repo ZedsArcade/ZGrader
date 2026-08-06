@@ -133,6 +133,8 @@ export const es: Dictionary = {
     lowerConfidence: "menor confiabilidad",
     unmeasurable: "No medible",
     limitation: {
+      card_is_foil:
+        "Nos indicó que esta carta es foil u holográfica, lo que interfiere con todas las mediciones, así que todas se mantienen en un rango más amplio.",
       surface_no_detail:
         "Esta foto no conserva detalle fino en la cara de la carta, así que un arañazo tampoco habría aparecido: la superficie no se puntuó.",
       surface_diffuse_light:

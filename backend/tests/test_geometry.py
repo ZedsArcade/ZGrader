@@ -400,3 +400,40 @@ def test_recorded_apexes_are_in_source_coordinates():
         np.array(detected.geometry["apexes"]),
         atol=1.0,
     )
+
+
+# --- Foil (phase 7) --------------------------------------------------------
+
+
+def test_a_foil_card_lowers_every_category_s_confidence():
+    """Phase 7, and it is a confidence statement rather than a correction.
+
+    Nothing here knows how to undo what a holographic pattern does to a
+    measurement -- it scatters centering's per-position frame fit, moves the
+    Lab whitening readings at corners and edges, and is most of what the
+    surface scratch filter spends its effort rejecting. What the pipeline can
+    honestly do is say the reading is worth less.
+    """
+    block = assessment.measured(8.0, 0.8, ()).as_dict()
+    foiled = assessment.with_limitations(block, (assessment.CARD_IS_FOIL,), 8.0)
+
+    assert foiled["confidence"] == pytest.approx(
+        0.8 * assessment.CONFIDENCE_FOIL_FACTOR, abs=0.01
+    )
+    assert assessment.CARD_IS_FOIL in foiled["limitations"]
+    assert foiled["score_low"] < block["score_low"], "a wider range is the visible effect"
+
+
+def test_foil_compounds_with_a_geometry_limitation():
+    """Multiplicative like the rest: a foil card whose boundary also could not
+    be verified is worse off than either alone."""
+    block = assessment.measured(8.0, 0.8, ()).as_dict()
+    both = assessment.with_limitations(
+        block, (assessment.CARD_IS_FOIL, assessment.GEOMETRY_UNVERIFIED), 8.0
+    )
+    expected = (
+        0.8
+        * assessment.CONFIDENCE_FOIL_FACTOR
+        * assessment.CONFIDENCE_UNVERIFIED_GEOMETRY_FACTOR
+    )
+    assert both["confidence"] == pytest.approx(expected, abs=0.01)
