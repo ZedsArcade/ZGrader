@@ -146,11 +146,20 @@ def main() -> int:
     if real:
         print(f"\nreal photographs measured (not baselined): {len(real)}")
         for name, metrics in real.items():
+            # "--" where a category declined to score. The first real card that
+            # produced an unmeasurable centering crashed this line with a
+            # KeyError, because it assumed every category always yields a
+            # number -- which is exactly the assumption the nullable score was
+            # introduced to remove, still living in the reporting.
+            def _score(key: str) -> str:
+                value = metrics.get(key)
+                return f"{value:5.2f}" if value is not None else "   --"
+
             print(
-                f"  {name:28} centering {metrics['centering.raw_score']:5.2f}"
-                f"  corners {metrics['corners.raw_score']:5.2f}"
-                f"  edges {metrics['edges.raw_score']:5.2f}"
-                f"  surface {metrics['surface.raw_score']:5.2f}"
+                f"  {name:28} cen {_score('centering.raw_score')}"
+                f"  cor {_score('corners.raw_score')}"
+                f"  edg {_score('edges.raw_score')}"
+                f"  sur {_score('surface.raw_score')}"
                 f"  ({metrics['px_per_mm']:.1f} px/mm)"
             )
 

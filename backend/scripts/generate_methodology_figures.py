@@ -436,7 +436,7 @@ def generate(output_dir: Path) -> dict[str, object]:
     centering = measure_centering(card, px_per_mm)
     corners = measure_corners(card, px_per_mm=px_per_mm, mask=rectified.mask)
     edges = measure_edges(card, px_per_mm=px_per_mm)
-    surface, mask = measure_surface(card)
+    surface, mask = measure_surface(card, px_per_mm=px_per_mm)
     creases = detect_creases(card, px_per_mm)
 
     surface_regions = build_regions(

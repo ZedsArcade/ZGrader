@@ -85,12 +85,10 @@
     "geometry.top.roughness_px": 0.001,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 9.95,
-    "surface.score_high": 10.0,
-    "surface.score_low": 6.95,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "capture_low_resolution": {
     "card_height_px": 623.0,
@@ -172,12 +170,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 7.082,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "capture_noisy": {
     "card_height_px": 2079.0,
@@ -264,12 +260,13 @@
     "geometry.top.max_excursion_px": 0.038,
     "geometry.top.roughness_px": 0.016,
     "px_per_mm": 23.625,
-    "surface.anomaly_fraction": 0.009,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 8.3,
+    "surface.raw_anomaly_fraction": 0.009,
+    "surface.raw_score": 9.96,
     "surface.score_high": 10.0,
-    "surface.score_low": 5.3,
+    "surface.score_low": 6.96,
     "surface.unmeasurable": 0.0
   },
   "capture_soft": {
@@ -358,12 +355,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "capture_tilted": {
     "card_height_px": 2080.0,
@@ -451,12 +446,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.631,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "capture_worst_case": {
     "card_height_px": 2078.0,
@@ -465,9 +458,9 @@
     "centering.limitation_count": 1.0,
     "centering.lower_confidence": 0.0,
     "centering.lr_left_pct": 50.0,
-    "centering.raw_score": 9.87,
+    "centering.raw_score": 9.96,
     "centering.score_high": 10.0,
-    "centering.score_low": 7.87,
+    "centering.score_low": 7.96,
     "centering.tb_top_pct": 49.8,
     "centering.unmeasurable": 0.0,
     "centering.worse_side_pct": 50.2,
@@ -543,12 +536,13 @@
     "geometry.top.max_excursion_px": 5.378,
     "geometry.top.roughness_px": 2.313,
     "px_per_mm": 23.617,
-    "surface.anomaly_fraction": 0.008,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 8.36,
+    "surface.raw_anomaly_fraction": 0.008,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 5.36,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "centering_diamond_cut": {
@@ -558,9 +552,9 @@
     "centering.limitation_count": 0.0,
     "centering.lower_confidence": 0.0,
     "centering.lr_left_pct": 50.3,
-    "centering.raw_score": 4.16,
-    "centering.score_high": 4.66,
-    "centering.score_low": 3.66,
+    "centering.raw_score": 9.94,
+    "centering.score_high": 10.0,
+    "centering.score_low": 9.44,
     "centering.tb_top_pct": 50.2,
     "centering.unmeasurable": 0.0,
     "centering.worse_side_pct": 50.3,
@@ -637,12 +631,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "centering_offset_mild": {
     "card_height_px": 2079.0,
@@ -730,12 +722,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "centering_offset_severe": {
     "card_height_px": 2079.0,
@@ -823,12 +813,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "centering_perfect": {
     "card_height_px": 2079.0,
@@ -916,12 +904,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "damage_all": {
     "card_height_px": 2079.0,
@@ -1011,6 +997,7 @@
     "surface.anomaly_fraction": 0.004,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
+    "surface.raw_anomaly_fraction": 0.004,
     "surface.raw_score": 9.23,
     "surface.score_high": 10.0,
     "surface.score_low": 6.23,
@@ -1102,12 +1089,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "damage_edge_whitened": {
     "card_height_px": 2079.0,
@@ -1195,12 +1180,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "damage_surface_scratch": {
     "card_height_px": 2079.0,
@@ -1290,6 +1273,7 @@
     "surface.anomaly_fraction": 0.004,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
+    "surface.raw_anomaly_fraction": 0.004,
     "surface.raw_score": 9.23,
     "surface.score_high": 10.0,
     "surface.score_low": 6.23,
@@ -1380,12 +1364,13 @@
     "geometry.top.max_excursion_px": 0.067,
     "geometry.top.roughness_px": 0.014,
     "px_per_mm": 23.625,
-    "surface.anomaly_fraction": 0.01,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 8.03,
+    "surface.raw_anomaly_fraction": 0.01,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 5.03,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "full_art_centered": {
@@ -1470,12 +1455,13 @@
     "geometry.top.max_excursion_px": 0.0,
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
-    "surface.anomaly_fraction": 0.011,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 7.69,
+    "surface.raw_anomaly_fraction": 0.011,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 4.69,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "full_art_foil": {
@@ -1560,12 +1546,13 @@
     "geometry.top.max_excursion_px": 0.041,
     "geometry.top.roughness_px": 0.009,
     "px_per_mm": 23.625,
-    "surface.anomaly_fraction": 0.011,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 7.77,
+    "surface.raw_anomaly_fraction": 0.011,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 4.77,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "pokemon_back": {
@@ -1654,12 +1641,10 @@
     "geometry.top.roughness_px": 0.153,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "pokemon_front": {
     "card_height_px": 2079.0,
@@ -1749,6 +1734,7 @@
     "surface.anomaly_fraction": 0.004,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
+    "surface.raw_anomaly_fraction": 0.004,
     "surface.raw_score": 9.23,
     "surface.score_high": 10.0,
     "surface.score_low": 6.23,
@@ -1840,12 +1826,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "white_border_worn_corner": {
     "card_height_px": 2079.0,
@@ -1933,12 +1917,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "yugioh_back": {
     "card_height_px": 2032.0,
@@ -2026,12 +2008,10 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.627,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   },
   "yugioh_front": {
     "card_height_px": 2032.0,
@@ -2119,11 +2099,9 @@
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.627,
     "surface.anomaly_fraction": 0.0,
-    "surface.confidence": 0.4,
+    "surface.confidence": 0.0,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 10.0,
-    "surface.score_high": 10.0,
-    "surface.score_low": 7.0,
-    "surface.unmeasurable": 0.0
+    "surface.raw_anomaly_fraction": 0.0,
+    "surface.unmeasurable": 1.0
   }
 }

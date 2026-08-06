@@ -129,9 +129,16 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
 
     _record_assessment("edges", edg)
 
-    sur, _mask = surface.measure_surface(card)
-    metrics["surface.raw_score"] = _round(sur["raw_score"])
+    sur, _mask = surface.measure_surface(card, px_per_mm=px_per_mm)
+    # Surface can decline too, since it gained a capture gate: an image with no
+    # fine detail in it cannot have shown a scratch. Same guard as the three
+    # categories above -- an absent score is not a zero.
+    if sur["raw_score"] is not None:
+        metrics["surface.raw_score"] = _round(sur["raw_score"])
     metrics["surface.anomaly_fraction"] = _round(sur["measurements"]["anomaly_fraction"])
+    metrics["surface.raw_anomaly_fraction"] = _round(
+        sur["measurements"]["raw_anomaly_fraction"]
+    )
 
     _record_assessment("surface", sur)
 

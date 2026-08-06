@@ -21,7 +21,11 @@ from zgrader.analysis import scoring
 from zgrader.models import AnalysisCategory
 
 MAX_SURFACE_REGIONS = 6
-MIN_BLOB_AREA_MM2 = 0.5
+
+# Owned by surface.py, because the score is built from them too -- a filter
+# deciding what a customer is shown but not what they are charged for would be
+# two opinions about one card.
+MIN_BLOB_AREA_MM2 = surface.MIN_BLOB_AREA_MM2
 # A genuine scratch/print-line is elongated AND has a thin mean stroke.
 # Card text -- the dominant false positive on holo/full-art cards -- gets
 # grouped by connected-component analysis into per-word blobs; measured
@@ -41,8 +45,8 @@ MIN_BLOB_AREA_MM2 = 0.5
 # figures need regenerating, or the page starts describing behaviour the
 # software no longer has. tests/test_methodology_figures.py fails loudly if
 # the filter stops rejecting text at all.
-_MIN_ASPECT_RATIO = 1.8
-_MAX_SCRATCH_THICKNESS_MM = 0.85
+_MIN_ASPECT_RATIO = surface.MIN_ASPECT_RATIO
+_MAX_SCRATCH_THICKNESS_MM = surface.MAX_SCRATCH_THICKNESS_MM
 
 # Matches annotate.py's _FLAG_COLOR/_OK_COLOR cutoff -- same "worth calling
 # out" threshold already used everywhere else in this pipeline.
