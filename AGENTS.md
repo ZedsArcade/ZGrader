@@ -74,6 +74,23 @@ insert it fell through to violated that index and startup swallows seeding error
 row on every request. Bump it anywhere a credential changes — password reset, password change, admin
 password reset — or a stolen token outlives the change meant to kill it.
 
+**Deleting a submission cascades in the ORM and nowhere else.** Every foreign key pointing at
+`submissions` is `ON DELETE NO ACTION` — the cascade lives in the SQLAlchemy relationship
+(`all, delete-orphan`), so a plain `DELETE FROM submissions` fails on the first child table. Doing
+it in SQL means deleting `analysis_results`, `grading_company_comparisons`, `reports`,
+`scan_images`, `cards` first, and *nulling* rather than deleting `audit_logs.submission_id` — the
+history is worth keeping when the submission is not. The scans and reports directories are not in
+the database at all: only `purge_submission_files(code)` removes them, so SQL deletion orphans them
+on disk and they must be cleaned up separately on the host. Prefer the app's own delete endpoint,
+which does all of this in the right order.
+
+Two corollaries, both from `_next_submission_code` being `COUNT(*) + 1`. Deleting *every*
+submission is safe — the counter restarts consistently. Deleting *some* is not: the next submission
+reuses a live code and violates the unique index. And a bulk delete resets no counter anywhere
+else, so `users.quota_used` has to be zeroed explicitly or the customer is still charged for
+submissions that no longer exist; set `quota_period_started_at = NULL` alongside it so the next
+submission anchors a fresh window rather than resuming an expired one.
+
 **The rules engine never predicts a numeric grade for any company.** It emits a severity flag and a
 templated reason, nothing more. That is a product and legal boundary, not a modelling limitation;
 the same applies to the "not affiliated with" disclaimers, which are generated from the *enabled*
@@ -260,7 +277,14 @@ Listed so a review reports something new rather than re-deriving these:
 - **SMTP is unconfigured.** The defaults point at a MailHog service that only runs under the `dev`
   compose profile. Since submitting a card requires a confirmed email address, a customer can
   register and then find they cannot use the service at all. This is the most urgent item.
-- **No Postgres backups.** Not a code change, and the largest operational gap.
+- **No Postgres backups.** Not a code change, and the largest operational gap. It has already
+  forced a hand-rolled `select *`-to-JSON dump before a destructive change, which is not a backup
+  strategy — it is evidence one is needed.
+- **`run_analysis` never deletes prior `AnalysisResult` rows**, so re-running analysis on a
+  submission accumulates sets rather than replacing them. One production submission had three.
+  Everything downstream reads the newest, so it surfaces as storage growth rather than wrong
+  numbers — but any consumer that aggregates instead of taking the latest would silently
+  triple-count.
 - **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
 - **The free-tier limit is described in the copy but not enforced.** `entitlements.py` has the seam;
