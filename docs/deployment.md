@@ -118,6 +118,15 @@ docker build --build-arg APP_UID=1000 --build-arg APP_GID=1000 ./backend
 Symptom of getting this wrong: the API returns 500 on scan upload and the log
 shows `PermissionError` on `/data/scans`.
 
+Changing `APP_UID` after scans exist leaves the older directories owned by the
+previous UID. Writing new submissions still works, but *deleting* an old one
+fails — removing a file needs write permission on its directory, not the file —
+so `purge_submission_files` raises `PermissionError` on some submissions and not
+others. Confirm the mismatch with `docker exec <container> id` against the host
+directory's owner. Cleaning up already-orphaned directories needs `docker exec
+-u 0`, which overrides `USER app` for that one command and changes nothing about
+how the service runs.
+
 The frontend container has no bind mount and runs as the base image's `node`
 user; nothing to configure.
 
