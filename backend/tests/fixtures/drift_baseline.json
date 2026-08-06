@@ -87,9 +87,9 @@
     "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 9.95,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 6.95,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "capture_low_resolution": {
@@ -264,12 +264,12 @@
     "geometry.top.max_excursion_px": 0.038,
     "geometry.top.roughness_px": 0.016,
     "px_per_mm": 23.625,
-    "surface.anomaly_fraction": 0.009,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 8.3,
+    "surface.raw_score": 9.96,
     "surface.score_high": 10.0,
-    "surface.score_low": 5.3,
+    "surface.score_low": 6.96,
     "surface.unmeasurable": 0.0
   },
   "capture_soft": {
@@ -543,12 +543,12 @@
     "geometry.top.max_excursion_px": 5.378,
     "geometry.top.roughness_px": 2.313,
     "px_per_mm": 23.617,
-    "surface.anomaly_fraction": 0.008,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 8.36,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 5.36,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "centering_diamond_cut": {
@@ -1380,12 +1380,12 @@
     "geometry.top.max_excursion_px": 0.067,
     "geometry.top.roughness_px": 0.014,
     "px_per_mm": 23.625,
-    "surface.anomaly_fraction": 0.01,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 8.03,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 5.03,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "full_art_centered": {
@@ -1470,12 +1470,12 @@
     "geometry.top.max_excursion_px": 0.0,
     "geometry.top.roughness_px": 0.0,
     "px_per_mm": 23.625,
-    "surface.anomaly_fraction": 0.011,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 7.69,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 4.69,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "full_art_foil": {
@@ -1560,12 +1560,12 @@
     "geometry.top.max_excursion_px": 0.041,
     "geometry.top.roughness_px": 0.009,
     "px_per_mm": 23.625,
-    "surface.anomaly_fraction": 0.011,
+    "surface.anomaly_fraction": 0.0,
     "surface.confidence": 0.4,
     "surface.limitation_count": 1.0,
-    "surface.raw_score": 7.77,
+    "surface.raw_score": 10.0,
     "surface.score_high": 10.0,
-    "surface.score_low": 4.77,
+    "surface.score_low": 7.0,
     "surface.unmeasurable": 0.0
   },
   "pokemon_back": {

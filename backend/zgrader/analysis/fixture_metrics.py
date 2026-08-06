@@ -129,7 +129,7 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
 
     _record_assessment("edges", edg)
 
-    sur, _mask = surface.measure_surface(card)
+    sur, _mask = surface.measure_surface(card, px_per_mm=px_per_mm)
     metrics["surface.raw_score"] = _round(sur["raw_score"])
     metrics["surface.anomaly_fraction"] = _round(sur["measurements"]["anomaly_fraction"])
 

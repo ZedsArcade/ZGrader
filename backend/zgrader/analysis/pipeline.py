@@ -73,7 +73,7 @@ def _analyze_edges(
 def _analyze_surface(
     card_image: np.ndarray, px_per_mm: float, mask: np.ndarray | None, geometry: dict | None
 ) -> tuple[dict, np.ndarray]:
-    return surface.measure_surface(card_image)
+    return surface.measure_surface(card_image, px_per_mm=px_per_mm)
 
 
 _ANALYZERS = {
