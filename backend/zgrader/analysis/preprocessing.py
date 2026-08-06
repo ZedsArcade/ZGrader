@@ -100,6 +100,16 @@ def _spans_whole_frame(contour: np.ndarray, image_w: int, image_h: int) -> bool:
     )
 
 
+#: Morphological closing kernel for the rescue pass, as a fraction of the
+#: image's shorter side. Big enough to bridge a glare split, small enough not
+#: to weld the card to its surroundings -- see the rescue branch below.
+_RESCUE_CLOSE_FRACTION = 0.005
+
+#: Area floor for the rescue pass. The ordinary 15% assumes the card fills a
+#: good part of the frame; a deliberately distant shot does not.
+_RESCUE_MIN_AREA_FRACTION = 0.05
+
+
 def _aspect_error(contour: np.ndarray, expected_aspect: float) -> float:
     """How far a candidate region's shape is from a card's, as a fraction.
 
@@ -162,6 +172,39 @@ def detect_boundary(
         if _spans_whole_frame(contour, image_w, image_h):
             continue
         candidates.append((area, contour))
+
+    if not candidates:
+        # Nothing qualified on the first pass. Before giving up, try again with
+        # the threshold mask closed and the area floor relaxed.
+        #
+        # Both exist for one real photograph, and each half was necessary. A
+        # distant shot with flash glare put the card at 11.8% of the frame,
+        # under the 15% floor -- that floor assumes the card fills a good part
+        # of the picture, which a "far" shot does not. And glare had split the
+        # card into pieces, so its largest fragment measured 1441x1414, an
+        # aspect of 0.981 that is not a card at all. Closing at 0.5% of the
+        # frame rejoins them into 2119x1542, aspect 0.727 against a card's
+        # 0.716 -- a 1.5% match. Larger kernels over-merge, bridging the card
+        # to whatever is beside it (0.946 at 1%, 0.960 at 2%).
+        #
+        # This runs only when the ordinary path finds nothing, so it changes no
+        # existing behaviour: the closed contour is smoother than the real
+        # boundary, which matters to the sub-pixel edge fit, and that cost is
+        # worth paying only when the alternative is refusing the submission
+        # outright.
+        kernel = max(3, int(round(min(image_h, image_w) * _RESCUE_CLOSE_FRACTION)) | 1)
+        closed_kernel = np.ones((kernel, kernel), np.uint8)
+        for candidate_binary in (binary, cv2.bitwise_not(binary)):
+            closed = cv2.morphologyEx(candidate_binary, cv2.MORPH_CLOSE, closed_kernel)
+            contour = _largest_contour(closed)
+            if contour is None:
+                continue
+            area = cv2.contourArea(contour)
+            if not (image_area * _RESCUE_MIN_AREA_FRACTION <= area <= image_area * max_area_fraction):
+                continue
+            if _spans_whole_frame(contour, image_w, image_h):
+                continue
+            candidates.append((area, contour))
 
     if not candidates:
         raise ValueError(
