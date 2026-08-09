@@ -214,10 +214,77 @@ def measured(score: float, confidence: float, limitations: tuple[str, ...] = ())
 #: that category's confidence. Kept as data so pipeline.py applies them in one
 #: pass rather than every analyser learning about geometry.
 EXTERNAL_LIMITATION_FACTORS = {
+    # No production path reaches this entry any more: apply_external_limitations
+    # intercepts GEOMETRY_UNVERIFIED first and declines the category outright,
+    # so the halving never runs. It stays as the safe answer for any caller
+    # that reaches with_limitations directly -- devaluing is wrong here, but it
+    # is a good deal less wrong than leaving the reading at full confidence.
+    # tests/test_geometry.py still exercises it at that level; the shipping
+    # behaviour is in tests/test_geometry_disqualifies.py.
     GEOMETRY_UNVERIFIED: CONFIDENCE_UNVERIFIED_GEOMETRY_FACTOR,
     GEOMETRY_ASPECT_MISMATCH: CONFIDENCE_ASPECT_MISMATCH_FACTOR,
     CARD_IS_FOIL: CONFIDENCE_FOIL_FACTOR,
 }
+
+#: Limitations that make a reading meaningless rather than merely weaker, so
+#: the category declines instead of being devalued.
+#:
+#: Only GEOMETRY_UNVERIFIED, and it earned its place with numbers. Measured
+#: across 30 real photographs, the edge fit fell back on 10 of them. On those
+#: ten the mean corners score was 9.04, against 7.79 where the fit held -- the
+#: broken path scored **1.26 points higher**, because a desk has no corner wear
+#: and no edge whitening. One shot reported corners 10.00 and edges 9.88 from a
+#: raster that was mostly desk with a card in the middle of it.
+#:
+#: A confidence factor cannot express that. CONFIDENCE_UNVERIFIED_GEOMETRY_FACTOR
+#: halves the number attached to the reading, but a halved confidence on a 10.00
+#: is still a published 10.00 -- and the error is biased *upward*, so every one
+#: of these failures flatters the card. For a service whose customers pay a real
+#: grader on the strength of the number, that is the worst possible direction.
+#:
+#: GEOMETRY_ASPECT_MISMATCH is deliberately NOT here. It means the millimetre
+#: scale is wrong, which damages the physical quantities but leaves the ratios
+#: (centering percentages, surface anomaly fraction) intact -- a different
+#: failure that has not been measured the way this one has. Devaluing it stays
+#: the honest answer until someone measures it.
+DISQUALIFYING_LIMITATIONS = (GEOMETRY_UNVERIFIED,)
+
+
+def apply_external_limitations(result: dict, codes: tuple[str, ...]) -> dict:
+    """Fold per-card limitations into a finished category result, in place.
+
+    Two outcomes rather than one. A code in DISQUALIFYING_LIMITATIONS strips
+    the score -- there is no number worth reporting, because the thing every
+    measurement was taken from was in the wrong place. Anything else devalues
+    the reading through `with_limitations` as before.
+
+    Called from both `pipeline._persist_side` and `analysis.fixture_metrics`,
+    which is the point of it living here: the production path and the drift
+    harness have to agree about what a geometry failure does, or the harness
+    measures software that does not ship.
+
+    Note the synthetic fixtures cannot exercise the disqualifying branch --
+    all 23 fit cleanly, with zero geometry limitations between them. That is
+    not an argument the branch is untested, it is the reason it needs tests of
+    its own rather than relying on the drift baseline.
+    """
+    if not codes:
+        return result
+
+    block = result["measurements"].get("assessment")
+
+    if any(code in DISQUALIFYING_LIMITATIONS for code in codes):
+        existing = tuple(block["limitations"]) if block else ()
+        result["raw_score"] = None
+        result["measurements"]["assessment"] = unmeasurable(
+            tuple(sorted(set(existing) | set(codes)))
+        ).as_dict()
+        return result
+
+    result["measurements"]["assessment"] = with_limitations(
+        block, codes, result["raw_score"]
+    )
+    return result
 
 
 def with_limitations(

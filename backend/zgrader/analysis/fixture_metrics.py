@@ -12,7 +12,7 @@ already covered by its own tests.
 
 import numpy as np
 
-from zgrader.analysis import centering, corners, edges, preprocessing, surface
+from zgrader.analysis import assessment, centering, corners, edges, preprocessing, surface
 
 # Rounded before comparison. Small enough to catch a real retune, loose enough
 # that a different OpenCV or BLAS build doesn't produce phantom drift on the
@@ -71,7 +71,16 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
             metrics[f"{prefix}.score_low"] = _round(block["score_low"])
             metrics[f"{prefix}.score_high"] = _round(block["score_high"])
 
+    # The geometry limitations have to be folded in here, exactly as
+    # pipeline._persist_side does it, or the harness measures a pipeline that
+    # does not ship. Before this, a fixture whose edge fit failed was scored
+    # here as though it had succeeded -- which is invisible on the synthetic
+    # set (all 23 fit cleanly) and wrong on every real photograph that falls
+    # back, i.e. a third of them.
+    geometry_limitations = rectified.limitations
+
     cen = centering.measure_centering(card, px_per_mm)
+    assessment.apply_external_limitations(cen, geometry_limitations)
     # Unmeasurable centering has no score and no top-level ratio -- the reading
     # moves under `indicative_estimate`, which is measured here too so that a
     # change in the estimate still shows as drift even though it is
@@ -91,6 +100,7 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
     _record_assessment("centering", cen)
 
     cor = corners.measure_corners(card, px_per_mm=px_per_mm, mask=rectified.mask)
+    assessment.apply_external_limitations(cor, geometry_limitations)
     # Corners and edges can now decline to score on a capture too small for
     # the wear to exist in. The per-corner/per-edge numbers are still computed
     # and still tracked -- they are the diagnostics a later retune gets
@@ -111,6 +121,7 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
     _record_assessment("corners", cor)
 
     edg = edges.measure_edges(card, px_per_mm=px_per_mm, geometry=rectified.geometry)
+    assessment.apply_external_limitations(edg, geometry_limitations)
     if edg["raw_score"] is not None:
         metrics["edges.raw_score"] = _round(edg["raw_score"])
     for name, info in edg["measurements"]["per_edge"].items():
@@ -130,6 +141,7 @@ def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[
     _record_assessment("edges", edg)
 
     sur, _mask = surface.measure_surface(card, px_per_mm=px_per_mm)
+    assessment.apply_external_limitations(sur, geometry_limitations)
     # Surface can decline too, since it gained a capture gate: an image with no
     # fine detail in it cannot have shown a scratch. Same guard as the three
     # categories above -- an absent score is not a zero.

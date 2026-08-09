@@ -155,7 +155,7 @@ export const es: Dictionary = {
       capture_modest_resolution:
         "Ocupa lo suficiente para mostrar daños evidentes, no para juzgar el desgaste fino, así que esta lectura se mantiene en un rango más amplio.",
       geometry_unverified:
-        "No se pudieron localizar automáticamente los filos de la carta, así que esto se midió a partir del recorte enviado.",
+        "No se pudieron localizar los filos de la carta en esta imagen, así que no había nada fiable desde donde medir. Casi siempre es cuestión del recorte: arrastre los tiradores para que queden ceñidos a la carta, sin nada de fondo dentro, y vuelva a enviarla.",
       geometry_aspect_mismatch:
         "El área medida no tiene la forma de una carta, así que las cifras en milímetros están mal escaladas en al menos un eje.",
     },

@@ -200,10 +200,18 @@ LIMITATION_LABELS = {
             "The card occupies enough pixels to show obvious damage but not enough to "
             "judge fine wear, so this reading is held to a wider range."
         ),
+        # Leads with the fix rather than the diagnosis, because the fix works:
+        # across 30 real photographs, 8 of the 10 that failed this check were
+        # recovered by a crop traced tightly around the card. Only 2 needed a
+        # new photograph. Telling everyone to re-shoot would send four out of
+        # five people to do the harder thing unnecessarily.
         "geometry_unverified": (
-            "The card's edges could not be located automatically, so measurements were "
-            "taken from the submitted crop instead. If that crop sits slightly inside or "
-            "outside the card, every distance measured from it shifts with it."
+            "The card's edges could not be located in this image, so there was nothing "
+            "reliable to measure from and no scores could be given for it. This is "
+            "almost always the crop: drag the handles so they sit tightly around the "
+            "card itself, with none of the background inside them, and submit again. "
+            "If it still cannot be read, take a fresh photo with the whole card in "
+            "frame, straight on, against a plain surface that contrasts with the card."
         ),
         "geometry_aspect_mismatch": (
             "The measured area is not the shape of a card, which means the millimetre "
@@ -256,9 +264,12 @@ LIMITATION_LABELS = {
             "más amplio."
         ),
         "geometry_unverified": (
-            "No se pudieron localizar automáticamente los filos de la carta, así que las "
-            "medidas se tomaron del recorte enviado. Si ese recorte queda algo por dentro "
-            "o por fuera de la carta, toda distancia medida desde él se desplaza con él."
+            "No se pudieron localizar los filos de la carta en esta imagen, así que no "
+            "había nada fiable desde donde medir y no se le pudo dar ninguna puntuación. "
+            "Casi siempre es cuestión del recorte: arrastre los tiradores para que queden "
+            "ceñidos a la carta, sin nada de fondo dentro, y vuelva a enviarla. Si aun "
+            "así no se puede leer, haga una foto nueva con la carta entera en el encuadre, "
+            "de frente, sobre una superficie lisa que contraste con la carta."
         ),
         "geometry_aspect_mismatch": (
             "El área medida no tiene la forma de una carta, lo que significa que las "

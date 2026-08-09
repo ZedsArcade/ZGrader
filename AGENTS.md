@@ -36,9 +36,30 @@ intersecting adjacent lines recovers the *ideal* apex even where a corner is chi
 `preprocessing.rectify` warps to those apexes. `ScanImage.crop_points` is passed in as a
 region-of-interest hint and nothing more. It used to be the geometry itself, which made every
 number a function of where four handles were dragged: a crop half a millimetre inside the card
-removed the damage from the image before any detector saw it. When the fit has to fall back to the
-supplied crop, the result carries `GEOMETRY_UNVERIFIED` and every category's confidence is halved —
-that fallback must never become silent.
+removed the damage from the image before any detector saw it.
+
+**When the fit falls back, every category declines rather than scoring.** The result carries
+`GEOMETRY_UNVERIFIED` and `assessment.apply_external_limitations` strips the score outright — see
+`assessment.DISQUALIFYING_LIMITATIONS`. It used to halve confidence instead, which was not enough:
+across 30 real photographs the fit fell back on 10, and on those the mean corners score was 9.04
+against 7.79 where it held. **The broken path scored 1.26 points higher**, because a desk has no
+corner wear and no edge whitening — `2_FarStandardShot` reported corners 10.00 and edges 9.88 off a
+raster that was mostly desk. A halved confidence on a 10.00 is still a published 10.00, and the
+error is biased *upward*, so every one of these failures flattered the card.
+
+Two things follow. The fallback must never become silent. And the synthetic fixtures cannot protect
+this: **all 23 fit cleanly with zero geometry limitations**, so the drift baseline does not move
+when this behaviour changes — `tests/test_geometry_disqualifies.py` is the safety net, not
+`fixture_drift.py`. `fixture_metrics` applies the same call as `pipeline._persist_side` for the same
+reason; when it did not, the harness measured a pipeline that does not ship.
+
+The crop is the dominant variable and the customer controls it. Uncropped, the fit falls back on
+33% of real photographs; with a crop traced tightly around the card that floor is 7% (2 of 30 fail
+at every crop tightness). 8 of the 10 failures are recovered by re-cropping alone, which is why the
+`geometry_unverified` copy leads with "fix the crop" rather than "retake the photo". A crop traced
+around the card has never broken a fit that worked without one — the five apparent regressions in
+the first measurement were an artefact of simulating crops as centred rectangles, which clip a card
+that is off-centre.
 
 **A threshold calibrated against the synthetic fixtures has been wrong on real photographs every
 single time it was checked.** Thirty photographs of seven real cards found five bugs that
@@ -269,6 +290,15 @@ it, so the next attempt starts from where the last one stopped.
   (5.6–9.1% against 0.6–2.8%) but overlaps badly per photograph — a plain card under high glare
   reads 10.7%, a foil card in flat light 0.4%. Local variance and sparkle density do not separate at
   all. Do not reach for those three again without new evidence.
+- **A failed geometry fit cannot be graded, only detected.** When the fit falls back there is no way
+  to tell "the boundary is a millimetre out" from "that raster is a photograph of a desk", so
+  everything the boundary touches has to decline together. Re-running `detect_boundary` on the
+  *rectified* raster was the obvious separator and it does not work: fitted photographs score
+  0.324–0.937 card-fill and fallbacks score 0.225–0.975, medians 0.786 against 0.782. It fails
+  hardest where it should pass, because a correct rectification fills the frame edge to edge and
+  leaves the detector no background to find an edge against — it latches onto the printed artwork
+  frame instead. `7_FrontView`, a visually perfect rectification, scores 0.324; `6_FrontSkewed`, a
+  fallback, scores 0.975. Do not reach for that one again.
 
 ## Known-open, deliberately
 
