@@ -2,6 +2,7 @@ from zgrader.models.analysis_result import AnalysisCategory, AnalysisResult, Ana
 from zgrader.models.audit_log import AuditLog
 from zgrader.models.card import Card
 from zgrader.models.card_dimensions import CardDimensionReference
+from zgrader.models.contact_message import ContactMessage, ContactTopic
 from zgrader.models.grading_comparison import (
     GradingCompany,
     GradingCompanyComparison,
@@ -24,6 +25,8 @@ __all__ = [
     "AuditLog",
     "Card",
     "CardDimensionReference",
+    "ContactMessage",
+    "ContactTopic",
     "GradingCompany",
     "GradingCompanyComparison",
     "GradingCompanyToleranceRule",

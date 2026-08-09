@@ -7,13 +7,26 @@ from sqlalchemy.orm import Session, joinedload
 
 from zgrader import entitlements, images
 from zgrader.api.deps import require_operator
+from zgrader.api.ratelimit import rate_limit
 from zgrader.config import config
 from zgrader.db import get_db
-from zgrader.models import AuditLog, PlanEntitlement, Report, ReportStatus, Settings, Submission, User
+from zgrader.email.notifications import send_test_email
+from zgrader.models import (
+    AuditLog,
+    ContactMessage,
+    PlanEntitlement,
+    Report,
+    ReportStatus,
+    Settings,
+    Submission,
+    User,
+)
 from zgrader.models.grading_comparison import GradingCompany, GradingCompanyToleranceRule
 from zgrader.models.settings import get_or_create_settings
 from zgrader.schemas.admin import (
     AuditLogOut,
+    ContactMessageOut,
+    ContactMessageUpdate,
     GradingCompanyOut,
     GradingCompanyUpdate,
     PlanEntitlementOut,
@@ -21,6 +34,8 @@ from zgrader.schemas.admin import (
     SettingsOut,
     SettingsUpdate,
     StatsOut,
+    TestEmailRequest,
+    TestEmailResponse,
     UserQuotaOut,
     UserQuotaUpdate,
 )
@@ -385,3 +400,80 @@ def set_grading_company_active(
     )
     db.commit()
     return GradingCompanyOut(company=target.value, active=payload.active, rule_count=len(rules))
+
+
+@router.get("/contact-messages", response_model=list[ContactMessageOut])
+def list_contact_messages(
+    unhandled_only: bool = Query(default=False),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> list[ContactMessage]:
+    """The operator's contact-form inbox.
+
+    Not a convenience: while SMTP is unconfigured the stored row is the only
+    copy of an enquiry, so without this endpoint the form accepts messages
+    nobody can read. Newest first, matching ix_contact_messages_created_at.
+    """
+    query = db.query(ContactMessage)
+    if unhandled_only:
+        query = query.filter(ContactMessage.handled.is_(False))
+    return (
+        query.order_by(ContactMessage.created_at.desc()).limit(limit).offset(offset).all()
+    )
+
+
+@router.patch("/contact-messages/{message_id}", response_model=ContactMessageOut)
+def update_contact_message(
+    message_id: uuid.UUID,
+    payload: ContactMessageUpdate,
+    _operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> ContactMessage:
+    """Mark an enquiry dealt with. The message itself is not editable."""
+    message = db.get(ContactMessage, message_id)
+    if message is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Contact message not found.")
+    message.handled = payload.handled
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+@router.post(
+    "/test-email",
+    response_model=TestEmailResponse,
+    dependencies=[Depends(rate_limit("test_email", limit=10, window_seconds=3600))],
+)
+def send_test_email_endpoint(
+    payload: TestEmailRequest,
+    _operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> TestEmailResponse:
+    """Send a diagnostic email and report what SMTP actually did.
+
+    Rate limited despite being operator-only: it is an authenticated endpoint
+    that makes the server send mail to an arbitrary address, and a stolen
+    operator token should not turn the relay into an open one.
+
+    Returns 200 with sent=false rather than an error status when delivery
+    fails. A failed test is a successful test -- it answered the question --
+    and a 500 here would be indistinguishable from the endpoint itself being
+    broken, which is the one thing the operator is trying to rule out.
+    """
+    settings = get_or_create_settings(db)
+    sent = send_test_email(payload.to, settings)
+    if sent:
+        detail = (
+            f"Accepted by {config.smtp_host}:{config.smtp_port}. "
+            "If it does not arrive, check the spam folder and the sending domain's "
+            "SPF/DKIM/DMARC records -- the relay took it, so the rest is deliverability."
+        )
+    else:
+        detail = (
+            f"{config.smtp_host}:{config.smtp_port} refused it or was unreachable. "
+            "The server log has the SMTP error. Check the host, port and TLS mode "
+            "(587 wants STARTTLS, 465 wants implicit TLS)."
+        )
+    return TestEmailResponse(sent=sent, detail=detail)

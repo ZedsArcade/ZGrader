@@ -1,0 +1,40 @@
+{# Operator-facing diagnostic, so like contact_message.html.jinja it does not
+   extend base.html.jinja -- the shared footer introduces the business to a
+   customer, which is wrong for a message the operator sent to themselves.
+
+   The relay details are in the body on purpose: when this lands in a spam
+   folder weeks later, the useful question is "which relay sent it", and the
+   answer should be in the mail rather than in a config file on a server. #}
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, Arial, sans-serif; color: #1a2233; max-width: 480px; margin: 0 auto; padding: 24px;">
+  <h2 style="color: #1a2b4c;">{{ business_name }}</h2>
+  <p>If you are reading this, outbound email works.</p>
+  <p style="color: #667085; font-size: 13px;">
+    That means account verification and password reset will reach customers,
+    which is what actually gates submitting a card.
+  </p>
+
+  <table style="border-collapse: collapse; margin: 20px 0; font-size: 13px;">
+    <tr>
+      <td style="padding: 4px 12px 4px 0; color: #667085;">Relay</td>
+      <td style="padding: 4px 0;">{{ smtp_host }}:{{ smtp_port }}</td>
+    </tr>
+    <tr>
+      <td style="padding: 4px 12px 4px 0; color: #667085;">Encryption</td>
+      <td style="padding: 4px 0;">{{ tls_mode }}</td>
+    </tr>
+    <tr>
+      <td style="padding: 4px 12px 4px 0; color: #667085;">From</td>
+      <td style="padding: 4px 0;">{{ smtp_from }}</td>
+    </tr>
+  </table>
+
+  <p style="color: #667085; font-size: 12px; border-top: 1px solid #e2e5ea; padding-top: 12px;">
+    Sent from the admin panel. Delivery to the relay is not the same as
+    delivery to an inbox -- if this reached spam rather than the inbox, check
+    SPF, DKIM and DMARC for the sending domain.
+  </p>
+</body>
+</html>

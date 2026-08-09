@@ -93,7 +93,16 @@ class ZGraderConfig(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from: str = "noreply@zgrader.local"
+    # STARTTLS: connect in the clear on the submission port (usually 587) and
+    # upgrade. This is what most relays want.
     smtp_use_tls: bool = False
+    # Implicit TLS ("SMTPS"), where the socket is TLS from the first byte and
+    # there is no plaintext phase to upgrade. Port 465 speaks this and *only*
+    # this -- pointing smtp_use_tls at 465 cannot work, because there is no
+    # readable greeting to send STARTTLS to. The two are alternatives, not
+    # layers; see _warn_about_unusable_smtp below, which catches the
+    # combination that is always wrong.
+    smtp_implicit_tls: bool = False
 
     # Debounce window (seconds) the watcher waits after the last filesystem
     # event in a submission folder before treating scans as complete.
@@ -133,6 +142,53 @@ class ZGraderConfig(BaseSettings):
                 )
             for problem in problems:
                 logger.warning("Insecure default in use (fine for development): %s", problem)
+        return self
+
+    @model_validator(mode="after")
+    def _warn_about_unusable_smtp(self) -> "ZGraderConfig":
+        """Say so at boot when mail cannot possibly work.
+
+        Deliberately warns rather than raising, unlike the secrets check above.
+        An unreachable relay is a functionality hole, not a security one, and
+        refusing to boot would turn a service that still analyses cards into a
+        service that is entirely down. The point is that the failure stops
+        being *silent*: send_email swallows SMTP errors by design, so a wrong
+        relay looks exactly like a working one from the UI, and the symptom
+        surfaces days later as a customer who registered and cannot submit.
+
+        Both conditions below are things that cannot work, not things that
+        merely look unusual -- a warning nobody can act on trains people to
+        ignore the log.
+        """
+        problems: list[str] = []
+
+        # The shipped default points at the bundled mailhog, which only runs
+        # under the `dev` compose profile. In production it resolves to
+        # nothing and no mail leaves the server at all.
+        if self.env == "production" and self.smtp_host in ("mailhog", "localhost", "127.0.0.1"):
+            problems.append(
+                f"ZGRADER_SMTP_HOST is {self.smtp_host!r}, which is the development default. "
+                "Email confirmation gates card submission, so with no working relay a customer "
+                "can register and then find they cannot use the service at all."
+            )
+
+        # 465 is implicit TLS only. Connecting in the clear and waiting for a
+        # greeting to upgrade will hang and then time out.
+        if self.smtp_port == 465 and not self.smtp_implicit_tls:
+            problems.append(
+                "ZGRADER_SMTP_PORT is 465, which speaks TLS from the first byte, but "
+                "ZGRADER_SMTP_IMPLICIT_TLS is false. Set it true, or use port 587 with "
+                "ZGRADER_SMTP_USE_TLS=true."
+            )
+
+        if self.smtp_implicit_tls and self.smtp_use_tls:
+            problems.append(
+                "ZGRADER_SMTP_IMPLICIT_TLS and ZGRADER_SMTP_USE_TLS are both true. They are "
+                "alternatives, not layers -- implicit TLS wins and STARTTLS is ignored."
+            )
+
+        for problem in problems:
+            logger.warning("SMTP configuration problem: %s", problem)
         return self
 
     @model_validator(mode="after")

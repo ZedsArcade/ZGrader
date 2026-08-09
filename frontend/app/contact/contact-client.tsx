@@ -11,6 +11,7 @@ import {
   type IconProps,
 } from "@/components/icons";
 import PageHeader from "@/components/PageHeader";
+import ContactForm from "./contact-form";
 import { useBranding } from "@/lib/branding-context";
 import { useTranslations } from "@/lib/i18n/context";
 
@@ -96,6 +97,11 @@ export default function ContactClient() {
           )}
         </div>
       )}
+
+      {/* Above the consultation note rather than below it: the form is what
+          most visitors came for, and the details above it are the alternatives
+          for people who would rather not use one. */}
+      <ContactForm />
 
       <Card className="mt-6">
         <Card.Header>

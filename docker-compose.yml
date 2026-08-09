@@ -59,6 +59,7 @@ services:
       ZGRADER_SMTP_PASSWORD: ${ZGRADER_SMTP_PASSWORD:-}
       ZGRADER_SMTP_FROM: ${ZGRADER_SMTP_FROM:-noreply@zgrader.local}
       ZGRADER_SMTP_USE_TLS: ${ZGRADER_SMTP_USE_TLS:-false}
+      ZGRADER_SMTP_IMPLICIT_TLS: ${ZGRADER_SMTP_IMPLICIT_TLS:-false}
     depends_on:
       postgres:
         condition: service_healthy

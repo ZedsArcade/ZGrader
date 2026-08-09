@@ -1,2 +1,8 @@
 .env
 data/
+
+# Local dev-server config for the preview tooling. Machine-specific (it holds
+# an absolute path to the node binary), so it is per-developer rather than
+# shared. The rest of .claude/ is deliberately not ignored, in case project
+# config worth sharing lands there later.
+.claude/launch.json

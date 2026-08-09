@@ -677,3 +677,88 @@ export async function getAuditLog(
 ): Promise<AuditLogEntry[]> {
   return request(`/admin/audit-log?limit=${limit}&offset=${offset}`, { headers: authHeaders(token) });
 }
+
+/** Which side of the business an enquiry is about. Must stay in step with
+ *  ContactTopic in backend/zgrader/models/contact_message.py -- the backend
+ *  rejects anything else with a 422. */
+export type ContactTopic = "lab" | "care" | "other";
+
+export interface ContactMessageInput {
+  name: string;
+  email: string;
+  topic: ContactTopic;
+  subject: string;
+  message: string;
+  /** Which language the form was filled in, so the reply can match it. */
+  language: string;
+  /** Optional, for an enquiry about a specific submission. */
+  submission_code?: string | null;
+  /** The honeypot. The real form keeps this hidden and always sends it empty;
+   *  a non-empty value makes the backend discard the message while still
+   *  returning success. Sent explicitly rather than omitted so the field is
+   *  present in the payload a bot would inspect. */
+  website: string;
+}
+
+export async function sendContactMessage(input: ContactMessageInput): Promise<void> {
+  return jsonPost("/contact/messages", input);
+}
+
+/** A contact-form enquiry as the operator sees it. Mirrors ContactMessageOut
+ *  in backend/zgrader/schemas/admin.py. */
+export interface ContactMessage {
+  id: string;
+  created_at: string;
+  name: string;
+  email: string;
+  topic: ContactTopic;
+  subject: string;
+  message: string;
+  language: string;
+  submission_code: string | null;
+  /** Whether the notification email actually went out. False means this row
+   *  is the only copy of the enquiry -- the normal case while SMTP is
+   *  unconfigured, and the reason this inbox exists at all. */
+  notified: boolean;
+  handled: boolean;
+}
+
+export async function getContactMessages(
+  token: string,
+  { unhandledOnly = false, limit = 50, offset = 0 } = {}
+): Promise<ContactMessage[]> {
+  const params = new URLSearchParams({
+    unhandled_only: String(unhandledOnly),
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return request(`/admin/contact-messages?${params}`, { headers: authHeaders(token) });
+}
+
+export async function setContactMessageHandled(
+  token: string,
+  id: string,
+  handled: boolean
+): Promise<ContactMessage> {
+  return request(`/admin/contact-messages/${id}`, {
+    method: "PATCH",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ handled }),
+  });
+}
+
+/** Result of the admin send-test-email action. `sent` is the actual SMTP
+ *  outcome, not an acknowledgement -- everywhere else in the app a mail
+ *  failure is deliberately swallowed, so this is the only place it surfaces. */
+export interface TestEmailResult {
+  sent: boolean;
+  detail: string;
+}
+
+export async function sendTestEmail(token: string, to: string): Promise<TestEmailResult> {
+  return request("/admin/test-email", {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ to }),
+  });
+}

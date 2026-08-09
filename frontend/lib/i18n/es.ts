@@ -311,11 +311,20 @@ export const es: Dictionary = {
   },
   about: {
     title: "Sobre nosotros",
-    lede: "Un coleccionista local que quiere que cuidar sus cartas deje de ser una lotería.",
+    lede: "Un coleccionista local que quiere que calificar y cuidar sus cartas deje de ser una lotería.",
     body1:
       "{businessName} nació en Gibraltar, y lo lleva alguien que colecciona lo mismo que usted. Quien haya enviado una carta a calificar conoce la sensación: paga la tarifa, envía algo que le importa, espera semanas, y solo entonces descubre si mereció la pena.",
     body2:
-      "Ese hueco es lo que este servicio pretende cerrar. Antes de comprometerse con un envío, obtiene una lectura medida del centrado, las esquinas, los bordes y la superficie, con imágenes anotadas que muestran exactamente qué se detectó y por qué. Si la carta no va a calificar como esperaba, mejor saberlo aquí que después de pagar un envío real.",
+      "Ese hueco es lo que este servicio pretende cerrar, y cerrarlo bien acabó exigiendo dos mitades. Una mide la carta y le dice en qué punto está antes de que pague a nadie por calificarla. La otra cuida de la carta en sí: manipulación, conservación, limpieza de superficie y consejo honesto sobre lo que la restauración puede y no puede lograr con seguridad.",
+    splitTitle: "Dos caras, un mismo taller",
+    splitLede:
+      "La misma persona, la misma mesa de trabajo, dos oficios distintos. La mayoría llega buscando uno y acaba necesitando el otro.",
+    labTitle: "{businessName}",
+    labBody:
+      "Saber en qué punto está una carta. Centrado, esquinas, bordes y superficie medidos, con imágenes anotadas que muestran exactamente qué se detectó y por qué. Si una carta no va a calificar como esperaba, mejor saberlo aquí que después de pagar un envío real.",
+    careTitle: "{businessName}",
+    careBody:
+      "Cuidar la carta en sí. Fundas, conservación y manipulación, limpieza cuidadosa de la superficie y una opinión franca sobre si conviene hacer algo o no. Muchas cartas están mejor tal y como están, y se lo diremos.",
     body3:
       "El objetivo más amplio es facilitar el coleccionismo, el cuidado y la calificación de cartas a la gente de Gibraltar y alrededores: un sitio cercano donde preguntar, donde revisen una carta como es debido y, con el tiempo, donde entregarla para calificación sin tener que enviarla usted mismo.",
     honestTitle: "Hablando claro",
@@ -605,6 +614,36 @@ export const es: Dictionary = {
       "Si duda si algo se puede mejorar, pregunte antes de intentar nada por su cuenta. No cobramos por decirle que lo mejor es no tocar una carta.",
     noneTitle: "Datos de contacto próximamente",
     noneBody: "Aún no se han publicado los datos de contacto. Vuelva a consultarlo en breve.",
+    formTitle: "Envíe un mensaje",
+    formLede:
+      "¿Prefiere un formulario? Rellénelo y nos llegará directamente. Puede preguntar por cualquiera de las dos partes del servicio.",
+    nameLabel: "Su nombre",
+    namePlaceholder: "¿Cómo le llamamos?",
+    emailPlaceholder: "usted@ejemplo.com",
+    emailHelp: "Para poder responderle. No se usa para nada más.",
+    topicLabel: "¿Sobre qué es?",
+    topicLab: "{businessName}: análisis de calificación",
+    topicCare: "{businessName}: cuidado de cartas",
+    topicOther: "Otra cosa",
+    subjectLabel: "Asunto",
+    subjectPlaceholder: "Unas palabras sobre lo que necesita",
+    codeLabel: "Código de envío",
+    codeOptional: "opcional",
+    codePlaceholder: "SUB-00001",
+    codeHelp: "Si su pregunta es sobre una carta que ya nos ha enviado.",
+    messageLabel: "Su mensaje",
+    messagePlaceholder: "Cuéntenos sobre la carta, o pregunte lo que quiera.",
+    submit: "Enviar mensaje",
+    sending: "Enviando...",
+    successTitle: "Mensaje enviado",
+    successBody:
+      "Gracias, lo hemos recibido y le responderemos a la dirección que nos ha dado. Si es urgente, WhatsApp suele ser más rápido.",
+    successAgain: "Enviar otro",
+    errorGeneric:
+      "Algo ha fallado al enviarlo. Inténtelo de nuevo o escríbanos directamente por correo.",
+    errorRequired: "Rellene este campo.",
+    errorEmail: "Eso no parece una dirección de correo.",
+    errorMessageShort: "Escriba un poco más para que podamos ayudarle de verdad.",
   },
   terms: {
     title: "Términos y condiciones",
