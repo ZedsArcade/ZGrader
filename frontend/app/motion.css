@@ -125,6 +125,87 @@
 }
 
 /*
+ * ---------------------------------------------------------------------------
+ * Brand switch — the palette wave.
+ * ---------------------------------------------------------------------------
+ *
+ * Driven by lib/brand-transition.ts, which sets data-brand-sweep="ltr"|"rtl"
+ * on <html> for the duration of a native view transition and flips data-brand
+ * inside it. The browser gives us two snapshots of the whole page -- the old
+ * palette and the new one -- and by default cross-fades them. These rules
+ * replace that fade with a clip-path wipe, so the new scheme arrives as an
+ * edge travelling across the viewport instead of the whole page dissolving.
+ *
+ * Direction is named for where the wave *finishes*: "ltr" starts at the left
+ * edge and sweeps right, which is what selecting the right-hand button in the
+ * toggle should look like.
+ *
+ * Unlayered, like the skeleton rules below: ::view-transition-* pseudo-elements
+ * live on the document root outside any cascade layer, and the UA default
+ * animations they carry have to be overridden outright.
+ *
+ * The two `animation: none` declarations are load-bearing. The default
+ * -ua-view-transition-fade-out on the old snapshot would fade the previous
+ * palette away underneath the wipe, which turns a clean edge into a muddy
+ * dissolve; pinning it visible means the wave has something to travel over.
+ */
+@keyframes brand-sweep-ltr {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes brand-sweep-rtl {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+html[data-brand-sweep]::view-transition-old(root) {
+  animation: none;
+  opacity: 1;
+}
+
+/* isolation:auto + normal blending: without these the two snapshots composite
+   through the UA's default blend group and the incoming palette reads washed
+   out along the leading edge rather than solid. */
+html[data-brand-sweep]::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+html[data-brand-sweep]::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
+
+html[data-brand-sweep="ltr"]::view-transition-new(root) {
+  animation: brand-sweep-ltr var(--dur-sweep) var(--ease-out);
+}
+
+html[data-brand-sweep="rtl"]::view-transition-new(root) {
+  animation: brand-sweep-rtl var(--dur-sweep) var(--ease-out);
+}
+
+/*
+ * brand-transition.ts already declines to start a transition at all under
+ * reduced motion, so this block should be unreachable. It is here because the
+ * two guards fail differently: the JS one depends on matchMedia being present
+ * and correct, and if it ever lets one through, this stops the wipe rather
+ * than letting a full-viewport animation run for someone who asked for none.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html[data-brand-sweep]::view-transition-old(root),
+  html[data-brand-sweep]::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/*
  * Skeleton shimmer timing + reduced-motion. Unlayered on purpose: HeroUI's
  * compiled `.skeleton--shimmer::after`/`::before` rules live in its
  * `components` layer with a hardcoded `animation: 2s linear infinite

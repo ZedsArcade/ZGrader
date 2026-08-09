@@ -5,6 +5,7 @@ import { ButtonGroup } from "@heroui/react";
 import Button from "@/components/Button";
 import { useBranding } from "@/lib/branding-context";
 import { CARE_PREFIX, storeBrand, type Brand } from "@/lib/brand";
+import { sweepBrandChange } from "@/lib/brand-transition";
 import { useBrand } from "@/lib/use-brand";
 
 /**
@@ -27,6 +28,26 @@ export default function BrandSwitch() {
     // Persisted before navigating so the destination resolves to the new
     // brand on arrival rather than reading the previous one for a frame.
     storeBrand(next);
+
+    // Only sweep when the palette is actually changing. Pressing the button
+    // for the brand you are already in still navigates home -- that is what it
+    // did before and what the header's other controls do -- but animating a
+    // repaint that produces identical pixels just looks like a glitch.
+    if (next !== brand) {
+      // The wave finishes where the pressed button is: GemCare sits on the
+      // right of the group, so selecting it sweeps left-to-right, and
+      // selecting GemLab runs the other way. The motion then matches the
+      // direction the eye just travelled.
+      sweepBrandChange(next === "care" ? "ltr" : "rtl", () => {
+        // Synchronous and deliberately narrow: the view transition snapshots
+        // either side of this callback, so the palette flip is the only thing
+        // that ends up inside the animation. The router push below lands
+        // outside it, which is what keeps the wave about colour rather than
+        // half-animating a route change.
+        document.documentElement.setAttribute("data-brand", next);
+      });
+    }
+
     router.push(next === "care" ? CARE_PREFIX : "/");
   }
 

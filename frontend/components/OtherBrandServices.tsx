@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { Card, buttonVariants, cn } from "@heroui/react";
+import BrandLink from "@/components/BrandLink";
 import { useBranding } from "@/lib/branding-context";
 import { CARE_PREFIX, type Brand } from "@/lib/brand";
 import { useTranslations } from "@/lib/i18n/context";
@@ -37,12 +37,16 @@ export default function OtherBrandServices({ other }: { other: Brand }) {
       <Card.Content className="flex flex-col gap-4">
         <p className="text-sm leading-relaxed text-muted">{withBusinessName(body, name)}</p>
         <div>
-          <Link
+          {/* BrandLink, not Link: /services is shared between the two brands,
+              so without recording the destination brand this hand-off lands on
+              GemLab's page still painted in GemCare's palette. */}
+          <BrandLink
+            brand={other}
             href={href}
             className={cn(buttonVariants({ variant: "outline", size: "sm" }), "btn-press")}
           >
             {withBusinessName(t.services.crossCta, name)}
-          </Link>
+          </BrandLink>
         </div>
       </Card.Content>
     </Card>

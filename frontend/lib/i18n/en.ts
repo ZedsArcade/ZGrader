@@ -317,11 +317,20 @@ export const en = {
   },
   about: {
     title: "About us",
-    lede: "A local collector trying to make caring for cards less of a guessing game.",
+    lede: "A local collector trying to make grading and caring for cards less of a guessing game.",
     body1:
       "{businessName} started in Gibraltar, run by someone who collects the same things you do. Anyone who has sent a card away for grading knows the feeling: you pay the fee, you post something you care about, you wait weeks, and only then do you find out whether it was worth doing at all.",
     body2:
-      "That gap is what this service exists to close. Before you commit to a submission, you get a measured look at centering, corners, edges and surface, with annotated images showing exactly what was picked up and why. If the card isn't going to grade the way you hoped, far better to learn that here than after paying for a real submission.",
+      "That gap is what this service exists to close, and closing it properly turned out to need two halves. One measures a card and tells you where it stands before you pay anyone to grade it. The other looks after the card itself -- handling, storage, surface cleaning, and honest advice about what restoration can and cannot safely achieve.",
+    splitTitle: "Two sides, one workshop",
+    splitLede:
+      "Same person, same bench, two different jobs. Most people arrive for one and end up wanting the other.",
+    labTitle: "{businessName}",
+    labBody:
+      "Knowing where a card stands. Measured centering, corners, edges and surface, with annotated images showing exactly what was picked up and why. If a card isn't going to grade the way you hoped, far better to learn that here than after paying for a real submission.",
+    careTitle: "{businessName}",
+    careBody:
+      "Looking after the card itself. Sleeving, storage and handling, careful surface cleaning, and a frank opinion on whether anything should be done at all. Plenty of cards are best left exactly as they are, and you will be told so.",
     body3:
       "The wider aim is to make collecting, caring for, and grading cards easier for people in and around Gibraltar -- somewhere local to ask questions, get a card looked at properly, and eventually hand it over for grading without shipping it yourself.",
     honestTitle: "Being straight with you",
@@ -616,6 +625,38 @@ export const en = {
       "If you're wondering whether something can be improved, ask before you try anything yourself. There's no charge for being told a card is best left alone.",
     noneTitle: "Contact details coming soon",
     noneBody: "Contact details haven't been published yet. Please check back shortly.",
+    formTitle: "Send a message",
+    formLede:
+      "Prefer a form? Fill this in and it comes straight through. Questions about either side of the service are welcome.",
+    nameLabel: "Your name",
+    namePlaceholder: "What should we call you?",
+    // No emailLabel here: the contact-details card above already defines one
+    // and the form reuses it. A second copy is a duplicate key, which is a
+    // compile error rather than an override.
+    emailPlaceholder: "you@example.com",
+    emailHelp: "So we can reply. It isn't used for anything else.",
+    topicLabel: "What's it about?",
+    topicLab: "{businessName} -- grading analysis",
+    topicCare: "{businessName} -- card care",
+    topicOther: "Something else",
+    subjectLabel: "Subject",
+    subjectPlaceholder: "A few words on what you need",
+    codeLabel: "Submission code",
+    codeOptional: "optional",
+    codePlaceholder: "SUB-00001",
+    codeHelp: "If your question is about a card you've already sent in.",
+    messageLabel: "Your message",
+    messagePlaceholder: "Tell us about the card, or ask anything you like.",
+    submit: "Send message",
+    sending: "Sending...",
+    successTitle: "Message sent",
+    successBody:
+      "Thanks -- we've got it, and we'll reply to the address you gave. If it's urgent, WhatsApp is usually faster.",
+    successAgain: "Send another",
+    errorGeneric: "Something went wrong sending that. Please try again, or email us directly.",
+    errorRequired: "Please fill this in.",
+    errorEmail: "That doesn't look like an email address.",
+    errorMessageShort: "Please write a little more so we can actually help.",
   },
   terms: {
     title: "Terms & Conditions",

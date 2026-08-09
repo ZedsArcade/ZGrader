@@ -32,6 +32,13 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 150ms;
   --dur-med:  250ms;
+  /* The brand-switch wave, and the one duration allowed past --dur-med.
+     motion.css's "nothing over 250ms" rule governs micro-interactions on a
+     single control, where anything slower reads as lag. This is a full-viewport
+     repaint travelling the width of the screen: at 250ms it reads as a flicker
+     rather than a sweep, and the distance covered is what justifies the extra
+     time. Nothing else may borrow it. */
+  --dur-sweep: 420ms;
 }
 
 /*
@@ -103,11 +110,15 @@
 
 .light[data-brand="care"],
 [data-theme="light"][data-brand="care"] {
-  /* base — bone and porcelain, warm rather than blue-white */
-  --bg:        #f6f3ea;
-  --surface-1: #fffdf8;
-  --surface-2: #ece5d6;
-  --border:    #d8cdb8;
+  /* base — bone and porcelain, warm rather than blue-white.
+     Pulled down ~4% in lightness from the first pass, which sat close enough
+     to paper-white to be tiring to read for any length of time; see the note
+     on the GemLab light block below. --surface-1 stays lighter than --bg so
+     cards still read as raised off the page. */
+  --bg:        #ebe5d7;
+  --surface-1: #f9f6ec;
+  --surface-2: #ded5c1;
+  --border:    #cbbfa6;
 
   /* accents — deepened for AA against a light surface */
   --neon-pink:   #0f6b5c;   /* jade, deepened */
@@ -118,9 +129,14 @@
      the legible choice, unlike the dark-mode pair. */
   --neon-foreground: #fffdf8;
 
-  /* text — deep teal-ink, keeps the hue family off pure black */
+  /* text — deep teal-ink, keeps the hue family off pure black.
+     --text-dim was #5b6f68 when --bg was #f6f3ea. Dimming the page dropped it
+     to 4.27:1, under the 4.5 AA floor, so it is deepened to hold 5.00:1 on
+     --bg and 5.81:1 on --surface-1. Muted text is the first thing to fail
+     when a light palette is dimmed -- it is the lowest-contrast pairing in
+     the theme, so it sets the floor on how far --bg can move. */
   --text:     #14302c;
-  --text-dim: #5b6f68;
+  --text-dim: #52645e;
 
   --grade-gem:  #00705c;
   --grade-mint: #4a7020;
@@ -129,11 +145,25 @@
 
 .light,
 [data-theme="light"] {
-  /* base — soft purple-tinted daylight, not generic gray/white */
-  --bg:        #f7f4fb;
-  --surface-1: #ffffff;
-  --surface-2: #efe9f7;
-  --border:    #ddd2ec;
+  /* base — soft purple-tinted daylight, not generic gray/white.
+   *
+   * Deliberately *not* paper-white. The first pass used #ffffff for
+   * --surface-1 against an #f7f4fb page, which is the brightest a screen can
+   * go and made light mode the one nobody chose. Everything here is down
+   * ~4% in lightness from that; the tint is unchanged, so it is the same
+   * palette rather than a different one.
+   *
+   * Dimming the page *reduces* contrast for the dark text on top of it --
+   * contrast is the gap between the two, and moving --bg down closes it. That
+   * is the opposite of the intuition that a darker background is safer, and
+   * it is what pushed GemCare's --text-dim from 4.83:1 to 4.27:1, under the
+   * AA floor, on the first pass. Both --text-dim values below were deepened
+   * to compensate; re-measure them before moving --bg again.
+   */
+  --bg:        #ebe6f3;
+  --surface-1: #faf8fd;
+  --surface-2: #ddd5ec;
+  --border:    #cec2e1;
 
   /* neon accents — deepened/desaturated for AA contrast on a light surface */
   --neon-pink:   #c40064;
@@ -141,9 +171,12 @@
   --neon-purple: #6b32b3;
   --neon-glow:   #c4006433;
 
-  /* text stays dark, purple-tinted rather than pure black */
+  /* text stays dark, purple-tinted rather than pure black.
+     --text-dim deepened from #6b5e82 alongside the dimmed --bg above: it
+     still cleared AA at 4.83:1, but only just, and muted text carries a lot
+     of this UI. Now 5.56:1 on --bg and 6.46:1 on --surface-1. */
   --text:     #241736;
-  --text-dim: #6b5e82;
+  --text-dim: #615579;
 
   /* grade colors — same hues as dark mode, deepened so they stay legible
      as text on a light chip fill instead of reading as near-white */
