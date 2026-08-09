@@ -153,14 +153,12 @@ def _persist_side(
         result, extra = analyzer(card_image, px_per_mm, mask, geometry)
         # Geometry is established once per scan, not once per category, so it
         # is folded in here rather than threaded through four analyser
-        # signatures to be used the same way in each. It only devalues a
-        # reading; it never rescues one.
-        if geometry_limitations:
-            result["measurements"]["assessment"] = assessment.with_limitations(
-                result["measurements"].get("assessment"),
-                geometry_limitations,
-                result["raw_score"],
-            )
+        # signatures to be used the same way in each. It never rescues a
+        # reading -- it either devalues it or, when the boundary itself could
+        # not be trusted, removes the score entirely. See
+        # assessment.DISQUALIFYING_LIMITATIONS for why that is not merely a
+        # harsher confidence factor.
+        assessment.apply_external_limitations(result, geometry_limitations)
         if geometry is not None:
             # Unscored, and stored on every category because each one measures
             # from this boundary. The per-side residuals are what a later phase
