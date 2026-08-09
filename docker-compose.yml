@@ -119,6 +119,37 @@ services:
     profiles:
       - dev
 
+  # The public entry point for the reference deployment. Dials *out* to
+  # Cloudflare, so no router port is forwarded and the home IP is never
+  # published. Point the tunnel's public hostname at http://caddy:80 -- being
+  # in this stack, it reaches Caddy over the Docker network and needs no host
+  # port at all.
+  #
+  # Deliberately NOT behind a compose profile, unlike mailhog. A profile was
+  # tried first, to keep a fresh clone starting with no tunnel token -- but
+  # Portainer's stack deployment does not reliably honour COMPOSE_PROFILES, so
+  # the service simply never appeared and the only symptom was Cloudflare
+  # error 1033 (DNS points at a tunnel, nothing connected to it). "Silently
+  # absent" is a much worse failure than "running without a token", and this is
+  # the reference deployment's front door rather than an optional extra.
+  #
+  # With no token set, cloudflared logs the missing credential and restarts.
+  # If you are not fronting this with a tunnel, delete this service.
+  #
+  # Two of the app's controls assume this is the ONLY route in, so do not also
+  # port-forward 8080 -- see docs/deployment.md. The backend trusts
+  # CF-Connecting-IP for rate limiting, which anyone reaching the origin
+  # directly could forge; and HSTS is served with a two-year preload max-age,
+  # which would lock browsers out of a plain-HTTP origin.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - caddy
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
