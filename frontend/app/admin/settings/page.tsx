@@ -202,6 +202,77 @@ function BrandLogoRow({
 
 /** Groups the form's fields so it doesn't read as one long undifferentiated
  *  column now that contact and social details live here too. */
+/**
+ * Send a diagnostic email and show what SMTP actually did.
+ *
+ * The reason this is worth a panel rather than a line in the docs: every other
+ * mail path in the app swallows failures on purpose, so a wrong relay looks
+ * exactly like a working one until a customer registers, never gets the
+ * confirmation link, and cannot submit a card. This is the only surface that
+ * reports the real result.
+ *
+ * A failure is rendered as a result, not as an error state -- the question was
+ * "does mail work", and "no" is a complete answer to it.
+ */
+function TestEmailPanel({ token }: { token: string }) {
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<api.TestEmailResult | null>(null);
+
+  async function send() {
+    const address = to.trim();
+    if (!address) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      setResult(await api.sendTestEmail(token, address));
+    } catch (err) {
+      // A transport-level failure (401, 429, network) never reached SMTP, so
+      // it is still "not sent" as far as the operator's question goes.
+      setResult({ sent: false, detail: err instanceof Error ? err.message : "Request failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface-secondary p-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <TextField value={to} onChange={setTo} type="email" className="min-w-64 flex-1">
+          <Label>Send a test email to</Label>
+          <Input placeholder="you@example.com" />
+        </TextField>
+        {/* type="button": this sits inside the settings <form>, and the HTML
+            default of type="submit" would save every setting on the page
+            instead of sending the test. */}
+        <Button
+          type="button"
+          variant="outline"
+          isDisabled={busy || !to.trim()}
+          onPress={send}
+        >
+          {busy ? "Sending…" : "Send test"}
+        </Button>
+      </div>
+
+      {result && (
+        <p
+          role="status"
+          className={`text-sm ${result.sent ? "text-foreground" : "text-accent"}`}
+        >
+          <strong>{result.sent ? "Sent." : "Not sent."}</strong> {result.detail}
+        </p>
+      )}
+
+      <p className="text-xs text-muted">
+        Testing an address at a different provider (Gmail, Outlook) is more
+        useful than one on your own domain — those are the two that reject mail
+        whose sending domain is not authenticated.
+      </p>
+    </div>
+  );
+}
+
 function SectionHeading({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="mt-2 border-t border-border pt-4">
@@ -782,6 +853,13 @@ function SettingsForm() {
           />
 
           <GradingCompanyRows token={token ?? ""} onChanged={refreshBranding} />
+
+          <SectionHeading
+            title="Email delivery"
+            hint="Verification links and password resets go out over SMTP, and a customer cannot submit a card until they confirm their address. Send a test to check the relay actually works."
+          />
+
+          <TestEmailPanel token={token ?? ""} />
 
           <Button type="submit" variant="primary" isDisabled={saving} fullWidth>
             {saving ? "Saving…" : "Save settings"}

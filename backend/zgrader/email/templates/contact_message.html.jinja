@@ -1,0 +1,46 @@
+{# Operator-facing, unlike every other template here, so it deliberately does
+   not extend base.html.jinja: that footer introduces the business to a
+   customer, which is noise in the operator's own inbox. The sender's address
+   is shown as plain text as well as a mailto so it survives a client that
+   strips links. #}
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, Arial, sans-serif; color: #1a2233; max-width: 560px; margin: 0 auto; padding: 24px;">
+  <h2 style="color: #1a2b4c; margin-bottom: 4px;">New enquiry &mdash; {{ topic_label }}</h2>
+  <p style="color: #667085; font-size: 13px; margin-top: 0;">via the {{ business_name }} contact form</p>
+
+  <table style="border-collapse: collapse; width: 100%; margin: 20px 0; font-size: 14px;">
+    <tr>
+      <td style="padding: 6px 12px 6px 0; color: #667085; vertical-align: top;">From</td>
+      <td style="padding: 6px 0;"><strong>{{ name }}</strong></td>
+    </tr>
+    <tr>
+      <td style="padding: 6px 12px 6px 0; color: #667085; vertical-align: top;">Email</td>
+      <td style="padding: 6px 0;"><a href="mailto:{{ email }}">{{ email }}</a></td>
+    </tr>
+    <tr>
+      <td style="padding: 6px 12px 6px 0; color: #667085; vertical-align: top;">Subject</td>
+      <td style="padding: 6px 0;">{{ subject }}</td>
+    </tr>
+    {% if submission_code %}
+    <tr>
+      <td style="padding: 6px 12px 6px 0; color: #667085; vertical-align: top;">Submission</td>
+      <td style="padding: 6px 0;"><strong>{{ submission_code }}</strong></td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td style="padding: 6px 12px 6px 0; color: #667085; vertical-align: top;">Language</td>
+      <td style="padding: 6px 0;">{{ language }}</td>
+    </tr>
+  </table>
+
+  {# white-space: pre-wrap so the sender's own line breaks survive; autoescape
+     is on for this environment, so the body cannot inject markup. #}
+  <div style="border-left: 3px solid #d0d5dd; padding: 4px 0 4px 14px; white-space: pre-wrap; font-size: 14px; line-height: 1.55;">{{ message }}</div>
+
+  <p style="color: #667085; font-size: 12px; margin-top: 32px; border-top: 1px solid #e2e5ea; padding-top: 12px;">
+    Stored as contact message {{ message_id }}. Reply directly to the sender's address above.
+  </p>
+</body>
+</html>

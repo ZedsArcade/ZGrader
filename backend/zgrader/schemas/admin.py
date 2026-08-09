@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from zgrader.models import ContactTopic
+
 _ALLOWED_URL_SCHEMES = {"http", "https"}
 
 
@@ -178,3 +180,60 @@ class AuditLogOut(BaseModel):
     detail: dict
     submission_code: str | None
     user_email: str | None
+
+
+class ContactMessageOut(BaseModel):
+    """A contact-form enquiry, for the operator's inbox.
+
+    `notified` is here rather than left internal because it is the difference
+    between "you have already seen this by email" and "this row is the only
+    copy" -- which is the normal case while SMTP is unconfigured.
+
+    client_ip is deliberately not exposed. It exists for abuse triage in the
+    database and putting it on screen would make an ordinary enquiry look like
+    a security event.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    created_at: datetime.datetime
+    name: str
+    email: str
+    topic: ContactTopic
+    subject: str
+    message: str
+    language: str
+    submission_code: str | None
+    notified: bool
+    handled: bool
+
+
+class ContactMessageUpdate(BaseModel):
+    """Only `handled` is editable -- the enquiry itself is what someone wrote
+    and must not be rewritten from the admin panel."""
+
+    handled: bool
+
+
+class TestEmailRequest(BaseModel):
+    """Where to send the diagnostic. Free-form rather than defaulting to the
+    operator's own account, because the useful test is often "does mail reach
+    an external provider" -- Gmail and Outlook are the two that reject
+    unauthenticated senders, and the operator's own domain would not show
+    that."""
+
+    to: EmailStr
+
+
+class TestEmailResponse(BaseModel):
+    """`sent` is the SMTP result, not an acknowledgement.
+
+    Everything else in the app treats a mail failure as a non-event, so this
+    is the only place the truth surfaces. False means the relay refused it or
+    was unreachable; True means the relay accepted it, which is still not the
+    same as it reaching an inbox.
+    """
+
+    sent: bool
+    detail: str

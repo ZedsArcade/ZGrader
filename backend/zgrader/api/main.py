@@ -3,7 +3,7 @@ import logging
 
 from fastapi import FastAPI
 
-from zgrader.api.routers import admin, auth, catalog, submissions
+from zgrader.api.routers import admin, auth, catalog, contact, submissions
 from zgrader.config import config
 from zgrader.db import SessionLocal
 from zgrader.seed import seed_all
@@ -51,6 +51,7 @@ app.include_router(auth.router)
 app.include_router(submissions.router)
 app.include_router(admin.router)
 app.include_router(catalog.router)
+app.include_router(contact.router)
 
 
 @app.get("/health")

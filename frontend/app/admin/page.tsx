@@ -61,6 +61,9 @@ function AdminOverview() {
           <p className="text-sm text-muted">All client submissions, business-wide.</p>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/contact" className={cn(buttonVariants({ variant: "outline" }), "btn-press btn-neon-hover")}>
+            Messages
+          </Link>
           <Link href="/admin/audit-log" className={cn(buttonVariants({ variant: "outline" }), "btn-press btn-neon-hover")}>
             Audit log
           </Link>
