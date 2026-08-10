@@ -19,20 +19,41 @@ Revises: a1c47e93f2b8
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision = "b7f4c2e19a83"
 down_revision = "a1c47e93f2b8"
 branch_labels = None
 depends_on = None
 
-_TOPIC = sa.Enum("lab", "care", "other", name="contact_topic")
+_TOPIC_NAME = "contact_topic"
+_TOPIC_VALUES = ("lab", "care", "other")
+
+#: The column's type. postgresql.ENUM rather than sa.Enum, and that matters:
+#: `create_type` is a postgresql.ENUM parameter, and the generic sa.Enum
+#: *accepts and silently ignores it*. This migration originally used
+#: sa.Enum(..., create_type=False), which constructed without complaint and
+#: then had create_table emit CREATE TYPE for the enum created a few lines
+#: above, failing with
+#:
+#:     psycopg.errors.DuplicateObject: type "contact_topic" already exists
+#:
+#: Alembic runs a migration in one transaction, so the whole thing rolled back
+#: -- leaving no table, no type, and alembic_version unmoved, which made it
+#: look like the migration had never been attempted rather than that it had
+#: failed. It reached production, where it stopped `migrate` completing and so
+#: stopped `backend` and `worker` (which wait on service_completed_successfully)
+#: from ever starting.
+_TOPIC_COLUMN_TYPE = postgresql.ENUM(*_TOPIC_VALUES, name=_TOPIC_NAME, create_type=False)
 
 
 def upgrade() -> None:
-    # create_type=False on the column below would leave this to the table
-    # create; naming it explicitly instead keeps the downgrade symmetrical,
-    # since a dropped table does not drop the enum type it used.
-    _TOPIC.create(op.get_bind(), checkfirst=True)
+    # Created explicitly because the column type above is create_type=False,
+    # and kept explicit rather than left to create_table so the downgrade can
+    # be symmetrical -- dropping a table does not drop the enum it used.
+    # checkfirst so a database left with the type from a partial earlier run
+    # is repaired rather than rejected.
+    postgresql.ENUM(*_TOPIC_VALUES, name=_TOPIC_NAME).create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "contact_messages",
@@ -41,12 +62,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
         sa.Column("email", sa.String(length=320), nullable=False),
-        sa.Column(
-            "topic",
-            sa.Enum("lab", "care", "other", name="contact_topic", create_type=False),
-            nullable=False,
-            server_default="other",
-        ),
+        sa.Column("topic", _TOPIC_COLUMN_TYPE, nullable=False, server_default="other"),
         sa.Column("subject", sa.String(length=200), nullable=False),
         sa.Column("message", sa.Text(), nullable=False),
         sa.Column("language", sa.String(length=5), nullable=False, server_default="en"),
@@ -78,4 +94,5 @@ def downgrade() -> None:
     op.drop_index("ix_contact_messages_unhandled", table_name="contact_messages")
     op.drop_index("ix_contact_messages_created_at", table_name="contact_messages")
     op.drop_table("contact_messages")
-    _TOPIC.drop(op.get_bind(), checkfirst=True)
+    # After the table, because a type still in use cannot be dropped.
+    postgresql.ENUM(name=_TOPIC_NAME).drop(op.get_bind(), checkfirst=True)
