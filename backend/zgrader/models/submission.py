@@ -1,12 +1,36 @@
 import enum
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, Sequence, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from zgrader.db import Base
 from zgrader.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
+
+#: Where submission codes come from. A sequence rather than COUNT(*) + 1,
+#: which is what this used to be and which handed the same code out twice.
+#:
+#: Deleting a submission lowered the count, so the next one reused a code that
+#: had already existed. That is a unique-constraint 500 if a row still holds it,
+#: and worse if none does: the scans and reports directories are named after the
+#: code and are NOT removed by a database delete, so a new customer's
+#: submission lands in a directory belonging to someone else's. On this
+#: deployment that surfaced as a PermissionError writing the first report --
+#: the leftover directory was owned by an earlier APP_UID, so it could neither
+#: be written to nor cleaned up.
+#:
+#: A sequence never goes backwards, so a code is issued once and never again,
+#: whatever happens to the rows. nextval is also non-transactional: a create
+#: that rolls back leaves a gap rather than recycling the number, which is the
+#: right trade -- gaps are harmless, reuse is not.
+#:
+#: Attached to the metadata so `create_all` builds it too. Otherwise the test
+#: database would lack it and every submission test would fail against a
+#: schema production does not have -- the create_all/migration split that
+#: AGENTS.md warns about.
+SUBMISSION_CODE_SEQUENCE = "submission_code_seq"
+submission_code_seq = Sequence(SUBMISSION_CODE_SEQUENCE, metadata=Base.metadata)
 
 
 class SubmissionStatus(str, enum.Enum):
