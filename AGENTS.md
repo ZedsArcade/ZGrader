@@ -184,6 +184,24 @@ believing a security header is fine.
 in migrations — `ix_users_email_lower` in particular — do not exist there, so a class of constraint
 violation cannot reproduce under pytest. Check those against a migrated database.
 
+**The migrations themselves are covered, but only by `tests/test_migrations.py`.** It runs the real
+chain against its own scratch database, because for six merges nothing did. `b7f4c2e19a83` shipped
+using `sa.Enum(..., create_type=False)` — `create_type` belongs to `postgresql.ENUM`, and the
+generic `sa.Enum` **accepts and silently ignores it** — so `create_table` re-emitted `CREATE TYPE`
+for an enum the migration had just created. Alembic runs a migration in one transaction, so the
+failure rolled back completely: no table, no type, `alembic_version` unmoved. It looked like the
+migration had never run rather than that it had failed.
+
+The blast radius was the whole stack, not just the feature. `migrate` never completed, and
+`backend` and `worker` both wait on `service_completed_successfully`, so neither started — nor did
+anything downstream of them. Every redeploy had to be followed by starting containers by hand,
+because a manual start ignores `depends_on`. The symptom looked nothing like the cause.
+
+Alembic has to run in a **subprocess** in those tests. `alembic/env.py` sets the URL from
+`zgrader_config.database_url`, a singleton built at import time, so an in-process run ignores the
+URL it is handed and migrates the *test* database instead — which the first version of that file
+duly did.
+
 ## Running it
 
 Tests need a live Postgres with a database whose name **ends in `_test`**:
