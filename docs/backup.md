@@ -51,6 +51,24 @@ addresses, password hashes and submission history. Putting that unencrypted in
 a third-party bucket is a data-protection question, not just a technical one.
 `age -p` or `gpg -c` before upload is enough.
 
+## The service is built, not pulled
+
+`infra/backup/Dockerfile` bakes the script into `postgres:16`. So a change to
+`backup.sh` needs the image rebuilt, not just the stack restarted — in
+Portainer that is **Pull and redeploy** with *Re-pull image* on, or
+`docker compose up -d --build backup` on the command line.
+
+The script used to be bind-mounted instead, which failed whenever the source
+was momentarily absent at container start: Docker creates a missing bind source
+as a **directory**, the container dies with `is a directory: permission
+denied`, and the stray directory then shadows the real script so a later pull
+cannot repair it. Baked in, a missing script is a build failure that names the
+file.
+
+The base image is pinned to the same major version as the `postgres` service on
+purpose. `pg_dump` refuses to talk to a server newer than itself, so upgrading
+the database means upgrading both.
+
 ## Taking one right now
 
 Before a migration, a bulk delete, or anything else you would rather be able to
