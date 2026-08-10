@@ -622,6 +622,31 @@ export async function snapCrop(
   });
 }
 
+/** Whether a candidate crop would let the card's edges be fitted.
+ *
+ *  `limitations` are codes, matching the analysis contract, so the wording
+ *  comes from the same dictionary the results page uses rather than a second
+ *  phrasing of the same condition. */
+export interface CropCheck {
+  boundary_found: boolean;
+  limitations: string[];
+}
+
+/** Asked before confirming, because confirming spends the submission.
+ *  Persists nothing, so it is safe to call on every attempt. */
+export async function checkCrop(
+  token: string,
+  code: string,
+  side: ScanSide,
+  points: CropPoint[]
+): Promise<CropCheck> {
+  return request(`/submissions/${code}/scans/${side}/check-crop`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ points }),
+  });
+}
+
 export async function toggleRegion(
   token: string,
   code: string,

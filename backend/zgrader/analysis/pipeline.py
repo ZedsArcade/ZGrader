@@ -317,8 +317,11 @@ def _persist_combined(
         )
 
 
-def _load_deskewed_card(
-    scan: ScanImage, width_mm: float, height_mm: float
+def load_deskewed_card(
+    scan: ScanImage,
+    width_mm: float,
+    height_mm: float,
+    crop_points: list[list[float]] | None = None,
 ) -> preprocessing.RectifiedCard:
     """Rectify one scan to a canonical raster.
 
@@ -329,9 +332,17 @@ def _load_deskewed_card(
     before anything looked at it, and one half a millimetre outside put
     scanner backing where the card's edge should be. The crop still rejects
     background and neighbouring cards, which is what it is for.
+
+    `crop_points` overrides what the scan has stored, which is how the
+    pre-submission crop check asks "would this crop work?" without persisting
+    anything. It shares this function rather than rebuilding the call because
+    a check that computed geometry even slightly differently could pass a crop
+    the pipeline then declines -- and a check that disagrees with the thing it
+    is checking is worse than no check at all.
     """
     image = preprocessing.load_image(scan.file_path)
-    roi = np.array(scan.crop_points, dtype="float32") if scan.crop_points is not None else None
+    points = crop_points if crop_points is not None else scan.crop_points
+    roi = np.array(points, dtype="float32") if points is not None else None
     return preprocessing.rectify(image, width_mm, height_mm, roi_quad=roi)
 
 
@@ -358,7 +369,7 @@ def run_analysis(db: Session, submission: Submission) -> None:
     width_mm, height_mm = scale.dimensions_for(db, submission.card.game if submission.card else None)
 
     try:
-        front = _load_deskewed_card(front_scan, width_mm, height_mm)
+        front = load_deskewed_card(front_scan, width_mm, height_mm)
     except ValueError as exc:
         raise PipelineError(f"Front scan preprocessing failed: {exc}") from exc
     # Foil is a property of the card, not of either photograph, so it joins
@@ -400,7 +411,7 @@ def run_analysis(db: Session, submission: Submission) -> None:
     back_results = None
     if back_scan is not None:
         try:
-            back = _load_deskewed_card(back_scan, width_mm, height_mm)
+            back = load_deskewed_card(back_scan, width_mm, height_mm)
         except ValueError as exc:
             raise PipelineError(f"Back scan preprocessing failed: {exc}") from exc
         back_results = _persist_side(

@@ -110,6 +110,23 @@ class CropPointsIn(BaseModel):
     points: list[tuple[float, float]]
 
 
+class CropCheckOut(BaseModel):
+    """Whether a candidate crop would let the card's edges be fitted.
+
+    Asked before the crop is confirmed, because confirming it advances the
+    state machine and spends the submission. Without this the first a customer
+    hears about an unusable crop is a finished report with no scores in it.
+
+    `limitations` are codes rather than sentences, matching the analysis
+    contract -- the frontend already has localised copy for
+    `geometry_unverified` and reuses it here rather than inventing a second
+    wording for the same condition.
+    """
+
+    boundary_found: bool
+    limitations: list[str]
+
+
 class RegionToggleIn(BaseModel):
     region_key: str
     dismissed: bool

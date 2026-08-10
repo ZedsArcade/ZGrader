@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from zgrader import entitlements, images
-from zgrader.analysis import preprocessing, recompute
+from zgrader.analysis import assessment, pipeline, preprocessing, recompute, scale
 from zgrader.api.deps import get_current_user, require_operator, require_verified_user
 from zgrader.config import config
 from zgrader.db import get_db
@@ -30,6 +30,7 @@ from zgrader.scan_ingest import read_scan_metadata, sha256_file
 from zgrader.storage import purge_submission_files
 from zgrader.schemas.admin import AutoPublishUpdate
 from zgrader.schemas.submission import (
+    CropCheckOut,
     CropPointsIn,
     QuotaOut,
     RegionToggleIn,
@@ -354,6 +355,51 @@ def snap_crop(
     image = preprocessing.load_image(scan.file_path)
     points = preprocessing.snap_points_to_boundary(image, [list(p) for p in payload.points])
     return {"points": points}
+
+
+@router.post("/{code}/scans/{side}/check-crop", response_model=CropCheckOut)
+def check_crop(
+    code: str,
+    side: Literal["front", "back"],
+    payload: CropPointsIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CropCheckOut:
+    """Would this crop let the card's edges be fitted? Persists nothing.
+
+    Exists because confirming a crop advances the state machine and spends the
+    submission, so without this the first a customer hears about an unusable
+    crop is a finished report with no scores in it. Measured across 30 real
+    photographs: the fit falls back on 33% of uncropped images but only ~7%
+    when the crop is traced around the card, and 8 of 10 failures are
+    recovered by re-cropping alone. So the overwhelmingly common fix is one
+    the customer can apply here, in seconds, before committing anything.
+
+    Runs the pipeline's own `load_deskewed_card` rather than its own
+    rectification. A check that disagreed with the thing it is checking --
+    passing a crop analysis then declines, or refusing one it would have
+    accepted -- would be worse than no check.
+    """
+    submission = _get_owned_submission(code, user, db)
+    scan = _get_scan(submission, side)
+    _validate_points(payload, scan)
+
+    width_mm, height_mm = scale.dimensions_for(
+        db, submission.card.game if submission.card else None
+    )
+    rectified = pipeline.load_deskewed_card(
+        scan, width_mm, height_mm, crop_points=[list(point) for point in payload.points]
+    )
+
+    disqualifying = [
+        code_
+        for code_ in rectified.limitations
+        if code_ in assessment.DISQUALIFYING_LIMITATIONS
+    ]
+    return CropCheckOut(
+        boundary_found=not disqualifying,
+        limitations=list(rectified.limitations),
+    )
 
 
 @router.post("/{code}/scans/{side}/confirm-crop", response_model=SubmissionDetail)
