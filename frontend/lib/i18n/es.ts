@@ -296,6 +296,13 @@ export const es: Dictionary = {
     snapFailed: "No se pudo refinar el recorte.",
     rotateLeft: "Girar a la izquierda",
     rotateRight: "Girar a la derecha",
+    checking: "Comprobando el recorte…",
+    boundaryWarningTitle: "No se han podido localizar los filos de la carta",
+    boundaryWarningHint:
+      "Puede enviarla igualmente, pero esta carta volvería sin ninguna puntuación. Ajustar el recorte lo soluciona mucho más a menudo que repetir la foto.",
+    adjustInstead: "Prefiero ajustarlo",
+    submitAnyway: "Enviar igualmente",
+    checkFailed: "No se pudo comprobar el recorte; aún puede confirmarlo.",
   },
   footer: {
     tagline: "Pre-calificación independiente de cartas coleccionables, desde Gibraltar.",

@@ -305,6 +305,17 @@ export const en = {
     snapFailed: "Couldn't refine the crop.",
     rotateLeft: "Rotate left",
     rotateRight: "Rotate right",
+    // Shown before the crop is confirmed, because confirming spends the
+    // submission. The explanation itself is reused from
+    // submissionDetail.limitation.geometry_unverified rather than reworded --
+    // one condition should not have two descriptions.
+    checking: "Checking the crop…",
+    boundaryWarningTitle: "The card's edges couldn't be found",
+    boundaryWarningHint:
+      "You can still submit, but this card would come back with no scores. Adjusting the crop fixes it far more often than retaking the photo does.",
+    adjustInstead: "Let me adjust it",
+    submitAnyway: "Submit anyway",
+    checkFailed: "Couldn't check the crop — you can still confirm it.",
   },
   footer: {
     tagline: "Independent pre-grading for trading card games, based in Gibraltar.",
