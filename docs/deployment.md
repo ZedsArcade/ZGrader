@@ -89,6 +89,24 @@ outside the stack.
 So: don't port-forward 8080, and if you expose it on the LAN, keep that to the
 LAN.
 
+## Backups
+
+The `backup` service dumps the database and archives the reports and scans
+directories nightly. All three, because only the first is in Postgres — a
+database-only backup restores rows pointing at files that no longer exist.
+
+Set `BACKUP_HOST_PATH` to somewhere on a **different disk** from
+`POSTGRES_DATA_PATH`, and get a copy off the machine: a backup that only exists
+on the array does not survive the array failing.
+
+If you also run Unraid's CA Appdata Backup, exclude the Postgres data
+directory. A file-level copy of a running Postgres is torn and unrestorable,
+and having one sitting there is worse than having none, because you will
+believe in it.
+
+**`docs/backup.md` has the restore drill. Run it once before you need it** —
+five minutes now, against a database small enough that a mistake costs nothing.
+
 ### Worth adding at the Cloudflare edge
 
 Neither is required — the app defends itself without them — but both are free
@@ -162,9 +180,6 @@ register a throwaway account and confirm the verification mail arrives.
 
 Honest list of what this deployment does *not* have yet:
 
-- **No Postgres backups.** There is no code change that fixes this and it is
-  the highest-value operational gap. A nightly `pg_dump` to a separate share is
-  enough to start with.
 - **The session token lives in `localStorage`,** so an XSS could steal it. The
   CSP and the token-version revocation reduce the exposure; moving to an
   `httpOnly` cookie is the real fix and is a focused piece of work of its own.
