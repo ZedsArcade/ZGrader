@@ -13,6 +13,7 @@ from zgrader.api.deps import get_current_user, require_operator, require_verifie
 from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.email.notifications import send_report_published, send_submission_received
+from zgrader.models.submission import submission_code_seq
 from zgrader.models import (
     AuditLog,
     Card,
@@ -53,8 +54,20 @@ _SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "i
 
 
 def _next_submission_code(db: Session) -> str:
-    count = db.query(Submission).count()
-    return f"SUB-{count + 1:05d}"
+    """The next code, from a sequence that never issues one twice.
+
+    This was `COUNT(*) + 1`, which reused a code as soon as any submission was
+    deleted. See models.submission.submission_code_seq for what that cost --
+    briefly, the code names the on-disk scans and reports directories, and
+    those survive a database delete, so a reused code puts one customer's
+    submission into another's folder.
+
+    Deliberately not padded beyond five digits: SUB-100000 sorts after
+    SUB-99999 lexically as well as numerically, so nothing downstream breaks
+    when the count passes six figures.
+    """
+    number = db.execute(submission_code_seq.next_value().select()).scalar_one()
+    return f"SUB-{number:05d}"
 
 
 def _get_owned_submission(code: str, user: User, db: Session) -> Submission:
