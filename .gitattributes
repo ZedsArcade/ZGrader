@@ -1,3 +1,10 @@
+# Shell scripts run inside Linux containers, so they must be checked out with
+# LF regardless of the platform they were authored on. A CRLF script fails with
+# "bad interpreter: /usr/bin/env bash^M: no such file or directory", which
+# names the interpreter rather than the line endings and sends you looking in
+# entirely the wrong place.
+*.sh text eol=lf
+
 # Real card photographs used by the analysis drift harness are large binaries
 # that would otherwise bloat every clone forever. Only this directory is
 # tracked by LFS -- the synthetic fixtures are generated from code and the

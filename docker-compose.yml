@@ -119,6 +119,43 @@ services:
     profiles:
       - dev
 
+  # Nightly dump of the database, the reports directory and the scans
+  # directory. All three, because only the first is in Postgres -- a
+  # database-only backup restores rows pointing at files that no longer exist.
+  #
+  # Reuses postgres:16 rather than a purpose-built backup image on purpose:
+  # pg_dump must match the server's major version or it refuses to run, and
+  # sharing the image makes that true by construction instead of by someone
+  # remembering to bump two things together.
+  #
+  # Reads reports and scans READ-ONLY. A backup process with write access to
+  # the thing it is protecting is one bug away from being the disaster.
+  #
+  # See docs/backup.md for the restore drill. An untested backup is a belief,
+  # not a backup.
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    # Unraid's nobody:users, matching backend/Dockerfile's APP_UID/APP_GID, so
+    # the dumps land owned by the same account as everything else in appdata
+    # and stay readable and deletable from the host.
+    user: "${APP_UID:-99}:${APP_GID:-100}"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zgrader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a real password in .env -- see .env.example}
+      POSTGRES_DB: ${POSTGRES_DB:-zgrader}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    entrypoint: ["/usr/local/bin/backup.sh"]
+    volumes:
+      - ./infra/backup/backup.sh:/usr/local/bin/backup.sh:ro
+      - ${BACKUP_HOST_PATH:-./data/backups}:/backups
+      - ${REPORTS_DATA_PATH:-reports_data}:/data/reports:ro
+      - ${SCANS_HOST_PATH:-./data/scans}:/data/scans:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # The public entry point for the reference deployment. Dials *out* to
   # Cloudflare, so no router port is forwarded and the home IP is never
   # published. Point the tunnel's public hostname at http://caddy:80 -- being
