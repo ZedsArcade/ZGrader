@@ -1,7 +1,9 @@
 import datetime
 import uuid
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from zgrader.models import SubmissionLanguage, SubmissionStatus
 
@@ -130,3 +132,23 @@ class CropCheckOut(BaseModel):
 class RegionToggleIn(BaseModel):
     region_key: str
     dismissed: bool
+
+
+class CenteringAdjustIn(BaseModel):
+    """Border widths a client has moved, in pixels of the rectified raster.
+
+    Pixels rather than millimetres because that is the space the stored
+    measurement and the on-screen overlay both live in -- converting at the
+    edges would put a rounding step between what the customer dragged and what
+    gets scored.
+
+    All four are required. A ratio needs both of its sides, and accepting a
+    partial set would mean guessing the other one, which is how a missing
+    measurement once became a confident 100/0 split.
+    """
+
+    side: Literal["front", "back"]
+    left_px: float = Field(ge=0)
+    right_px: float = Field(ge=0)
+    top_px: float = Field(ge=0)
+    bottom_px: float = Field(ge=0)

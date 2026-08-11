@@ -31,7 +31,10 @@ def _parse_dismissed(dismissed_regions: list | None) -> dict[tuple[str, str], se
 
 
 def _adjusted_side_score(
-    category: str, side_measurements: dict, dismissed_ids: set[str]
+    category: str,
+    side_measurements: dict,
+    dismissed_ids: set[str],
+    centering_adjustment: dict | None = None,
 ) -> tuple[float | None, float | None]:
     """Adjusted (raw_score, worse_side_pct) for one side, treating dismissed
     regions as clean. worse_side_pct is only meaningful for centering.
@@ -90,6 +93,19 @@ def _adjusted_side_score(
             # cut on the client's say-so; the measured ratio stands instead,
             # marked as disputed.
             return None, None
+        if centering_adjustment:
+            # The client moved the border lines. Their widths replace the
+            # detected ones and the ratio is re-derived through the same
+            # function the pipeline uses, so the two cannot disagree about
+            # what a set of widths means. The stored per-side row is left
+            # alone -- it stays the record of what was actually measured, and
+            # clearing the adjustment restores it with no other trace.
+            widths = [centering_adjustment.get(k) for k in ("left_px", "right_px", "top_px", "bottom_px")]
+            if all(isinstance(w, (int, float)) for w in widths):
+                ratios = centering.ratios_from_widths(*(float(w) for w in widths))
+                worse = ratios["worse_side_pct"]
+                return round(centering.score_from_worse_pct(worse), 2), float(worse)
+
         worse = side_measurements.get("worse_side_pct")
         if worse is None:
             # Nothing was measured for this side, so there is nothing to
@@ -115,6 +131,8 @@ def recompute_submission(db: Session, submission: Submission) -> None:
     dismissed_regions and rebuild the company comparisons. A no-op-equivalent
     (empty dismissed set) restores the original auto-detected scores."""
     dismissed = _parse_dismissed(submission.dismissed_regions)
+    # {"front": {...}, "back": {...}} of client-moved border widths, or None.
+    adjustments = submission.centering_adjustments or {}
 
     # This module never mutates the per-side rows, so they stay the record of
     # what was actually measured. When a side's findings are all disputed and
@@ -144,7 +162,10 @@ def recompute_submission(db: Session, submission: Submission) -> None:
             if side_m is None:
                 continue
             score, worse = _adjusted_side_score(
-                category, side_m, dismissed.get((side, category), set())
+                category,
+                side_m,
+                dismissed.get((side, category), set()),
+                adjustments.get(side) if category == "centering" else None,
             )
             if score is None:
                 score = stored_side_scores.get((side, category))

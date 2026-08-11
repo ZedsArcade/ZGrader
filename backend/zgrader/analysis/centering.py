@@ -104,6 +104,48 @@ def _measure_border(
     return float(np.median(widths)), spread_fraction
 
 
+def ratios_from_widths(
+    left: float,
+    right: float,
+    top: float,
+    bottom: float,
+    have_lr: bool = True,
+    have_tb: bool = True,
+) -> dict:
+    """The two centering ratios and the worse side, from four border widths.
+
+    Extracted so `measure_centering` and the client-adjustment recompute share
+    one definition of what a set of border widths means. They used to be the
+    same arithmetic written twice, which is the drift `analysis/scoring.py`
+    exists to prevent and which has already bitten `recompute.py` twice.
+
+    A ratio needs *both* of its sides, and `have_lr`/`have_tb` say whether it
+    has them. This is not defensive tidying: with one side missing, its width
+    defaulted to zero and the pair read as a 100/0 split -- a catastrophic
+    centering score manufactured out of a measurement that did not happen. An
+    axis with a side missing contributes nothing instead; if that leaves no
+    axis at all, `worse_side_pct` falls back to 50.0 and the caller decides
+    whether a reading exists.
+
+    The client-adjustment path always supplies all four, so both axes count.
+    """
+
+    def _split(a: float, b: float, have: bool) -> list[float] | None:
+        if not have or a + b <= 0:
+            return None
+        return [round(100 * a / (a + b), 1), round(100 * b / (a + b), 1)]
+
+    lr_split = _split(left, right, have_lr)
+    tb_split = _split(top, bottom, have_tb)
+    available = [s for s in (lr_split, tb_split) if s is not None]
+    return {
+        "lr_ratio": lr_split,
+        "tb_ratio": tb_split,
+        "measured_axes": len(available),
+        "worse_side_pct": max((max(s) for s in available), default=50.0),
+    }
+
+
 def score_from_worse_pct(worse_pct: float) -> float:
     """Thin delegate to the scoring layer.
 
@@ -324,15 +366,18 @@ def measure_centering(card_image: np.ndarray, px_per_mm: float) -> dict:
     #
     # An axis with a side missing contributes nothing instead. If that leaves
     # no axis at all, there is no centering reading to give.
-    def _split(a: float, b: float, have: bool) -> list[float] | None:
-        if not have or a + b <= 0:
-            return None
-        return [round(100 * a / (a + b), 1), round(100 * b / (a + b), 1)]
-
-    lr_split = _split(left, right, sides["left"].get("measured") and sides["right"].get("measured"))
-    tb_split = _split(top, bottom, sides["top"].get("measured") and sides["bottom"].get("measured"))
+    ratios = ratios_from_widths(
+        left,
+        right,
+        top,
+        bottom,
+        have_lr=bool(sides["left"].get("measured") and sides["right"].get("measured")),
+        have_tb=bool(sides["top"].get("measured") and sides["bottom"].get("measured")),
+    )
+    lr_split = ratios["lr_ratio"]
+    tb_split = ratios["tb_ratio"]
     available = [s for s in (lr_split, tb_split) if s is not None]
-    worse_side_pct = max((max(s) for s in available), default=50.0)
+    worse_side_pct = ratios["worse_side_pct"]
     # The card's worst tilt, which is what a diamond cut looks like from here.
     # Reported in millimetres because that is the form a customer can check
     # with a ruler against the card's own border.

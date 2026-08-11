@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import StartCheckLink from "@/components/StartCheckLink";
 import { Card, Chip, buttonVariants, cn } from "@heroui/react";
 import * as api from "@/lib/api";
 import { useTranslations } from "@/lib/i18n/context";
@@ -98,15 +99,14 @@ export default function ServiceTierGrid({ tiers }: { tiers: ServiceTier[] }) {
                 dead call to action. */}
             <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
               {tier.status === "available" ? (
-                <Link
-                  href="/register"
+                <StartCheckLink
                   className={cn(
                     buttonVariants({ variant: "primary", size: "sm" }),
                     "btn-press btn-neon-hover"
                   )}
                 >
                   {t.services.startCta}
-                </Link>
+                </StartCheckLink>
               ) : (
                 <Link
                   href="/contact"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Checkbox, Description, FieldError, Input, Label, TextField } from "@heroui/react";
@@ -11,9 +11,18 @@ import { toastError, toastSuccess } from "@/lib/toast";
 import { useTranslations } from "@/lib/i18n/context";
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, user, loading } = useAuth();
   const router = useRouter();
   const t = useTranslations();
+
+  // Someone who already has an account has no business on this form. This
+  // covers typing /register directly, a stale bookmark, and the brief window
+  // on first paint where StartCheckLink has not yet seen the restored session
+  // and still points here. `replace` rather than `push` so Back does not
+  // bounce them straight back to a page they cannot use.
+  useEffect(() => {
+    if (!loading && user) router.replace("/dashboard");
+  }, [loading, user, router]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);

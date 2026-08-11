@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import StartCheckLink from "@/components/StartCheckLink";
 import { Card, buttonVariants, cn } from "@heroui/react";
 import BrandLink from "@/components/BrandLink";
 import PageHeader from "@/components/PageHeader";
@@ -95,12 +96,11 @@ export default function AboutClient() {
         <Card.Content>
           <p className="text-sm text-muted">{t.about.ctaBody}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link
-              href="/register"
+            <StartCheckLink
               className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}
             >
               {t.landing.getStarted}
-            </Link>
+            </StartCheckLink>
             <Link
               href="/how-it-works"
               className={cn(buttonVariants({ variant: "outline" }), "btn-press")}

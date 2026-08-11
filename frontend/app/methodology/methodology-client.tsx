@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import StartCheckLink from "@/components/StartCheckLink";
 import type { ReactNode } from "react";
 import { Card, buttonVariants, cn } from "@heroui/react";
 import PageHeader from "@/components/PageHeader";
@@ -250,12 +251,11 @@ export default function MethodologyClient() {
           <Card.Content>
             <p className="text-sm text-muted">{t.methodology.ctaBody}</p>
             <div className="mt-4">
-              <Link
-                href="/register"
+              <StartCheckLink
                 className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}
               >
                 {t.landing.getStarted}
-              </Link>
+              </StartCheckLink>
             </div>
           </Card.Content>
         </Card>

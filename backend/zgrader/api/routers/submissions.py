@@ -15,6 +15,7 @@ from zgrader.db import get_db
 from zgrader.email.notifications import send_report_published, send_submission_received
 from zgrader.models.submission import submission_code_seq
 from zgrader.models import (
+    AnalysisCategory,
     AuditLog,
     Card,
     ReportStatus,
@@ -31,6 +32,7 @@ from zgrader.scan_ingest import read_scan_metadata, sha256_file
 from zgrader.storage import purge_submission_files
 from zgrader.schemas.admin import AutoPublishUpdate
 from zgrader.schemas.submission import (
+    CenteringAdjustIn,
     CropCheckOut,
     CropPointsIn,
     QuotaOut,
@@ -607,6 +609,110 @@ def set_auto_publish_override(
             detail={"auto_publish": payload.auto_publish},
         )
     )
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
+@router.post("/{code}/centering-adjust", response_model=SubmissionDetail)
+def adjust_centering(
+    code: str,
+    payload: CenteringAdjustIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Submission:
+    """Move one side's centering border lines and rescore from where they now sit.
+
+    The client sees where detection placed the four lines and can nudge each
+    one. That is worth allowing because the border detector is the least
+    reliable thing in the pipeline -- `border.TRANSITION_DELTA_E` fires on real
+    print texture, and on a full-bleed back it has been seen reporting a
+    9.6mm 'border' on one side and nothing on the other three.
+
+    Movement is capped at the operator's `centering_adjust_limit_mm`, measured
+    from where detection put each line, and the cap is enforced here rather
+    than only in the UI: a limit that lives in the browser is a suggestion.
+    Setting it to zero disables adjustment outright.
+
+    Stored beside the measurement, never over it. The per-side row remains the
+    record of what was actually measured; `recompute_submission` derives the
+    combined score from measurement plus adjustment, so clearing the
+    adjustment restores the detected figures exactly.
+    """
+    submission = _get_owned_submission(code, user, db)
+
+    side_row = next(
+        (
+            r
+            for r in submission.analysis_results
+            if r.category == AnalysisCategory.centering and r.side.value == payload.side
+        ),
+        None,
+    )
+    if side_row is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"No centering analysis for the {payload.side}"
+        )
+
+    measured = side_row.measurements or {}
+    # An unmeasurable side has no detected line to nudge *from*, so there is
+    # nothing to bound the movement against and nothing to rescore. Refusing
+    # is the honest answer -- accepting would let a client invent a centering
+    # reading for a side the pipeline explicitly declined to give one for.
+    if side_row.raw_score is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Centering could not be measured on this side, so its lines cannot be adjusted.",
+        )
+
+    settings = get_or_create_settings(db)
+    limit_mm = float(settings.centering_adjust_limit_mm or 0)
+    if limit_mm <= 0:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Adjusting the centering lines is currently disabled."
+        )
+
+    geometry = measured.get("card_geometry") or {}
+    px_per_mm = float(geometry.get("px_per_mm") or 0)
+    if px_per_mm <= 0:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "This submission has no recorded scale to bound the move against."
+        )
+
+    limit_px = limit_mm * px_per_mm
+    proposed = {
+        "left_px": payload.left_px,
+        "right_px": payload.right_px,
+        "top_px": payload.top_px,
+        "bottom_px": payload.bottom_px,
+    }
+    for key, value in proposed.items():
+        detected = measured.get(key)
+        if detected is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, f"No detected {key} to adjust from on this side."
+            )
+        if abs(value - float(detected)) > limit_px + 1e-6:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"{key} moved further than the {limit_mm:g}mm allowed.",
+            )
+
+    adjustments = dict(submission.centering_adjustments or {})
+    adjustments[payload.side] = {k: round(v, 1) for k, v in proposed.items()}
+    submission.centering_adjustments = adjustments
+
+    db.add(
+        AuditLog(
+            submission_id=submission.id,
+            user_id=user.id,
+            action="centering_adjusted",
+            detail={"side": payload.side, "detected": {k: measured.get(k) for k in proposed}, "adjusted": adjustments[payload.side]},
+        )
+    )
+    db.flush()
+
+    recompute.recompute_submission(db, submission)
     db.commit()
     db.refresh(submission)
     return submission

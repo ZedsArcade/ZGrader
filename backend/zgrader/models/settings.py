@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Integer, String, Text
+from sqlalchemy import Boolean, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from zgrader.db import Base
@@ -59,6 +59,20 @@ class Settings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     social_facebook: Mapped[str | None] = mapped_column(String(500), nullable=True)
     social_x: Mapped[str | None] = mapped_column(String(500), nullable=True)
     social_whatsapp: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    # How far a client may move a centering border line from where detection
+    # put it, in millimetres. Operator-tunable rather than a constant because
+    # the right value is a judgement about trust, not a measurement: it trades
+    # "let someone fix a line the border detector placed wrongly" against
+    # "let someone dial in a better ratio on a report they may show a buyer".
+    #
+    # A card's printed border is only a few millimetres wide, so this is a
+    # meaningful cap rather than a nominal one. **Zero disables adjustment
+    # entirely**, which is the setting to reach for if the feature is ever
+    # abused -- it needs no deploy and breaks nothing already stored.
+    centering_adjust_limit_mm: Mapped[float] = mapped_column(
+        Numeric(4, 1), nullable=False, default=4.0, server_default="4.0"
+    )
 
 
 def get_or_create_settings(db: Session) -> "Settings":

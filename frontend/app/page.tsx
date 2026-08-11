@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import StartCheckLink from "@/components/StartCheckLink";
 import { Card, buttonVariants, cn } from "@heroui/react";
 import { useTranslations } from "@/lib/i18n/context";
 import { useGradingCompanies, withCompanies } from "@/lib/use-grading-companies";
@@ -36,9 +37,9 @@ export default function HomePage() {
           {withBusinessName(withCompanies(t.landing.subtitle, companies), businessName)}
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link href="/register" className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}>
+          <StartCheckLink className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}>
             {t.landing.getStarted}
-          </Link>
+          </StartCheckLink>
           <Link href="/login" className={cn(buttonVariants({ variant: "outline" }), "btn-press btn-neon-hover")}>
             {t.landing.login}
           </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import StartCheckLink from "@/components/StartCheckLink";
 import { Card, buttonVariants, cn } from "@heroui/react";
 import PageHeader from "@/components/PageHeader";
 import { useTranslations } from "@/lib/i18n/context";
@@ -96,12 +97,11 @@ export default function HowItWorksClient() {
         <Card.Content>
           <p className="text-sm text-muted">{t.howItWorks.ctaBody}</p>
           <div className="mt-4">
-            <Link
-              href="/register"
+            <StartCheckLink
               className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}
             >
               {t.landing.getStarted}
-            </Link>
+            </StartCheckLink>
           </div>
         </Card.Content>
       </Card>

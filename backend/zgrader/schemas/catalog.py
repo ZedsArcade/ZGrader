@@ -31,6 +31,9 @@ class BrandingOut(BaseModel):
     social_facebook: str | None
     social_x: str | None
     social_whatsapp: str | None
+    # Public because the results page needs it to bound the centering drag
+    # handles. Not sensitive -- it is a limit, not a credential.
+    centering_adjust_limit_mm: float
     # The companies currently taking part in the comparison. Published so the
     # public copy can name exactly those, rather than hardcoding a list that
     # would start lying the moment an operator disables one.
