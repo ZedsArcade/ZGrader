@@ -155,6 +155,8 @@ export interface PublicContact {
   social_facebook: string | null;
   social_x: string | null;
   social_whatsapp: string | null;
+  /** How far a client may drag a centering line, in mm. 0 disables it. */
+  centering_adjust_limit_mm: number;
 }
 
 export interface Branding extends PublicContact {

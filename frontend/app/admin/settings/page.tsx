@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Card, Checkbox, Input, Label, TextArea, TextField } from "@heroui/react";
+import { Card, Checkbox, Description, Input, Label, TextArea, TextField } from "@heroui/react";
 import Button from "@/components/Button";
 import RequireAuth from "@/components/RequireAuth";
 import Skeleton from "@/components/Skeleton";
@@ -853,6 +853,30 @@ function SettingsForm() {
           />
 
           <GradingCompanyRows token={token ?? ""} onChanged={refreshBranding} />
+
+          <SectionHeading
+            title="Client adjustments"
+            hint="How far a customer may drag a centering line from where detection placed it. The border detector is the least reliable part of the pipeline, so some latitude is genuinely useful — but the same control lets someone improve their own ratio. Set 0 to switch it off entirely."
+          />
+
+          <TextField
+            value={String(settings.centering_adjust_limit_mm ?? 0)}
+            onChange={(value) =>
+              setSettings({
+                ...settings,
+                centering_adjust_limit_mm: value.trim() === "" ? 0 : Number(value),
+              })
+            }
+            type="number"
+            fullWidth
+          >
+            <Label>Maximum centering adjustment (mm)</Label>
+            <Input />
+            <Description>
+              0 disables adjustment. A card&apos;s printed border is only a few millimetres
+              wide, so values above about 4 stop being a meaningful limit.
+            </Description>
+          </TextField>
 
           <SectionHeading
             title="Email delivery"

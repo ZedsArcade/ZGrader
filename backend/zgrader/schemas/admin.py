@@ -106,6 +106,7 @@ class SettingsOut(BaseModel):
     social_facebook: str | None
     social_x: str | None
     social_whatsapp: str | None
+    centering_adjust_limit_mm: float
 
 
 class SettingsUpdate(BaseModel):
@@ -123,6 +124,12 @@ class SettingsUpdate(BaseModel):
     social_facebook: str | None = None
     social_x: str | None = None
     social_whatsapp: str | None = None
+    # How far a client may move a centering line, in mm. 0 disables the
+    # feature; the cap is enforced server-side in the adjust endpoint, so this
+    # is the only place that decides it. Bounded at 10 because a card's
+    # printed border is a few millimetres wide -- past that the "limit" would
+    # let a line be placed anywhere and stop meaning anything.
+    centering_adjust_limit_mm: float | None = Field(default=None, ge=0, le=10)
 
     @field_validator("social_instagram", "social_facebook", "social_x")
     @classmethod

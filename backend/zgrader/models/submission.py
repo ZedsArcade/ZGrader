@@ -86,6 +86,19 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # ignoring these -- see zgrader.analysis.recompute. NULL == none
     # dismissed.
     dismissed_regions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # Centering border positions the client nudged after seeing where
+    # detection put them, as {"front": {"left_px": .., "right_px": ..,
+    # "top_px": .., "bottom_px": ..}, "back": {...}}. Stored beside the
+    # measurement rather than over it, exactly as dismissed_regions is: the
+    # per-side AnalysisResult stays the record of what was actually measured,
+    # and the combined score is derived from both. Clearing this restores the
+    # detected figures with no other trace.
+    #
+    # Movement is capped at CENTERING_ADJUST_LIMIT_MM from where detection put
+    # each line. A customer fixing a line the border detector placed wrongly
+    # is the case this exists for; a customer dialling in a better ratio on a
+    # report they may show a buyer is not.
+    centering_adjustments: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     language: Mapped[SubmissionLanguage] = mapped_column(
         Enum(SubmissionLanguage, name="submission_language"),
         default=SubmissionLanguage.en,
@@ -120,9 +133,16 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     @property
     def client_adjusted(self) -> bool:
-        """True when the client has dismissed at least one auto-detected
-        finding, so the assessment (and report) must be marked adjusted."""
-        return bool(self.dismissed_regions)
+        """True when the client has changed the assessment in any way, so it
+        (and the report) must be marked adjusted.
+
+        Both inputs count. A moved centering line changes a published number
+        exactly as much as a dismissed finding does, and a report that carried
+        one without the watermark would be the more misleading of the two --
+        a dismissed finding is at least listed, whereas a nudged border leaves
+        no visible trace in the scorecard on its own.
+        """
+        return bool(self.dismissed_regions) or bool(self.centering_adjustments)
 
     @property
     def confirmed_sides(self) -> list[str]:
