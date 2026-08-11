@@ -293,6 +293,27 @@ export const en = {
     invalidImage: "That doesn't look like a valid image. Try a JPEG, PNG, or TIFF.",
     fileTooLarge: "That image is too large.",
   },
+  centeringAdjust: {
+    title: "Check the centering lines",
+    instructions:
+      "These four lines are where the border was detected. If one is in the wrong place, drag its handle to move it â the ratios update as you go, and the score is recalculated when you apply.",
+    disabled: "Adjusting the centering lines is currently switched off.",
+    loadFailed: "Couldn't load the image for adjusting.",
+    leftRight: "Left / right",
+    topBottom: "Top / bottom",
+    worstSide: "Worst side",
+    apply: "Apply and rescore",
+    applying: "Rescoringâ¦",
+    applied: "Centering rescored from the lines you set.",
+    applyFailed: "Couldn't apply that adjustment.",
+    reset: "Back to detected",
+    handleLabel: {
+      left_px: "Left border line",
+      right_px: "Right border line",
+      top_px: "Top border line",
+      bottom_px: "Bottom border line",
+    },
+  },
   cropAdjust: {
     title: "Confirm which card to analyse",
     // No longer "the exact corners". The handles used to be the geometry every

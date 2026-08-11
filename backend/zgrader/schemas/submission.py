@@ -97,6 +97,13 @@ class SubmissionDetail(BaseModel):
     scan_sides: list[str] = []
     confirmed_sides: list[str] = []
     dismissed_regions: list[str] = []
+    # Per side, the border widths the client moved the centering lines to, as
+    # {"front": {"left_px": .., "right_px": .., "top_px": .., "bottom_px": ..}}.
+    # Exposed because the adjuster has to open showing the lines where the
+    # client last put them rather than back at the detected positions -- the
+    # AnalysisResult only ever holds what was measured, by design, so without
+    # this the UI has no way to read back an applied adjustment.
+    centering_adjustments: dict[str, dict[str, float]] = {}
     analysis_results: list[AnalysisResultOut] = []
     company_comparisons: list[ComparisonOut] = []
 
@@ -106,6 +113,12 @@ class SubmissionDetail(BaseModel):
         # The column is nullable JSONB (NULL == none dismissed); coerce to []
         # so the API always returns a list.
         return value or []
+
+    @field_validator("centering_adjustments", mode="before")
+    @classmethod
+    def _none_to_empty_map(cls, value: object) -> object:
+        # Same, for the nullable JSONB map (NULL == nothing adjusted).
+        return value or {}
 
 
 class CropPointsIn(BaseModel):

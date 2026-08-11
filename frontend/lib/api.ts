@@ -115,6 +115,9 @@ export interface SubmissionDetail {
   // "{side}:{category}:{region_id}" keys the client dismissed as mistaken
   // auto-detections; the scores/comparisons here already reflect them.
   dismissed_regions: string[];
+  // Per side, the border widths the client dragged the centering lines to.
+  // Absent for a side that has not been adjusted.
+  centering_adjustments: Partial<Record<ScanSide, CenteringWidths>>;
   analysis_results: AnalysisResult[];
   company_comparisons: Comparison[];
 }
@@ -787,5 +790,32 @@ export async function sendTestEmail(token: string, to: string): Promise<TestEmai
     method: "POST",
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify({ to }),
+  });
+}
+
+/** Border widths, in pixels of the rectified card raster, after the client
+ *  has moved the centering lines. All four are required: a ratio needs both
+ *  of its sides, and a partial set would mean guessing the other one. */
+export interface CenteringWidths {
+  left_px: number;
+  right_px: number;
+  top_px: number;
+  bottom_px: number;
+}
+
+/** Move one side's centering lines and rescore from where they now sit.
+ *  The server caps movement at the operator's centering_adjust_limit_mm and
+ *  rejects anything beyond it, so this can fail with a 400 the UI should
+ *  surface rather than swallow. */
+export async function adjustCentering(
+  token: string,
+  code: string,
+  side: ScanSide,
+  widths: CenteringWidths
+): Promise<SubmissionDetail> {
+  return request(`/submissions/${code}/centering-adjust`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ side, ...widths }),
   });
 }
