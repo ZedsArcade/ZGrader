@@ -218,13 +218,34 @@ def _combine_score(front_score: float | None, back_score: float | None) -> float
 
 
 def _combine_assessments(front: dict | None, back: dict | None) -> dict | None:
-    """Merge two sides' assessments pessimistically.
+    """Merge two sides' assessments pessimistically, but not destructively.
 
-    Lowest confidence, union of limitations, and unmeasurable if either side
-    was: a category is only as trustworthy as its weaker face, and a
-    limitation that applied to one side applied to the card the customer sent.
-    Averaging confidence would let a clean back talk up an unreadable front,
-    which is the same mistake the 70/30 score weighting exists to avoid.
+    Lowest confidence and the union of limitations: a category is only as
+    trustworthy as its weaker face, and a limitation that applied to one side
+    applied to the card the customer sent. Averaging confidence would let a
+    clean back talk up an unreadable front, which is the mistake the 70/30
+    score weighting exists to avoid.
+
+    **The front decides whether there is a reading at all**, and the two sides
+    are deliberately not symmetric here. A readable front with an unreadable
+    back is a narrower reading of the card; an unreadable front with a clean
+    back is not a reading at all. A card back is a near-symmetric printed
+    design that is almost always well centred and rarely handled, so scoring
+    off the back alone would flatter the card on exactly the face nobody
+    buys it for -- the same reason the score weighting is 70/30 rather than
+    even.
+
+    So: unmeasurable if the front is, whatever the back says. Otherwise the
+    front carries it, and a declining back costs confidence and adds
+    COMBINED_SINGLE_SIDE rather than voiding the result.
+
+    That second half is the fix to a real contradiction. It used to be
+    unmeasurable if *either* side was, which disagreed with
+    combine_front_back -- that keeps the measurable side's score at full
+    weight, so the row ended up saying `unmeasurable` while still carrying a
+    number. It also disagreed with the front-only case, which returns the
+    front's block unchanged a few lines above and is reported `measured`:
+    uploading a poor back made the result worse than uploading no back at all.
     """
     blocks = [b for b in (front, back) if b]
     if not blocks:
@@ -232,16 +253,37 @@ def _combine_assessments(front: dict | None, back: dict | None) -> dict | None:
     if len(blocks) == 1:
         return dict(blocks[0])
 
-    limitations = sorted({code for b in blocks for code in b["limitations"]})
-    unmeasurable = any(b["state"] != assessment.MEASURED for b in blocks)
-    lows = [b["score_low"] for b in blocks if b["score_low"] is not None]
-    highs = [b["score_high"] for b in blocks if b["score_high"] is not None]
+    limitations = set().union(*(set(b["limitations"]) for b in blocks))
+    measured = [b for b in blocks if b["state"] == assessment.MEASURED]
+
+    # `front` is always present in practice -- _persist_combined has a front
+    # result for every category -- so this is the "front could not be read"
+    # branch, and no clean back rescues it.
+    if front is None or front["state"] != assessment.MEASURED or not measured:
+        return {
+            "state": assessment.UNMEASURABLE,
+            "confidence": 0.0,
+            "score_low": None,
+            "score_high": None,
+            "limitations": sorted(limitations),
+        }
+
+    confidence = min(b["confidence"] for b in measured)
+    if len(measured) < len(blocks):
+        limitations.add(assessment.COMBINED_SINGLE_SIDE)
+        confidence *= assessment.CONFIDENCE_SINGLE_SIDE_FACTOR
+
+    # Interval spans only the sides that produced one -- a side with no
+    # reading has no bounds to contribute, and treating its absence as a wide
+    # interval would be inventing uncertainty rather than reporting it.
+    lows = [b["score_low"] for b in measured if b["score_low"] is not None]
+    highs = [b["score_high"] for b in measured if b["score_high"] is not None]
     return {
-        "state": assessment.UNMEASURABLE if unmeasurable else assessment.MEASURED,
-        "confidence": min(b["confidence"] for b in blocks),
-        "score_low": None if unmeasurable or not lows else min(lows),
-        "score_high": None if unmeasurable or not highs else max(highs),
-        "limitations": limitations,
+        "state": assessment.MEASURED,
+        "confidence": round(confidence, 2),
+        "score_low": min(lows) if lows else None,
+        "score_high": max(highs) if highs else None,
+        "limitations": sorted(limitations),
     }
 
 
@@ -299,6 +341,17 @@ def _persist_combined(
         combined_score = _combine_score(
             front_result["raw_score"], back_result["raw_score"] if back_result else None
         )
+        # The score follows the assessment, never the other way round. Without
+        # this, a card whose front could not be read but whose back could
+        # would carry the back's number under a state of `unmeasurable` --
+        # combine_front_back returns the one side that has a value, and it
+        # does not know the merge above just refused to stand behind it.
+        #
+        # That contradiction shipped: SUB-00011 stored raw_score 7.45 next to
+        # state "unmeasurable" on the same row. A number and a statement that
+        # there is no number are not a pair of caveats, they are a bug.
+        if (measurements["assessment"] or {}).get("state") != assessment.MEASURED:
+            combined_score = None
         # Pristine auto-detected value, preserved so the UI/report can show
         # "was X.X" if the client later dismisses findings (recompute.py
         # overwrites raw_score but never touches this).

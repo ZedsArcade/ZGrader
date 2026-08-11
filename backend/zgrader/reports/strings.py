@@ -217,6 +217,11 @@ LIMITATION_LABELS = {
             "The measured area is not the shape of a card, which means the millimetre "
             "figures on this report are scaled wrong on at least one axis."
         ),
+        "combined_single_side": (
+            "Only one face of the card could be read for this category, so the figure "
+            "here rests on that face alone rather than on both. It is a narrower view "
+            "of the card than a full reading, not a worse one."
+        ),
     },
     "es": {
         "card_is_foil": (
@@ -274,6 +279,11 @@ LIMITATION_LABELS = {
         "geometry_aspect_mismatch": (
             "El área medida no tiene la forma de una carta, lo que significa que las "
             "cifras en milímetros de este informe están mal escaladas en al menos un eje."
+        ),
+        "combined_single_side": (
+            "Solo se pudo leer una cara de la carta para esta categoría, así que esta "
+            "cifra se apoya únicamente en esa cara y no en ambas. Es una visión más "
+            "limitada de la carta, no una peor."
         ),
     },
 }

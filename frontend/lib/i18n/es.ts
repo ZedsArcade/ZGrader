@@ -158,6 +158,8 @@ export const es: Dictionary = {
         "No se pudieron localizar los filos de la carta en esta imagen, así que no había nada fiable desde donde medir. Casi siempre es cuestión del recorte: arrastre los tiradores para que queden ceñidos a la carta, sin nada de fondo dentro, y vuelva a enviarla.",
       geometry_aspect_mismatch:
         "El área medida no tiene la forma de una carta, así que las cifras en milímetros están mal escaladas en al menos un eje.",
+      combined_single_side:
+        "Solo se pudo leer una cara para esta categoría, así que esto se apoya únicamente en esa cara y no en ambas: una visión más limitada de la carta, no una peor.",
     },
     comparisonTitle: "Comparación entre compañías",
     comparisonSubtitle:

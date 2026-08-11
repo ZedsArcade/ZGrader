@@ -63,6 +63,8 @@ GEOMETRY_UNVERIFIED = "geometry_unverified"
 GEOMETRY_ASPECT_MISMATCH = "geometry_aspect_mismatch"
 #: The card is foil or holo, which every detector here reads less reliably.
 CARD_IS_FOIL = "card_is_foil"
+#: One side could not be read, so the combined figure rests on the other alone.
+COMBINED_SINGLE_SIDE = "combined_single_side"
 
 ALL_LIMITATION_CODES = (
     SURFACE_DIFFUSE_LIGHT,
@@ -78,6 +80,7 @@ ALL_LIMITATION_CODES = (
     GEOMETRY_UNVERIFIED,
     GEOMETRY_ASPECT_MISMATCH,
     CARD_IS_FOIL,
+    COMBINED_SINGLE_SIDE,
 )
 
 MEASURED = "measured"
@@ -154,6 +157,20 @@ CONFIDENCE_ASPECT_MISMATCH_FACTOR = 0.35
 #: Not a correction, a confidence statement. Nothing here knows how to undo
 #: what foil does to a measurement; it knows the reading is worth less.
 CONFIDENCE_FOIL_FACTOR = 0.75
+
+#: Applied when one side was measurable and the other was not, so the combined
+#: figure rests on a single face. ARBITRARY in magnitude; the direction is
+#: obvious -- 70% of a card is less than all of it.
+#:
+#: Not zero, which is what the previous behaviour amounted to. Marking the
+#: combined result unmeasurable because one side declined threw away a real
+#: measurement of the other, and did it inconsistently: a submission with no
+#: back at all scored from the front and was reported `measured`, so uploading
+#: a poor back produced a *worse* outcome than uploading none. It also left the
+#: row self-contradictory -- state `unmeasurable` while still carrying the
+#: front's score, because combine_front_back and _combine_assessments
+#: disagreed about what a declining side means.
+CONFIDENCE_SINGLE_SIDE_FACTOR = 0.8
 
 #: ARBITRARY. Below this mean CIELAB chroma in a corner's reference region, the
 #: border has too little colour for "lost colour" to register -- the documented

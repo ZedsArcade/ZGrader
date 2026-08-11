@@ -166,6 +166,8 @@ export const en = {
         "The card's edges couldn't be located in this image, so there was nothing reliable to measure from. It's almost always the crop — drag the handles so they sit tightly around the card, with none of the background inside them, and submit again.",
       geometry_aspect_mismatch:
         "The measured area isn't the shape of a card, so the millimetre figures are scaled wrong on at least one axis.",
+      combined_single_side:
+        "Only one face could be read for this category, so this rests on that face alone rather than both — a narrower view of the card, not a worse one.",
     },
     comparisonTitle: "Multi-company comparison",
     comparisonSubtitle:
