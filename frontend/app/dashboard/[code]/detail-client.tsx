@@ -153,6 +153,7 @@ function Detail({ code }: { code: string }) {
             token={token!}
             locale={locale}
             onToggleRegion={handleToggleRegion}
+            onAdjusted={setSubmission}
           />
           {UPLOAD_ALLOWED_STATUSES.has(submission.status) && !submission.confirmed_sides.includes("back") && (
             <UploadStep

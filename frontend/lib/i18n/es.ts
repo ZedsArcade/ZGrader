@@ -287,6 +287,27 @@ export const es: Dictionary = {
     invalidImage: "Eso no parece una imagen válida. Pruebe con un JPEG, PNG o TIFF.",
     fileTooLarge: "Esa imagen es demasiado grande.",
   },
+  centeringAdjust: {
+    title: "Revise las líneas de centrado",
+    instructions:
+      "Estas cuatro líneas marcan dónde se detectó el borde. Si alguna está mal colocada, arrastre su tirador para moverla: las proporciones se actualizan al momento y la puntuación se recalcula al aplicar.",
+    disabled: "El ajuste de las líneas de centrado está desactivado.",
+    loadFailed: "No se pudo cargar la imagen para ajustarla.",
+    leftRight: "Izquierda / derecha",
+    topBottom: "Arriba / abajo",
+    worstSide: "Lado peor",
+    apply: "Aplicar y recalcular",
+    applying: "Recalculando…",
+    applied: "Centrado recalculado con las líneas que ha fijado.",
+    applyFailed: "No se pudo aplicar ese ajuste.",
+    reset: "Volver a lo detectado",
+    handleLabel: {
+      left_px: "Línea del borde izquierdo",
+      right_px: "Línea del borde derecho",
+      top_px: "Línea del borde superior",
+      bottom_px: "Línea del borde inferior",
+    },
+  },
   cropAdjust: {
     title: "Confirme qué carta analizar",
     instructions: "Arrastre los 4 controles aproximadamente hasta las esquinas de la carta y confirme. No hace falta que sean exactos: los filos de la carta se localizan automáticamente.",

@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from zgrader.api.main import app
@@ -599,6 +600,103 @@ def _combined_score(body: dict, category: str) -> float:
 def _draft_ready_front(token: str, code: str, sample_scan_paths) -> dict:
     _upload(token, code, "front", sample_scan_paths["pokemon_front"])
     return _confirm_crop(token, code, "front").json()
+
+
+def test_a_centering_adjustment_round_trips_through_the_detail_response(
+    db_session, sample_scan_paths
+):
+    # The adjuster has to reopen showing the lines the client last set, and the
+    # per-side AnalysisResult deliberately keeps holding what was *measured* --
+    # so an applied adjustment is only readable if the detail response carries
+    # it. It did not at first: the column and the endpoint shipped without the
+    # schema field, which is the same omission AGENTS.md warns about whenever
+    # something downstream gains a new piece of state.
+    token = _register_and_login("centeradj@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    body = _draft_ready_front(token, code, sample_scan_paths)
+    assert body["centering_adjustments"] == {}
+
+    front = next(
+        r
+        for r in body["analysis_results"]
+        if r["side"] == "front" and r["category"] == "centering"
+    )
+    measurements = front["measurements"]
+    # A tenth of a millimetre, comfortably inside any sane limit -- this test
+    # is about the value surviving the round trip, not about the cap.
+    nudge = measurements["card_geometry"]["px_per_mm"] * 0.1
+    widths = {
+        "left_px": measurements["left_px"] + nudge,
+        "right_px": measurements["right_px"],
+        "top_px": measurements["top_px"],
+        "bottom_px": measurements["bottom_px"],
+    }
+
+    resp = client.post(
+        f"/submissions/{code}/centering-adjust",
+        json={"side": "front", **widths},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 200, resp.text
+    # Stored to a tenth of a pixel, the same precision the measurement itself
+    # is rounded to -- hence the tolerance rather than an exact compare.
+    assert resp.json()["centering_adjustments"]["front"]["left_px"] == pytest.approx(
+        widths["left_px"], abs=0.05
+    )
+
+    # And on a fresh GET, not just in the response to the write.
+    fetched = client.get(f"/submissions/{code}", headers=_auth_headers(token)).json()
+    assert fetched["centering_adjustments"]["front"]["left_px"] == pytest.approx(
+        widths["left_px"], abs=0.05
+    )
+    # The stored measurement still reports what was detected, untouched.
+    refetched_front = next(
+        r
+        for r in fetched["analysis_results"]
+        if r["side"] == "front" and r["category"] == "centering"
+    )
+    assert refetched_front["measurements"]["left_px"] == measurements["left_px"]
+
+
+def test_putting_the_lines_back_clears_the_adjustment(db_session, sample_scan_paths):
+    # "Back to detected" has to be undoable all the way, not just on screen.
+    # Storing an adjustment identical to the detection would keep the
+    # submission flagged client_adjusted -- and the report watermarked -- over
+    # an assessment the pipeline produced entirely on its own.
+    token = _register_and_login("centerclear@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    body = _draft_ready_front(token, code, sample_scan_paths)
+    front = next(
+        r
+        for r in body["analysis_results"]
+        if r["side"] == "front" and r["category"] == "centering"
+    )
+    measurements = front["measurements"]
+    detected = {k: measurements[k] for k in ("left_px", "right_px", "top_px", "bottom_px")}
+    before = _combined_score(body, "centering")
+
+    nudged = dict(detected)
+    nudged["left_px"] += measurements["card_geometry"]["px_per_mm"] * 0.5
+    adjusted = client.post(
+        f"/submissions/{code}/centering-adjust",
+        json={"side": "front", **nudged},
+        headers=_auth_headers(token),
+    ).json()
+    assert "front" in adjusted["centering_adjustments"]
+
+    restored = client.post(
+        f"/submissions/{code}/centering-adjust",
+        json={"side": "front", **detected},
+        headers=_auth_headers(token),
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["centering_adjustments"] == {}
+    # And the score is back to what the pipeline said unaided.
+    assert _combined_score(restored.json(), "centering") == before
 
 
 def test_toggle_region_dismiss_raises_score_and_reverts(db_session, sample_scan_paths):

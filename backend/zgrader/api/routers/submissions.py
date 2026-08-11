@@ -13,6 +13,7 @@ from zgrader.api.deps import get_current_user, require_operator, require_verifie
 from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.email.notifications import send_report_published, send_submission_received
+from zgrader.models.settings import get_or_create_settings
 from zgrader.models.submission import submission_code_seq
 from zgrader.models import (
     AnalysisCategory,
@@ -699,15 +700,29 @@ def adjust_centering(
             )
 
     adjustments = dict(submission.centering_adjustments or {})
-    adjustments[payload.side] = {k: round(v, 1) for k, v in proposed.items()}
-    submission.centering_adjustments = adjustments
+    rounded = {k: round(v, 1) for k, v in proposed.items()}
+    detected_rounded = {k: round(float(measured[k]), 1) for k in proposed}
+    # Putting every line back where detection had it is not an adjustment, so
+    # it clears rather than stores one. Without this there is no way to undo:
+    # the UI's "back to detected" would move the lines on screen while the
+    # server kept scoring the old nudge, and `client_adjusted` would keep the
+    # report watermarked as client-adjusted over an assessment identical to
+    # the one the pipeline produced by itself.
+    cleared = rounded == detected_rounded
+    if cleared:
+        adjustments.pop(payload.side, None)
+    else:
+        adjustments[payload.side] = rounded
+    # Assigned as a new dict, and NULL rather than {} when nothing is left, so
+    # `client_adjusted` (which is a plain truthiness check) reads False again.
+    submission.centering_adjustments = adjustments or None
 
     db.add(
         AuditLog(
             submission_id=submission.id,
             user_id=user.id,
-            action="centering_adjusted",
-            detail={"side": payload.side, "detected": {k: measured.get(k) for k in proposed}, "adjusted": adjustments[payload.side]},
+            action="centering_adjust_cleared" if cleared else "centering_adjusted",
+            detail={"side": payload.side, "detected": detected_rounded, "adjusted": None if cleared else rounded},
         )
     )
     db.flush()

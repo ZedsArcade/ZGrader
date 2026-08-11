@@ -1,12 +1,44 @@
 import { Card, Chip, Table } from "@heroui/react";
-import type { Assessment, Comparison, ScanSide, SubmissionDetail } from "@/lib/api";
+import type {
+  AnalysisResult,
+  Assessment,
+  CenteringWidths,
+  Comparison,
+  ScanSide,
+  SubmissionDetail,
+} from "@/lib/api";
 import { getDictionary, type Locale } from "@/lib/i18n/context";
 import AnnotatedPhoto from "./AnnotatedPhoto";
+import CenteringAdjuster from "./CenteringAdjuster";
 import StatusBadge from "./StatusBadge";
 
 const SIDES: ScanSide[] = ["front", "back"];
 
 const CATEGORY_ORDER = ["centering", "corners", "edges", "surface"] as const;
+
+/**
+ * What the centering adjuster needs for a side, or null if it cannot be shown.
+ *
+ * Three ways it declines, all of them real. A side with no centering result
+ * has nothing to draw. An unscored one (`raw_score === null`) has nothing to
+ * rescore and the endpoint answers 409 -- offering handles there would invite
+ * a click that can only fail. And without `px_per_mm` the operator's
+ * millimetre cap cannot be converted into pixels, so the limit the server
+ * enforces could not be reflected in what the handles allow.
+ */
+function centeringHandles(
+  results: AnalysisResult[]
+): { detected: CenteringWidths; pxPerMm: number } | null {
+  const result = results.find((r) => r.category === "centering");
+  if (!result || result.raw_score === null) return null;
+  const m = (result.measurements ?? {}) as Record<string, unknown>;
+  const pxPerMm = (m.card_geometry as { px_per_mm?: number } | undefined)?.px_per_mm;
+  if (typeof pxPerMm !== "number" || pxPerMm <= 0) return null;
+  const widths = (["left_px", "right_px", "top_px", "bottom_px"] as const).map((k) => m[k]);
+  if (!widths.every((v) => typeof v === "number")) return null;
+  const [left_px, right_px, top_px, bottom_px] = widths as number[];
+  return { detected: { left_px, right_px, top_px, bottom_px }, pxPerMm };
+}
 const SEVERITY_COLOR: Record<string, "success" | "warning" | "danger"> = {
   none: "success",
   minor: "warning",
@@ -31,11 +63,15 @@ export default function SubmissionOverview({
   token,
   locale = "en",
   onToggleRegion,
+  onAdjusted,
 }: {
   submission: SubmissionDetail;
   token: string;
   locale?: Locale;
   onToggleRegion: (regionKey: string, dismissed: boolean) => void;
+  /** Omitted by the read-only callers (the operator's admin view), which
+   *  hides the handles rather than showing controls that do nothing. */
+  onAdjusted?: (updated: SubmissionDetail) => void;
 }) {
   const t = getDictionary(locale);
   const dismissedRegions = new Set(submission.dismissed_regions ?? []);
@@ -181,6 +217,24 @@ export default function SubmissionOverview({
               dismissedRegions={dismissedRegions}
               onToggle={onToggleRegion}
             />
+            {onAdjusted &&
+              (() => {
+                const handles = centeringHandles(resultsBySide.get(side)!);
+                if (!handles) return null;
+                return (
+                  <div className="mt-4">
+                    <CenteringAdjuster
+                      token={token}
+                      code={submission.submission_code}
+                      side={side}
+                      detected={handles.detected}
+                      applied={submission.centering_adjustments?.[side] ?? null}
+                      pxPerMm={handles.pxPerMm}
+                      onAdjusted={onAdjusted}
+                    />
+                  </div>
+                );
+              })()}
           </Card.Content>
         </Card>
       ))}
