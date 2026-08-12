@@ -51,13 +51,19 @@ export default function BrandSwitch() {
     router.push(next === "care" ? CARE_PREFIX : "/");
   }
 
+  // `min-w-0` + `truncate` rather than `whitespace-nowrap`: both labels come
+  // from Settings, so an operator can make them arbitrarily long. Nowrap made
+  // this group set a hard floor on the header's width, and on a 375px phone
+  // that floor pushed every page into horizontal scroll. Truncating keeps the
+  // control usable at any width and keeps the overflow inside the switch,
+  // where it is visible, rather than in the document.
   return (
-    <ButtonGroup size="sm">
+    <ButtonGroup size="sm" className="min-w-0">
       <Button
         variant={brand === "lab" ? "primary" : "outline"}
         onPress={() => select("lab")}
         aria-pressed={brand === "lab"}
-        className="whitespace-nowrap"
+        className="min-w-0 truncate"
       >
         {business_name}
       </Button>
@@ -65,7 +71,7 @@ export default function BrandSwitch() {
         variant={brand === "care" ? "primary" : "outline"}
         onPress={() => select("care")}
         aria-pressed={brand === "care"}
-        className="whitespace-nowrap"
+        className="min-w-0 truncate"
       >
         {care_business_name}
       </Button>
