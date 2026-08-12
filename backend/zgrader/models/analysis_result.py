@@ -26,7 +26,7 @@ class AnalysisResult(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "analysis_results"
 
     submission_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("submissions.id", ondelete="CASCADE"), nullable=False
     )
     category: Mapped[AnalysisCategory] = mapped_column(
         Enum(AnalysisCategory, name="analysis_category"), nullable=False

@@ -108,19 +108,19 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     user: Mapped["User"] = relationship(back_populates="submissions", foreign_keys=[user_id])  # noqa: F821
     card: Mapped["Card"] = relationship(  # noqa: F821
-        back_populates="submission", uselist=False, cascade="all, delete-orphan"
+        back_populates="submission", uselist=False, cascade="all, delete-orphan", passive_deletes=True
     )
     scan_images: Mapped[list["ScanImage"]] = relationship(  # noqa: F821
-        back_populates="submission", cascade="all, delete-orphan"
+        back_populates="submission", cascade="all, delete-orphan", passive_deletes=True
     )
     analysis_results: Mapped[list["AnalysisResult"]] = relationship(  # noqa: F821
-        back_populates="submission", cascade="all, delete-orphan"
+        back_populates="submission", cascade="all, delete-orphan", passive_deletes=True
     )
     company_comparisons: Mapped[list["GradingCompanyComparison"]] = relationship(  # noqa: F821
-        back_populates="submission", cascade="all, delete-orphan"
+        back_populates="submission", cascade="all, delete-orphan", passive_deletes=True
     )
     reports: Mapped[list["Report"]] = relationship(  # noqa: F821
-        back_populates="submission", cascade="all, delete-orphan"
+        back_populates="submission", cascade="all, delete-orphan", passive_deletes=True
     )
 
     @property
