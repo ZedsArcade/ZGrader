@@ -120,10 +120,18 @@ function FooterColumn({
   return (
     <div>
       <h2 className="text-sm font-semibold text-foreground">{heading}</h2>
-      <ul className="mt-3 flex flex-col gap-2">
+      {/* `inline-flex` + `min-h-11` gives each link a 44px tap row instead of
+          the 19px its text occupied. Footer links are small, sit close
+          together and are the last thing a thumb reaches for, so they were the
+          worst targets on the page. `gap-1` rather than `gap-2` because the
+          padding now supplies the separation. */}
+      <ul className="mt-2 flex flex-col gap-1">
         {links.map(({ href, label }) => (
           <li key={href}>
-            <Link href={href} className="text-sm text-muted link-accent-hover hover:text-accent">
+            <Link
+              href={href}
+              className="inline-flex min-h-11 items-center text-sm text-muted link-accent-hover hover:text-accent"
+            >
               {label}
             </Link>
           </li>

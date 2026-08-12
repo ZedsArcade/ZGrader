@@ -455,7 +455,7 @@ export default function AnnotatedPhoto({
                       }
                       onToggle(dKey, !isDismissed);
                     }}
-                    className="ml-auto text-xs font-semibold underline-offset-2 hover:underline"
+                    className="-my-2 ml-auto py-2 text-xs font-semibold underline-offset-2 hover:underline"
                     style={{ color: "var(--neon-pink)" }}
                   >
                     {isDismissed ? t.breakout.restore : t.breakout.dismiss}
@@ -467,7 +467,7 @@ export default function AnnotatedPhoto({
                     aria-controls={bodyId}
                     aria-label={isCollapsed ? t.breakout.expand : t.breakout.collapse}
                     title={isCollapsed ? t.breakout.expand : t.breakout.collapse}
-                    className="shrink-0 rounded p-0.5 text-muted hover:text-accent"
+                    className="-m-2 shrink-0 rounded p-2 text-muted hover:text-accent"
                   >
                     {/* Instant, not animated: the leader lines recompute from a
                         ResizeObserver on each panel, and a height transition
@@ -516,7 +516,7 @@ export default function AnnotatedPhoto({
           <button
             type="button"
             onClick={() => setExpanded((e) => !e)}
-            className="self-start text-sm font-semibold underline-offset-2 hover:underline"
+            className="-my-2 self-start py-2 text-sm font-semibold underline-offset-2 hover:underline"
             style={{ color: "var(--neon-pink)" }}
           >
             {expanded
@@ -541,7 +541,7 @@ export default function AnnotatedPhoto({
         {visible.length > 0 && (
           <Link
             href="/methodology"
-            className="self-start text-xs text-muted link-accent-hover hover:text-accent"
+            className="-my-2 self-start py-2 text-xs text-muted link-accent-hover hover:text-accent"
           >
             {t.breakout.whyFlagged} &rsaquo;
           </Link>
