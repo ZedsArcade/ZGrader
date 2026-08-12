@@ -282,6 +282,22 @@ and install from disk with `pacman -U`.
 forces `es.ts` to have the same key structure as `en.ts`, so a missing Spanish string is a type
 error rather than a runtime hole.
 
+**The backend image builds from `backend/requirements.lock`, not from the `>=` ranges in
+`pyproject.toml`.** Change a dependency there and the lock has to be regenerated, or the image
+builds without it — `pip install --no-deps .` will not quietly fetch the missing package, so the
+failure surfaces as an `ImportError` inside the container.
+
+```
+cd backend && python -m uv pip compile pyproject.toml --python-platform linux \
+  --python-version 3.11 --generate-hashes -o requirements.lock
+```
+
+`--python-platform linux` is not optional. `uvicorn[standard]` pulls `uvloop` and `httptools` only
+on non-Windows, so a lock resolved on a Windows host omits both and the image silently loses them —
+uvicorn falls back to the stdlib event loop and the only symptom is being slower.
+`tests/test_lockfile_covers_dependencies.py` asserts they are present for exactly that reason, and
+that every declared dependency made it in.
+
 `docs/qa_checklist.md` is the manual end-to-end walkthrough. `docs/deployment.md` covers the
 Cloudflare Tunnel, file ownership on Unraid, and getting into the admin panel.
 
@@ -322,12 +338,6 @@ it, so the next attempt starts from where the last one stopped.
 
 Listed so a review reports something new rather than re-deriving these:
 
-- **SMTP is unconfigured.** The defaults point at a MailHog service that only runs under the `dev`
-  compose profile. Since submitting a card requires a confirmed email address, a customer can
-  register and then find they cannot use the service at all. This is the most urgent item.
-- **No Postgres backups.** Not a code change, and the largest operational gap. It has already
-  forced a hand-rolled `select *`-to-JSON dump before a destructive change, which is not a backup
-  strategy — it is evidence one is needed.
 - **`run_analysis` never deletes prior `AnalysisResult` rows**, so re-running analysis on a
   submission accumulates sets rather than replacing them. One production submission had three.
   Everything downstream reads the newest, so it surfaces as storage growth rather than wrong
@@ -337,9 +347,9 @@ Listed so a review reports something new rather than re-deriving these:
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
 - **The free-tier limit is described in the copy but not enforced.** `entitlements.py` has the seam;
   `FREE_TIER_LIMIT` is `None` because the number depends on unsettled pricing.
-- **`submission_code` is `COUNT(*) + 1`** (`api/routers/submissions.py`), so deleting a submission
-  frees a code the next one will reuse — a unique-constraint 500, and a directory path reused across
-  users.
-- **No dependency lockfile on the backend.** `pip install .` over unbounded `>=` ranges means each
-  image build resolves the newest release of everything, including libraries that parse uploaded
-  bytes.
+Three entries left this list rather than being forgotten, and the reason each was here is still
+worth knowing: outbound mail now goes through a real relay (the operator's send-test-email action
+in the admin panel is what proves it, and it reports what SMTP actually did); Postgres is backed up
+nightly by `infra/backup/`; and `submission_code` comes from `submission_code_seq` rather than
+`COUNT(*) + 1`, so a code is issued once and never reissued — see the comment on
+`models/submission.py`, which keeps the full reasoning.
