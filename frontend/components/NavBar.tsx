@@ -55,7 +55,19 @@ export default function NavBar() {
             but it repeated whichever button was already highlighted, wrapped
             onto two lines, and cost ~130px the navigation needed. An operator
             logo takes that slot instead, and renders only if one is set. */}
-        <div className="flex items-center gap-3">
+        {/* `min-w-0` is what stops the bar pushing the whole page sideways.
+            Both brand names come from Settings, so their combined width is
+            operator-controlled and unbounded -- without this the switch sets a
+            floor on the header's width and every page scrolls horizontally on
+            a phone. With it, the switch is the one element that gives, and it
+            truncates instead (see BrandSwitch).
+
+            `md:min-w-max` puts that floor back once the desktop nav appears.
+            There the nav is the wide element, and letting the brand group
+            shrink for it clipped the brand name by a few pixels at 1280px --
+            a regression, not a fix. The overflow only ever happened on
+            mobile, so the shrink belongs there too. */}
+        <div className="flex min-w-0 items-center gap-3 md:min-w-max">
           <BrandLogo />
           <BrandSwitch />
         </div>
@@ -107,9 +119,14 @@ export default function NavBar() {
           )}
         </nav>
 
-        <div className="flex items-center gap-2 md:hidden">
-          <QuotaChip />
-          <LocaleSwitch />
+        {/* `shrink-0`: these are fixed-size icon controls, so they must hold
+            their size and let the brand switch absorb the shortfall.
+
+            The quota chip and locale switch used to sit here too and were the
+            difference between fitting and not -- three text controls plus a
+            brand switch cannot share 375px. They moved into the drawer, which
+            has room for them and is one tap away. */}
+        <div className="flex shrink-0 items-center gap-2 md:hidden">
           <ThemeSwitch />
           <NavDrawer>
             {(close) => (
@@ -157,6 +174,17 @@ export default function NavBar() {
                     </Link>
                   </>
                 )}
+                <hr className="mx-3 my-2 border-border" />
+                {/* Relocated from the bar, where they did not fit. The chip is
+                    a link to /services, so it closes the drawer on the way --
+                    a drawer left open over the page it just navigated to reads
+                    as a broken tap. */}
+                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                  <LocaleSwitch />
+                  <span onClick={close}>
+                    <QuotaChip />
+                  </span>
+                </div>
               </>
             )}
           </NavDrawer>
