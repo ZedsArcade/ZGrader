@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import Link from "next/link";
 import { Chip } from "@heroui/react";
 import Button from "@/components/Button";
+import CenteringLines from "@/components/CenteringLines";
 import PhotoInspector from "@/components/PhotoInspector";
 import RegionOverlay, {
   dismissKey,
@@ -12,6 +13,7 @@ import RegionOverlay, {
 } from "@/components/RegionOverlay";
 import Skeleton from "@/components/Skeleton";
 import * as api from "@/lib/api";
+import { centeringHandles, useCenteringAdjust } from "@/lib/use-centering-adjust";
 import { useTranslations } from "@/lib/i18n/context";
 
 interface Line {
@@ -37,6 +39,11 @@ const COLLAPSED_COUNT = 3;
 // Which panels the viewer folded away, remembered per submission side.
 const COLLAPSE_STORAGE_PREFIX = "zgrader_collapsed_regions:";
 
+// Stand-in for a side with no measurable centering, so the adjust hook can be
+// called unconditionally. Never reaches the server: `canAdjust` is false, so
+// the control that would submit it is not rendered.
+const NO_WIDTHS = { left_px: 0, right_px: 0, top_px: 0, bottom_px: 0 };
+
 export default function AnnotatedPhoto({
   token,
   code,
@@ -44,6 +51,8 @@ export default function AnnotatedPhoto({
   results,
   dismissedRegions,
   onToggle,
+  centeringApplied,
+  onAdjusted,
 }: {
   token: string;
   code: string;
@@ -51,6 +60,11 @@ export default function AnnotatedPhoto({
   results: api.AnalysisResult[];
   dismissedRegions: Set<string>;
   onToggle: (regionKey: string, dismissed: boolean) => void;
+  /** The centering adjustment already applied to this side, if any. */
+  centeringApplied?: api.CenteringWidths | null;
+  /** Omitted by read-only callers (the operator's admin view), which hides the
+   *  adjust control rather than showing one that does nothing. */
+  onAdjusted?: (updated: api.SubmissionDetail) => void;
 }) {
   const t = useTranslations();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -63,6 +77,27 @@ export default function AnnotatedPhoto({
   const [expanded, setExpanded] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
   const [inspecting, setInspecting] = useState(false);
+  // Centering handles are behind a toggle rather than always live: the photo
+  // opens the zoom inspector on click, and a drag released over the image
+  // would otherwise open it mid-adjustment.
+  const [adjusting, setAdjusting] = useState(false);
+  const [raster, setRaster] = useState<{ w: number; h: number } | null>(null);
+
+  // `centering` is null when this side has no scorable centering result, but
+  // the hook still has to run every render -- so it is fed zeroes and the
+  // control is gated on `canAdjust` instead. Hooks cannot be conditional.
+  const centering = centeringHandles(results);
+  const adjust = useCenteringAdjust({
+    token,
+    code,
+    side,
+    detected: centering?.detected ?? NO_WIDTHS,
+    applied: centeringApplied,
+    pxPerMm: centering?.pxPerMm ?? 0,
+    raster,
+    onAdjusted: onAdjusted ?? (() => {}),
+  });
+  const canAdjust = centering !== null && onAdjusted !== undefined;
   // Region keys whose detail (crop image + note) is folded away. Purely
   // cosmetic -- a collapsed panel stays in `visible`, so the numbered markers
   // on the photo and in the inspector are unaffected.
@@ -234,6 +269,11 @@ export default function AnnotatedPhoto({
             <Button variant="outline" size="sm" onPress={() => setInspecting(true)}>
               {t.inspector.inspect}
             </Button>
+            {canAdjust && (
+              <Button variant="outline" size="sm" onPress={() => setAdjusting((a) => !a)}>
+                {adjusting ? t.centeringAdjust.toggleDone : t.centeringAdjust.toggle}
+              </Button>
+            )}
             {visible.length > 0 && (
               <Button
                 variant="outline"
@@ -255,9 +295,16 @@ export default function AnnotatedPhoto({
             ref={photoImgRef}
             src={photoUrl}
             alt=""
-            className="w-full cursor-zoom-in rounded-xl border border-border"
-            onLoad={recomputeLines}
-            onClick={() => setInspecting(true)}
+            className={`w-full rounded-xl border border-border ${
+              adjusting ? "cursor-default" : "cursor-zoom-in"
+            }`}
+            onLoad={(e) => {
+              setRaster({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight });
+              recomputeLines();
+            }}
+            // Suspended while adjusting: a drag released over the image would
+            // otherwise land as a click and open the inspector mid-adjustment.
+            onClick={adjusting ? undefined : () => setInspecting(true)}
           />
         ) : (
           <Skeleton className="aspect-[3/4] w-full rounded-xl" />
@@ -270,7 +317,59 @@ export default function AnnotatedPhoto({
             dismissedRegions={dismissedRegions}
           />
         )}
+        {photoUrl && adjusting && canAdjust && raster && (
+          <CenteringLines
+            widths={adjust.widths}
+            raster={raster}
+            enabled={adjust.enabled}
+            handleLabels={t.centeringAdjust.handleLabel}
+            onDrag={adjust.setWidth}
+          />
+        )}
         </div>
+        {photoUrl && adjusting && canAdjust && (
+          <div className="mt-3 flex flex-col gap-3">
+            <p className="text-sm text-muted">
+              {adjust.enabled ? t.centeringAdjust.instructions : t.centeringAdjust.disabled}
+            </p>
+            {/* The measurements the whole request started with. Shown whether
+                or not anything has been dragged. */}
+            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr_auto_1fr]">
+              <dt className="text-muted">{t.centeringAdjust.leftRight}</dt>
+              <dd className="font-medium text-foreground tabular-nums">
+                {adjust.ratios.lr[0].toFixed(1)} / {adjust.ratios.lr[1].toFixed(1)}
+              </dd>
+              <dt className="text-muted">{t.centeringAdjust.topBottom}</dt>
+              <dd className="font-medium text-foreground tabular-nums">
+                {adjust.ratios.tb[0].toFixed(1)} / {adjust.ratios.tb[1].toFixed(1)}
+              </dd>
+              <dt className="text-muted">{t.centeringAdjust.worstSide}</dt>
+              <dd className="font-medium text-foreground tabular-nums">
+                {adjust.ratios.worse.toFixed(1)}%
+              </dd>
+            </dl>
+            {adjust.showControls && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  isDisabled={adjust.applying}
+                  onPress={adjust.apply}
+                >
+                  {adjust.applying ? t.centeringAdjust.applying : t.centeringAdjust.apply}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  isDisabled={adjust.applying || !adjust.moved}
+                  onPress={adjust.reset}
+                >
+                  {t.centeringAdjust.reset}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         {photoUrl && (
           <PhotoInspector
             open={inspecting}

@@ -294,6 +294,8 @@ export const en = {
     fileTooLarge: "That image is too large.",
   },
   centeringAdjust: {
+    toggle: "Adjust centering",
+    toggleDone: "Done adjusting",
     title: "Check the centering lines",
     instructions:
       "These four lines are where the border was detected. If one is in the wrong place, drag its handle to move it â the ratios update as you go, and the score is recalculated when you apply.",

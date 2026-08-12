@@ -288,6 +288,8 @@ export const es: Dictionary = {
     fileTooLarge: "Esa imagen es demasiado grande.",
   },
   centeringAdjust: {
+    toggle: "Ajustar centrado",
+    toggleDone: "Listo",
     title: "Revise las líneas de centrado",
     instructions:
       "Estas cuatro líneas marcan dónde se detectó el borde. Si alguna está mal colocada, arrastre su tirador para moverla: las proporciones se actualizan al momento y la puntuación se recalcula al aplicar.",
