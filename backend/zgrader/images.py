@@ -9,7 +9,7 @@ content-type, and a filename this process chooses.
 import io
 from pathlib import Path
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
@@ -80,6 +80,32 @@ def validate_upload(content: bytes) -> str:
     return suffix
 
 
+def open_upright(content: bytes) -> Image.Image:
+    """Decode an upload with its EXIF orientation already applied to the pixels.
+
+    A phone does not rotate its sensor. It stores the frame the way the sensor
+    read it and records how the handset was held as EXIF Orientation, leaving
+    every viewer to rotate on the way to the screen. Every re-encode in this
+    module drops EXIF on purpose -- the same block carries GPS coordinates --
+    so unless the rotation is baked into the pixels first, dropping the tag
+    turns an upright photograph into a permanently sideways one.
+
+    That is worse here than it would be almost anywhere else. The input to this
+    product is a handheld photo of a trading card, and portrait is the natural
+    way to hold a phone to photograph one, so the common case was the broken
+    one: a 400x560 photo was stored 560x400 with the card lying on its side.
+
+    Every decode path goes through this, including the operator's logo and
+    service-banner uploads -- those can come off a phone too.
+    """
+    image = Image.open(io.BytesIO(content))
+    image.load()
+    # Returns a transposed copy, or the image unchanged when there is no
+    # orientation tag to apply. The `or` guards Pillow versions that return
+    # None rather than the original.
+    return ImageOps.exif_transpose(image) or image
+
+
 def strip_metadata(content: bytes, suffix: str) -> bytes:
     """Re-encode an uploaded scan so it carries no embedded metadata.
 
@@ -89,12 +115,13 @@ def strip_metadata(content: bytes, suffix: str) -> bytes:
     metadata across when explicitly asked, so a decode/encode round-trip
     drops it.
 
-    Pixels are preserved exactly -- PNG and TIFF re-encode losslessly, and
-    JPEG is written at quality 95 with subsampling disabled, so the analysis
-    pipeline sees effectively the same image.
+    Pixel *values* are preserved -- PNG and TIFF re-encode losslessly, and JPEG
+    is written at quality 95 with subsampling disabled, so the analysis pipeline
+    sees effectively the same image. Their arrangement is not, and must not be:
+    `open_upright` bakes in the EXIF rotation first, because this function is
+    about to throw that tag away.
     """
-    image = Image.open(io.BytesIO(content))
-    image.load()
+    image = open_upright(content)
 
     out = io.BytesIO()
     if suffix == ".jpg":
@@ -137,7 +164,7 @@ def store_brand_logo(content: bytes, destination: Path) -> None:
     validate_upload(content)
 
     # verify() consumed the probe object, so reopen to actually decode.
-    image = Image.open(io.BytesIO(content))
+    image = open_upright(content)
     # Keep alpha where it exists; palette images can carry transparency too,
     # so those convert to RGBA rather than RGB.
     if image.mode not in ("RGBA", "RGB", "L"):
@@ -159,7 +186,7 @@ def store_service_image(content: bytes, destination: Path) -> None:
     validate_upload(content)
 
     # verify() above consumed the probe object, so reopen to actually decode.
-    image = Image.open(io.BytesIO(content))
+    image = open_upright(content)
     # JPEG has no alpha channel; a transparent PNG would otherwise fail to save.
     if image.mode not in ("RGB", "L"):
         image = image.convert("RGB")

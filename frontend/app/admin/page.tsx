@@ -60,7 +60,11 @@ function AdminOverview() {
           <h1 className="text-2xl font-bold text-foreground">Admin</h1>
           <p className="text-sm text-muted">All client submissions, business-wide.</p>
         </div>
-        <div className="flex gap-2">
+        {/* Three full-size buttons total 402px, wider than a phone. Wrapping
+            is the whole fix for this page: the submissions table already
+            scrolls inside its own overflow-x-auto parent, so this row was the
+            only thing pushing the document sideways. */}
+        <div className="flex flex-wrap gap-2">
           <Link href="/admin/contact" className={cn(buttonVariants({ variant: "outline" }), "btn-press btn-neon-hover")}>
             Messages
           </Link>
@@ -143,7 +147,13 @@ function AdminOverview() {
                           </Table.Cell>
                           <Table.Cell>{new Date(s.created_at).toLocaleDateString()}</Table.Cell>
                           <Table.Cell>
-                            <Link href={`/admin/${s.submission_code}`} className="text-accent hover:underline link-accent-hover">
+                            {/* Same 43x19 problem as View on the client
+                                dashboard, and the same consequence: the rows
+                                either side are other people's submissions. */}
+                            <Link
+                              href={`/admin/${s.submission_code}`}
+                              className="inline-flex min-h-11 items-center text-accent hover:underline link-accent-hover"
+                            >
                               Review
                             </Link>
                           </Table.Cell>
