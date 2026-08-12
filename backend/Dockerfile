@@ -21,11 +21,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY pyproject.toml ./
+COPY requirements.lock ./
 COPY zgrader ./zgrader
 COPY alembic.ini ./
 COPY alembic ./alembic
 
-RUN pip install --no-cache-dir .
+# Dependencies come from the lock, pinned and hash-checked; the package itself
+# then installs with --no-deps so it cannot re-resolve anything behind the
+# lock's back.
+#
+# --require-hashes is the part that does the work. Without it the lock is a
+# suggestion: pip would happily accept a rebuilt artefact at the same version.
+# With it, a mismatch fails the build rather than shipping quietly.
+#
+# Before this, `pip install .` resolved unbounded `>=` ranges at build time, so
+# every rebuild picked up the newest release of everything -- including
+# opencv-python-headless, pillow and weasyprint, which parse bytes uploaded by
+# strangers. Behaviour could change with no commit behind it, and no past build
+# could be reproduced to bisect against.
+#
+# Regenerate with the command in AGENTS.md -- it must be cross-resolved for
+# linux/3.11, because uvicorn[standard] pulls uvloop and httptools only on
+# non-Windows and a lock made on a Windows host silently omits them.
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock \
+    && pip install --no-cache-dir --no-deps .
 
 # Bind mount targets for scans/reports -- see docker-compose.yml volumes.
 RUN mkdir -p /data/scans /data/reports
