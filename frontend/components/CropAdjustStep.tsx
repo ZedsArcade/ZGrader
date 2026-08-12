@@ -227,9 +227,20 @@ export default function CropAdjustStep({
             onPointerDown={(e) => handlePointerDown(i, e)}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            className="absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white shadow-md"
-            style={{ left: `${x * 100}%`, top: `${y * 100}%`, backgroundColor: "var(--neon-pink)", cursor: "grab" }}
-          />
+            // 44px of transparent hit area around a 24px dot. 24 is the bare
+            // WCAG 2.5.8 minimum and was the entire target; this is a corner
+            // being dragged to within a millimetre on a phone, which is the
+            // hardest precision task in the product. The dot stays its old
+            // size because it marks the corner it is claiming.
+            className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center"
+            style={{ left: `${x * 100}%`, top: `${y * 100}%`, cursor: "grab" }}
+          >
+            <span
+              aria-hidden="true"
+              className="h-6 w-6 rounded-full border-2 border-white shadow-md"
+              style={{ backgroundColor: "var(--neon-pink)" }}
+            />
+          </span>
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-2">

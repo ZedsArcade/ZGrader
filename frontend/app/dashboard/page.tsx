@@ -80,7 +80,14 @@ function DashboardList() {
                         </Table.Cell>
                         <Table.Cell>{new Date(s.created_at).toLocaleDateString()}</Table.Cell>
                         <Table.Cell>
-                          <Link href={`/dashboard/${s.submission_code}`} className="text-accent hover:underline link-accent-hover">
+                          {/* `min-h-11`: the word alone was a 30x19 target,
+                              in a table row where the rows above and below are
+                              other submissions -- a near miss opens the wrong
+                              card. */}
+                          <Link
+                            href={`/dashboard/${s.submission_code}`}
+                            className="inline-flex min-h-11 items-center text-accent hover:underline link-accent-hover"
+                          >
                             {t.dashboard.view}
                           </Link>
                         </Table.Cell>

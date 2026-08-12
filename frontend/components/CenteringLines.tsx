@@ -115,14 +115,28 @@ export default function CenteringLines({
               e.currentTarget.releasePointerCapture(e.pointerId);
               dragging.current = null;
             }}
-            className="absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white shadow-md"
+            // 44px of transparent hit area around a 20px dot. The dot was the
+            // whole target until now, which is below the 24px WCAG 2.5.8
+            // minimum and less than half the size a finger can place
+            // reliably -- on the primary interaction of this feature, on the
+            // device most likely to be holding the card.
+            //
+            // Sized here rather than by growing the dot because the dot marks
+            // where the border line sits: a bigger one would obscure the
+            // measurement it exists to let you check.
+            className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center"
             style={{
               left: position[h.key].left,
               top: position[h.key].top,
-              backgroundColor: "var(--grade-gem)",
               cursor: h.cursor,
             }}
-          />
+          >
+            <span
+              aria-hidden="true"
+              className="h-5 w-5 rounded-full border-2 border-white shadow-md"
+              style={{ backgroundColor: "var(--grade-gem)" }}
+            />
+          </span>
         ))}
     </div>
   );
