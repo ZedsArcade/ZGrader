@@ -29,9 +29,7 @@ from sqlalchemy.orm import Session
 from zgrader.analysis import pipeline, preprocessing
 from zgrader.email.notifications import send_report_published
 from zgrader.models import (
-    AnalysisResult,
     AuditLog,
-    GradingCompanyComparison,
     ReportStatus,
     ScanImage,
     ScanSide,
@@ -167,16 +165,11 @@ def _advance_submission(
             # Nothing changed since the analysis that already produced this
             # draft (e.g. a routine safety-net poll) -- stay idempotent.
             return submission
-        # A side -- typically the back scan -- was confirmed after an
-        # earlier front-only "partial check" already ran. run_analysis and
-        # rules_engine.evaluate always insert fresh rows rather than
-        # upsert, so the prior draft's rows must be cleared first or the
-        # rerun would duplicate them instead of replacing them.
-        db.query(AnalysisResult).filter(AnalysisResult.submission_id == submission.id).delete()
-        db.query(GradingCompanyComparison).filter(
-            GradingCompanyComparison.submission_id == submission.id
-        ).delete()
-        db.commit()
+        # A side -- typically the back scan -- was confirmed after an earlier
+        # front-only "partial check" already ran, so fall through and rerun.
+        # Clearing the prior draft's rows used to happen here; run_analysis
+        # now does it for every caller, which is what fixed the paths that
+        # went through this module's guard and were never cleaned up.
 
     try:
         pipeline.run_analysis(db, submission)

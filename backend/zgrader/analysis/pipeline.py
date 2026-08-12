@@ -34,6 +34,7 @@ from zgrader.models import (
     AnalysisCategory,
     AnalysisResult,
     AnalysisSide,
+    GradingCompanyComparison,
     ScanImage,
     ScanSide,
     Submission,
@@ -445,6 +446,36 @@ def run_analysis(db: Session, submission: Submission) -> None:
         if submission.card is not None and submission.card.foil
         else ()
     )
+
+    # A re-analysis replaces the previous assessment rather than adding to it.
+    #
+    # Nothing here upserts -- _persist_side and rules_engine.evaluate both
+    # insert fresh rows -- so without this a rerun leaves two complete sets
+    # behind. One production submission accumulated three. It reads as storage
+    # growth rather than wrong numbers only because every consumer happens to
+    # take the newest; anything that aggregated instead would multiply-count
+    # silently.
+    #
+    # This used to live in the caller, guarded by `status == draft_ready`, so
+    # only one of the several ways to re-run analysis actually cleaned up:
+    # dev_trigger never did, and neither did a rerun from the error state.
+    # Doing it here means every caller gets it by construction, which is the
+    # only version that stays true.
+    #
+    # Placed after the front raster loaded successfully, so a scan that cannot
+    # be preprocessed raises PipelineError with the previous assessment still
+    # intact -- the caller commits `status = error`, and that commit would
+    # otherwise make the deletion permanent.
+    db.query(AnalysisResult).filter(
+        AnalysisResult.submission_id == submission.id
+    ).delete(synchronize_session=False)
+    db.query(GradingCompanyComparison).filter(
+        GradingCompanyComparison.submission_id == submission.id
+    ).delete(synchronize_session=False)
+    # A bulk delete goes round the identity map, so these collections would
+    # still hand out rows that no longer exist -- and both _persist_combined
+    # and rules_engine.evaluate read them.
+    db.expire(submission, ["analysis_results", "company_comparisons"])
 
     front_results = _persist_side(
         db,

@@ -105,12 +105,25 @@ the database at all: only `purge_submission_files(code)` removes them, so SQL de
 on disk and they must be cleaned up separately on the host. Prefer the app's own delete endpoint,
 which does all of this in the right order.
 
-Two corollaries, both from `_next_submission_code` being `COUNT(*) + 1`. Deleting *every*
-submission is safe — the counter restarts consistently. Deleting *some* is not: the next submission
-reuses a live code and violates the unique index. And a bulk delete resets no counter anywhere
-else, so `users.quota_used` has to be zeroed explicitly or the customer is still charged for
-submissions that no longer exist; set `quota_period_started_at = NULL` alongside it so the next
-submission anchors a fresh window rather than resuming an expired one.
+Deleting submissions no longer risks reissuing a code — `_next_submission_code` draws from
+`submission_code_seq`, and a sequence never goes backwards, so a partial delete is as safe as a
+full one. (It used to be `COUNT(*) + 1`, where deleting *some* submissions handed the next one a
+code that was still live.) But a bulk delete resets no counter anywhere else, so `users.quota_used`
+has to be zeroed explicitly or the customer is still charged for submissions that no longer exist;
+set `quota_period_started_at = NULL` alongside it so the next submission anchors a fresh window
+rather than resuming an expired one.
+
+**Re-running analysis replaces the previous assessment, and `run_analysis` is the only thing that
+may guarantee it.** Nothing in the persistence path upserts — `_persist_side` and
+`rules_engine.evaluate` both insert fresh rows — so the delete is what stops a rerun stacking a
+second complete set on top of the first. That cleanup used to live in `worker/watcher.py` behind a
+`status == draft_ready` check, which covered exactly one of the ways analysis gets re-run:
+`dev_trigger` never cleaned up and neither did a rerun from the error state, and one production
+submission reached three sets. Anything that reads the newest row hides it; anything that
+aggregates would multiply-count. Put per-submission cleanup in the pipeline, never in a caller —
+`tests/test_reanalysis_replaces_results.py` calls `run_analysis` directly for that reason. The
+deletes are bulk, so they bypass the identity map and the relationship collections must be expired
+afterwards, or `_persist_combined` and `rules_engine.evaluate` read rows that no longer exist.
 
 **The rules engine never predicts a numeric grade for any company.** It emits a severity flag and a
 templated reason, nothing more. That is a product and legal boundary, not a modelling limitation;
@@ -338,11 +351,6 @@ it, so the next attempt starts from where the last one stopped.
 
 Listed so a review reports something new rather than re-deriving these:
 
-- **`run_analysis` never deletes prior `AnalysisResult` rows**, so re-running analysis on a
-  submission accumulates sets rather than replacing them. One production submission had three.
-  Everything downstream reads the newest, so it surfaces as storage growth rather than wrong
-  numbers — but any consumer that aggregates instead of taking the latest would silently
-  triple-count.
 - **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
 - **The free-tier limit is described in the copy but not enforced.** `entitlements.py` has the seam;
