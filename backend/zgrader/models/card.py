@@ -12,7 +12,7 @@ class Card(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "cards"
 
     submission_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("submissions.id"), unique=True, nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("submissions.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     # References CardDimensionReference.game (a string key, not an FK id,
     # so seed data and migrations don't need to coordinate surrogate keys).

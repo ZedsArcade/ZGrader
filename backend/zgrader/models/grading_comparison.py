@@ -50,7 +50,7 @@ class GradingCompanyComparison(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "grading_company_comparisons"
 
     submission_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("submissions.id", ondelete="CASCADE"), nullable=False
     )
     company: Mapped[GradingCompany] = mapped_column(
         Enum(GradingCompany, name="grading_company"), nullable=False

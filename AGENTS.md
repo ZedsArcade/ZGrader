@@ -95,15 +95,26 @@ insert it fell through to violated that index and startup swallows seeding error
 row on every request. Bump it anywhere a credential changes — password reset, password change, admin
 password reset — or a stolen token outlives the change meant to kill it.
 
-**Deleting a submission cascades in the ORM and nowhere else.** Every foreign key pointing at
-`submissions` is `ON DELETE NO ACTION` — the cascade lives in the SQLAlchemy relationship
-(`all, delete-orphan`), so a plain `DELETE FROM submissions` fails on the first child table. Doing
-it in SQL means deleting `analysis_results`, `grading_company_comparisons`, `reports`,
-`scan_images`, `cards` first, and *nulling* rather than deleting `audit_logs.submission_id` — the
-history is worth keeping when the submission is not. The scans and reports directories are not in
-the database at all: only `purge_submission_files(code)` removes them, so SQL deletion orphans them
-on disk and they must be cleaned up separately on the host. Prefer the app's own delete endpoint,
-which does all of this in the right order.
+**Deleting a submission cascades in the database, and it has to.** Every foreign key pointing at
+`submissions` is `ON DELETE CASCADE` (`audit_logs.submission_id` is `SET NULL` — the history is
+worth keeping when the submission is not), and the relationships carry `passive_deletes=True` so
+the ORM stands back and lets Postgres do it.
+
+That is not a tidiness preference. It used to be `NO ACTION` with the cascade living only in the
+SQLAlchemy relationship, which works exactly as long as nothing else is writing: the ORM reads the
+children, deletes them, then deletes the parent, and anything inserting in between strands a row and
+fails the parent delete. **Two things do write.** `confirm-crop` runs the pipeline inside the API
+request, and the worker runs it too, driven by a watchdog on the scans directory and a poll loop
+over `created`/`awaiting_scans` submissions — with nothing serialising them. That reached production
+as a 500 on delete, and because the submission kept being re-picked up it failed on every retry
+rather than once. `tests/test_submission_delete_cascade.py` reproduces it with a second session,
+which is the only way to see it: a single-session test passes against the broken schema, because the
+ORM cascade handles what it can see.
+
+So a plain `DELETE FROM submissions` is now correct and atomic. What is still *not* in the database
+is the files: the scans and reports directories go only through `purge_submission_files(code)`, so
+SQL deletion orphans them on disk and they must be cleaned up on the host. Prefer the app's own
+delete endpoint, which does both.
 
 Deleting submissions no longer risks reissuing a code — `_next_submission_code` draws from
 `submission_code_seq`, and a sequence never goes backwards, so a partial delete is as safe as a

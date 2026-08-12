@@ -18,7 +18,7 @@ class ScanImage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "scan_images"
 
     submission_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("submissions.id", ondelete="CASCADE"), nullable=False
     )
     side: Mapped[ScanSide] = mapped_column(Enum(ScanSide, name="scan_side"), nullable=False)
     file_path: Mapped[str] = mapped_column(String(1024), nullable=False)

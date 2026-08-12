@@ -20,7 +20,7 @@ class Report(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "reports"
 
     submission_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("submissions.id", ondelete="CASCADE"), nullable=False
     )
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     status: Mapped[ReportStatus] = mapped_column(
