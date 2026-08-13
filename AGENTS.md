@@ -394,8 +394,19 @@ Listed so a review reports something new rather than re-deriving these:
 
 - **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
-- **The free-tier limit is described in the copy but not enforced.** `entitlements.py` has the seam;
-  `FREE_TIER_LIMIT` is `None` because the number depends on unsettled pricing.
+- **The copy and the seeded plan describe different products.** The free tier *is* enforced — this
+  entry used to claim otherwise, naming a `FREE_TIER_LIMIT` that has never existed in the codebase.
+  `submissions.py` refuses on `quota.can_submit` and consumes on create, the rules live in the
+  admin-editable `plan_entitlements` table (`GET`/`PATCH /plans/{plan}`), and `QuotaChip` counts the
+  customer down. What is unsettled is the *number*: the seed grants free accounts **3 checks per 7
+  days, renewing**, while `en.ts` says "The first check is free" in two places — so on today's
+  settings nobody ever has to pay. One of the two has to move, and the limit is a panel value rather
+  than a deploy, deliberately.
+- **A lifetime allowance is not expressible.** `period_days` is `NOT NULL` with
+  `CheckConstraint("period_days >= 1")` and `_roll_period_forward` always advances the window, so
+  every cap renews. "N checks per account, ever" needs a nullable `period_days` meaning *never
+  resets*, or an explicit lifetime cap — a very large `period_days` works arithmetically but shows
+  the customer a countdown measured in decades.
 Three entries left this list rather than being forgotten, and the reason each was here is still
 worth knowing: outbound mail now goes through a real relay (the operator's send-test-email action
 in the admin panel is what proves it, and it reports what SMTP actually did); Postgres is backed up
