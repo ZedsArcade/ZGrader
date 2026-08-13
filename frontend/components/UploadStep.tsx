@@ -115,6 +115,11 @@ export default function UploadStep({
       <Card.Header>
         <Card.Title>{frontDone ? t.upload.frontUploadedTitle : t.upload.title}</Card.Title>
         <Card.Description>{frontDone ? t.upload.frontUploadedNote : t.upload.subtitle}</Card.Description>
+        {/* Only before the first photo. Once the front is in, the advice is
+            too late to act on and would read as a reproach. */}
+        {!frontDone && (
+          <p className="mt-2 text-sm text-muted">{t.upload.backgroundHint}</p>
+        )}
       </Card.Header>
       <Card.Content className={frontDone ? undefined : "grid gap-4 sm:grid-cols-2"}>
         {!frontDone && (
