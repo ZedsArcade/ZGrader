@@ -337,9 +337,39 @@ it, so the next attempt starts from where the last one stopped.
   entirely (ΔE never exceeds 11), where no threshold setting helps. A persistence test fixes the
   latter two but converts seven honest refusals into readings that disagree by up to 5 points across
   shots of one card — trading ~2 wrong readings for ~7. **Attempted twice, measured, rejected both
-  times.** Card 6 in the photo set still spreads 6.02 on centering. What is missing is a quality
-  signal that declines when a located border is untrustworthy; the cases that need it currently pass
-  the coverage and residual checks.
+  times.** Card 6 in the photo set still spreads 6.02 on centering.
+
+  **A third attempt profiled it before choosing a rule, and that changed the diagnosis.** Dumping
+  the ΔE crossings for every edge of all 32 real photographs shows each edge carries *two*
+  populations — a shallow one and a deep one, typically ~45px apart — and the RANSAC fit arbitrates
+  between them on line straightness, which has no reason to prefer the right one. Card 6's bottom
+  reads 79, 81 and **34** across three shots while its other three edges stay within 5px, and the
+  raw first-crossing median sits at ~34 in all three: the crossings do not move, the *fit* changes
+  which population it locks onto. So this is **bistable selection between two real transitions**,
+  not a miscalibrated threshold, and it concentrated on one edge (the bottom) in every failing case.
+
+  Two candidate signals were measured and **both failed**:
+  - *Contrast quality* (ΔE at the crossing, profile peak, signal-to-noise against the border's own
+    texture) does not separate. Card 6's outlier shot scores inside the range of the two shots that
+    agree with each other on every one of them.
+  - *Bimodality* does not separate either. The most balanced split measured, 653 shallow against 707
+    deep, belongs to `4_FrontGlareShot` — part of one of the **steadiest** cards in the set (0.9pp).
+  - *Preferring the deepest well-supported mode* was then prototyped and evaluated end to end. It
+    helps cards 3 (6.40→1.40) and 6 (19.40→11.30) and leaves 4 and 7 untouched, but pushes card 2
+    from 2.00 to **10.00** by driving its border past the true transition into artwork, and card 6 is
+    still 11.3pp. Aggregate spread improves, 29.2→24.1, which is exactly the aggregate hiding the
+    interesting case. Rejected: it trades one broken card for another, the same shape as the
+    persistence test.
+
+  So the disambiguating information is probably not in a single edge's ΔE profile at all. The lead
+  worth trying next is **cross-edge plausibility** — a card's four border widths are related, and for
+  card 6 the true bottom (79) is far closer to its top (88) than the spurious 34 is. That is the one
+  hypothesis this data supports and nobody has tested.
+
+  Do not reach again for a contrast-quality gate, a bimodality gate, or a deepest-mode rule without
+  new evidence; all three are measured and recorded above. The harness is
+  `scripts/fixture_drift.py` plus repeat shots of one card: judge on **spread per card and how many
+  photographs still produce a reading, together**, never the aggregate.
 - **`capture_worst_case` scores a flat 10.00 on surface.** Its noise generates plenty of raw
   variance, so it does not trip `surface.MIN_DETAIL_FRACTION` — the noise *masks* scratches rather
   than erasing them, which needs a noise measure that does not exist yet.
