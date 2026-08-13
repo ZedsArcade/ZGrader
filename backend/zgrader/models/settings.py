@@ -74,6 +74,22 @@ class Settings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Numeric(4, 1), nullable=False, default=4.0, server_default="4.0"
     )
 
+    # Pricing figures that belong to no plan and no volume band -- the loose
+    # numbers the public pricing page quotes. All in whole pence, for the same
+    # reason as PlanEntitlement.price_pence.
+    #
+    # NULL means "don't show it": the offer is off rather than free. That
+    # distinction matters here, because a founder price of 0 and no founder
+    # price at all are very different claims to put on a page.
+    collection_triage_guide_pence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    founder_price_pence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # How many founder seats exist in total. The page can say "first N"; it
+    # deliberately does not try to count how many are left, because nothing
+    # sells them yet and a countdown nobody maintains is worse than no number.
+    founder_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Whole percent off physical services while subscribed, e.g. 20.
+    subscriber_discount_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
 
 def get_or_create_settings(db: Session) -> "Settings":
     """The Settings singleton is normally seeded by zgrader.seed.seed_all()

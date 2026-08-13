@@ -8,15 +8,27 @@ from zgrader.config import config
 from zgrader.models.settings import Settings
 from zgrader.models.user import User, UserRole
 from zgrader.seed.card_dimensions_seed import seed_card_dimensions
+from zgrader.seed.physical_price_tiers_seed import seed_physical_price_tiers
 from zgrader.seed.plan_entitlements_seed import seed_plan_entitlements
 from zgrader.seed.tolerance_rules_seed import seed_tolerance_rules
 
 logger = logging.getLogger(__name__)
 
 
+# The loose pricing figures, in pence, applied only when the singleton is first
+# created. Re-seeding must never overwrite a number the operator has tuned, so
+# these are constructor arguments rather than an update.
+_INITIAL_PRICING = {
+    "collection_triage_guide_pence": 15000,
+    "founder_price_pence": 3000,
+    "founder_seats": 100,
+    "subscriber_discount_pct": 20,
+}
+
+
 def seed_settings_singleton(db: Session) -> None:
     if db.query(Settings).first() is None:
-        db.add(Settings())
+        db.add(Settings(**_INITIAL_PRICING))
         db.commit()
 
 
@@ -95,5 +107,6 @@ def seed_all(db: Session) -> None:
     seed_card_dimensions(db)
     seed_tolerance_rules(db)
     seed_plan_entitlements(db)
+    seed_physical_price_tiers(db)
     seed_settings_singleton(db)
     seed_admin_user(db)

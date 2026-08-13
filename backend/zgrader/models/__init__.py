@@ -10,6 +10,7 @@ from zgrader.models.grading_comparison import (
     ToleranceSeverity,
 )
 from zgrader.models.identity import GOOGLE, Identity
+from zgrader.models.physical_price_tier import PhysicalPriceTier
 from zgrader.models.plan_entitlement import FREE_PLAN, PlanEntitlement
 from zgrader.models.report import Report, ReportStatus
 from zgrader.models.scan_image import ScanImage, ScanSide
@@ -33,6 +34,7 @@ __all__ = [
     "FREE_PLAN",
     "GOOGLE",
     "Identity",
+    "PhysicalPriceTier",
     "PlanEntitlement",
     "Report",
     "ReportStatus",

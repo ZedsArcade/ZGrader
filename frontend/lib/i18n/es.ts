@@ -16,6 +16,7 @@ export const es: Dictionary = {
     closeMenu: "Cerrar menú",
     about: "Nosotros",
     services: "Servicios",
+    pricing: "Precios",
     howItWorks: "Cómo funciona",
     methodology: "Metodología",
     contact: "Contacto",
@@ -419,6 +420,58 @@ export const es: Dictionary = {
     warningTitle: "Lea esto antes de pedir una restauración",
     warningBody:
       "La restauración conlleva un riesgo real. Una carta restaurada puede ser calificada como alterada, o rechazada sin más, por una compañía de calificación, y ese resultado es permanente. No se intenta nada sin hablarlo antes con usted y acordarlo por escrito. Si la respuesta honesta es dejar la carta en paz, esa será la respuesta que reciba.",
+  },
+  pricing: {
+    title: "Precios",
+    subtitle:
+      "Dos servicios en el lanzamiento: análisis a partir de sus propias fotos y una revisión de la carta en mano. Abajo está lo que cuesta cada uno, sin nada oculto hasta el pago.",
+    softwareHeading: "Análisis de imagen",
+    softwareLede:
+      "Suba fotos de una carta y reciba un informe de pre-clasificación: centrado, esquinas, filos y superficie, con los factores de riesgo señalados.",
+    planFree: "Gratis",
+    planPack: "Bono de créditos",
+    planMonthly: "Mensual",
+    planAnnual: "Anual",
+    planFreeNote: "El informe gratuito no está recortado: recibe el mismo análisis que cualquier plan de pago.",
+    planPackNote: "Se paga una vez y se usa a lo largo del año. Para quien prefiere no suscribirse.",
+    planMonthlyNote: "Para uso habitual, se cancela cuando quiera.",
+    planAnnualNote: "Lo mismo que el mensual, pagado de una vez.",
+    perMonth: "al mes",
+    perYear: "al año",
+    oneOff: "pago único",
+    checksPerPeriod: "{count} análisis cada {days} días",
+    checksUnlimited: "Análisis ilimitados",
+    checksOneOff: "{count} análisis",
+    freeCta: "Empezar un análisis gratis",
+    paidCta: "Contactar",
+    paidNote: "Por ahora los planes de pago se gestionan directamente: envíe un mensaje y se configura a mano.",
+
+    physicalHeading: "Pre-clasificación personalizada",
+    physicalLede:
+      "La carta revisada en mano: escaneada, medida, comentada por escrito y con una opinión honesta sobre si merece la pena enviarla.",
+    physicalQty: "Cartas",
+    physicalPer: "Por carta",
+    physicalTurnaround: "5-7 días laborables desde la recepción.",
+    physicalLocation: "Solo Gibraltar en el lanzamiento, para mantener la logística sencilla.",
+    physicalPostage: "Envío de vuelta a precio de coste, con seguimiento y asegurado.",
+    physicalCta: "Solicitar una revisión",
+
+    bundlesHeading: "Paquetes",
+    triageName: "Revisión de colección",
+    triageBody:
+      "Traiga un archivador o una caja. Se revisa todo, lo mejor recibe una pre-clasificación física y usted recibe un veredicto por escrito: estas a clasificar, estas a vender sin clasificar, estas no compensan ni el envío.",
+    triageGuide: "Precio orientativo de unos {price}: los trabajos varían demasiado para cotizar a ciegas.",
+    triageCta: "Preguntar por una colección",
+    doubleName: "Doble revisión",
+    doubleBody:
+      "Reserve un lote de 10 cartas o más y se incluyen tres meses del plan de pago.",
+
+    extrasHeading: "Mientras esté suscrito",
+    discount: "{percent}% de descuento en cualquier servicio físico mientras dure su suscripción.",
+    founder: "Precio fundador: los primeros {seats} suscriptores anuales pagan {price}, bloqueado mientras sigan suscritos.",
+
+    disclaimer:
+      "No se garantiza ninguna nota. El informe es una evaluación de factores de riesgo, no una predicción que vincule a {companies}.",
   },
   services: {
     title: "Servicios",

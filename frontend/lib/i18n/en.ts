@@ -14,6 +14,7 @@ export const en = {
     closeMenu: "Close menu",
     about: "About",
     services: "Services",
+    pricing: "Pricing",
     howItWorks: "How it works",
     methodology: "Methodology",
     contact: "Contact",
@@ -445,6 +446,64 @@ export const en = {
     warningTitle: "Read this before asking for restoration",
     warningBody:
       "Restoration carries real risk. A restored card may be graded as altered, or refused outright, by a grading company -- and that outcome is permanent. Nothing is attempted without discussing it with you first and agreeing it in writing. If the honest answer is to leave a card alone, that is the answer you will get.",
+  },
+  pricing: {
+    title: "Pricing",
+    subtitle:
+      "Two services at launch: analysis from your own photos, and an in-hand pre-grade. Everything below is what it costs, with nothing hidden until checkout.",
+    // Every figure on this page is read from the admin panel, so the copy
+    // carries placeholders and never a number of its own.
+    softwareHeading: "Image Analysis",
+    softwareLede:
+      "Upload photos of a card and get a pre-grading report -- centering, corners, edges and surface, with the risk factors flagged.",
+    planFree: "Free",
+    planPack: "Credit pack",
+    planMonthly: "Monthly",
+    planAnnual: "Annual",
+    planFreeNote: "The free report is not cut down. You get the same analysis as every paid tier.",
+    planPackNote: "Buy once, use over a year. For people who would rather not subscribe.",
+    planMonthlyNote: "For regular use, cancel whenever.",
+    planAnnualNote: "The same as monthly, paid once.",
+    perMonth: "per month",
+    perYear: "per year",
+    oneOff: "one-off",
+    checksPerPeriod: "{count} checks every {days} days",
+    checksUnlimited: "Unlimited checks",
+    checksOneOff: "{count} checks",
+    freeCta: "Start a free check",
+    paidCta: "Get in touch",
+    // Said plainly rather than discovered at a dead end: nothing here takes
+    // card payments yet, so every paid tier is arranged by conversation.
+    paidNote: "Paid tiers are arranged directly at the moment -- send a message and it is set up by hand.",
+
+    physicalHeading: "Personalised Pre-grading",
+    physicalLede:
+      "The card inspected in hand: scanned, measured, written up, and an honest call on whether it is worth submitting.",
+    physicalQty: "Cards",
+    physicalPer: "Per card",
+    physicalTurnaround: "5-7 working days from receipt.",
+    physicalLocation: "Gibraltar only at launch, to keep the logistics simple.",
+    physicalPostage: "Return postage at cost, tracked and insured.",
+    physicalCta: "Arrange a pre-grade",
+
+    bundlesHeading: "Bundles",
+    triageName: "Collection Triage",
+    triageBody:
+      "Bring a binder or a box. Everything gets screened, the best of it gets a physical pre-grade, and you get a written verdict: grade these, sell these raw, these are not worth the postage.",
+    triageGuide: "Guide price around {price} -- jobs vary too much to quote blind.",
+    triageCta: "Ask about a collection",
+    doubleName: "Double Check",
+    doubleBody:
+      "Book a pre-grade batch of 10 or more cards and three months of the paid tier comes with it.",
+
+    extrasHeading: "While you subscribe",
+    discount: "{percent}% off any physical service for as long as your subscription runs.",
+    founder: "Founder pricing: the first {seats} annual subscribers pay {price}, locked for as long as they stay.",
+
+    // Generated from the enabled companies rather than hardcoded, so it can
+    // never name one the operator has switched off.
+    disclaimer:
+      "No grade is guaranteed. The report is an assessment of risk factors, not a prediction that {companies} are bound by.",
   },
   services: {
     title: "Services",

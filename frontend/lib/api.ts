@@ -149,6 +149,39 @@ export interface Game {
 /** Public contact details shown in the nav, footer and contact page. Every
  *  optional field is hidden by the UI when null, so an operator who hasn't
  *  filled one in never ships a dead link. */
+/** One software tier, with what it grants and what it costs on the same
+ *  object -- they come from the same database row, which is what stops the
+ *  quote and the enforced allowance describing different products. */
+export interface PricedPlan {
+  plan: string;
+  /** null = unlimited checks. */
+  submission_limit: number | null;
+  period_days: number;
+  /** Whole pence. null = not sold, only granted. */
+  price_pence: number | null;
+  /** "month", "year" or "once"; null when nothing is charged. */
+  billing_period: string | null;
+}
+
+/** One band of the in-hand pre-grading volume table. */
+export interface PhysicalPriceTier {
+  min_qty: number;
+  /** null = the open-ended top band, "and up". */
+  max_qty: number | null;
+  price_pence: number;
+}
+
+export interface Pricing {
+  plans: PricedPlan[];
+  physical_tiers: PhysicalPriceTier[];
+  /** Each null when the offer is switched off, which is a different claim
+   *  from it being free. */
+  collection_triage_guide_pence: number | null;
+  founder_price_pence: number | null;
+  founder_seats: number | null;
+  subscriber_discount_pct: number | null;
+}
+
 export interface PublicContact {
   contact_email: string | null;
   contact_location: string | null;
@@ -417,6 +450,12 @@ export async function getGames(): Promise<Game[]> {
 
 export async function getBranding(): Promise<Branding> {
   return request("/catalog/branding");
+}
+
+/** Public and unauthenticated, like the rest of /catalog: these are the prices
+ *  on the shopfront, not anything per-user. */
+export async function fetchPricing(): Promise<Pricing> {
+  return request("/catalog/pricing");
 }
 
 /** Slugs identifying the six service tiers on /services. Must stay in step

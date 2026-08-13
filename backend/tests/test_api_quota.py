@@ -131,6 +131,12 @@ def test_an_unlimited_plan_is_never_refused(db_session):
     """How a subscription is expressed: a null limit on the plan."""
     token = _login("quota-unlimited@example.com")
     user = db_session.query(User).filter(User.email == "quota-unlimited@example.com").one()
+    # The unlimited plan this test needs, created here rather than borrowed
+    # from the seed. What is seeded is a commercial decision that moves with
+    # pricing -- it stopped shipping an unlimited tier and took these tests
+    # with it. The behaviour under test is "a null limit means unlimited",
+    # so the test states that condition itself.
+    db_session.add(PlanEntitlement(plan="tier1", submission_limit=None, period_days=7))
     db_session.add(
         Subscription(user_id=user.id, plan="tier1", status=SubscriptionStatus.active)
     )
@@ -152,6 +158,12 @@ def test_a_lapsed_subscription_falls_back_to_the_free_tier(db_session):
     _set_free_limit(db_session, 1)
     token = _login("quota-lapsed@example.com")
     user = db_session.query(User).filter(User.email == "quota-lapsed@example.com").one()
+    # The unlimited plan this test needs, created here rather than borrowed
+    # from the seed. What is seeded is a commercial decision that moves with
+    # pricing -- it stopped shipping an unlimited tier and took these tests
+    # with it. The behaviour under test is "a null limit means unlimited",
+    # so the test states that condition itself.
+    db_session.add(PlanEntitlement(plan="tier1", submission_limit=None, period_days=7))
     subscription = Subscription(user_id=user.id, plan="tier1", status=SubscriptionStatus.active)
     db_session.add(subscription)
     db_session.commit()
