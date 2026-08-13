@@ -161,6 +161,12 @@ def test_topping_up_an_unlimited_plan_is_refused_with_an_explanation(db_session)
     op = _operator(db_session)
     register_and_verify(client, "unlimited-topup@example.com")
     user = db_session.query(User).filter(User.email == "unlimited-topup@example.com").one()
+    # The unlimited plan this test needs, created here rather than borrowed
+    # from the seed. What is seeded is a commercial decision that moves with
+    # pricing -- it stopped shipping an unlimited tier and took these tests
+    # with it. The behaviour under test is "a null limit means unlimited",
+    # so the test states that condition itself.
+    db_session.add(PlanEntitlement(plan="tier1", submission_limit=None, period_days=7))
     db_session.add(Subscription(user_id=user.id, plan="tier1", status=SubscriptionStatus.active))
     db_session.commit()
 

@@ -31,20 +31,27 @@ export default function NavBar() {
     router.push("/");
   }
 
-  // Public links, shown whether or not anyone is signed in. The desktop bar
-  // only takes the first two: it already carries up to five children when
-  // authed, and the full set would break the layout at md widths. The drawer
-  // has the room for all of them, and the footer carries everything anyway.
+  // Public links, shown whether or not anyone is signed in. How many the
+  // desktop bar can take depends on who is looking: signed in it also carries
+  // the dashboard, the email address, the quota chip and a logout button, and
+  // a third link tips it over at the md breakpoint -- measured at 768px, where
+  // the nav came to 771px inside the viewport and pushed the page sideways.
+  // Signed out there is room for one more, and pricing is worth the slot.
+  // The drawer carries all of them below md, and the footer always does.
   const publicLinks = [
     { href: "/about", label: t.nav.about },
     // Each brand has its own services page; the link follows whichever
     // section you are in rather than always landing on the analysis one.
     { href: brand === "care" ? `${CARE_PREFIX}/services` : "/services", label: t.nav.services },
+    // Shared between both brands, like /about: what a check costs does not
+    // change with the section you arrived through, so there is one page and it
+    // simply keeps whichever palette is active.
+    { href: "/pricing", label: t.nav.pricing },
     { href: "/how-it-works", label: t.nav.howItWorks },
     { href: "/methodology", label: t.nav.methodology },
     { href: "/contact", label: t.nav.contact },
   ];
-  const desktopLinks = publicLinks.slice(0, 2);
+  const desktopLinks = publicLinks.slice(0, user ? 2 : 3);
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur">

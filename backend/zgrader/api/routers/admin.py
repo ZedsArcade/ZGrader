@@ -14,6 +14,7 @@ from zgrader.email.notifications import send_test_email
 from zgrader.models import (
     AuditLog,
     ContactMessage,
+    PhysicalPriceTier,
     PlanEntitlement,
     Report,
     ReportStatus,
@@ -29,6 +30,8 @@ from zgrader.schemas.admin import (
     ContactMessageUpdate,
     GradingCompanyOut,
     GradingCompanyUpdate,
+    PhysicalPriceTierOut,
+    PhysicalPriceTierUpdate,
     PlanEntitlementOut,
     PlanEntitlementUpdate,
     SettingsOut,
@@ -329,6 +332,60 @@ def update_plan(
         row.submission_limit = updates["submission_limit"]
     if updates.get("period_days") is not None:
         row.period_days = updates["period_days"]
+    # Nullable like submission_limit, and for the same reason: clearing the
+    # price is how a plan stops being offered, so presence in `updates` is what
+    # separates "not for sale" from "leave it alone".
+    if "price_pence" in updates:
+        row.price_pence = updates["price_pence"]
+    if "billing_period" in updates:
+        row.billing_period = updates["billing_period"]
+
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.get("/physical-tiers", response_model=list[PhysicalPriceTierOut])
+def list_physical_tiers(
+    _operator: User = Depends(require_operator), db: Session = Depends(get_db)
+) -> list[PhysicalPriceTier]:
+    """The in-hand pre-grading volume table, cheapest band last."""
+    return db.query(PhysicalPriceTier).order_by(PhysicalPriceTier.min_qty).all()
+
+
+@router.patch("/physical-tiers/{min_qty}", response_model=PhysicalPriceTierOut)
+def update_physical_tier(
+    min_qty: int,
+    payload: PhysicalPriceTierUpdate,
+    _operator: User = Depends(require_operator),
+    db: Session = Depends(get_db),
+) -> PhysicalPriceTier:
+    """Retune one band of the volume table.
+
+    Keyed by `min_qty` rather than an opaque id: the bands are a short, stable
+    list an operator thinks of as "the 10-24 row", and a URL they can reason
+    about beats one they have to look up.
+
+    Nothing is enforced by these figures -- physical work is quoted and
+    fulfilled by hand -- so this only changes what the pricing page publishes.
+    """
+    row = db.query(PhysicalPriceTier).filter(PhysicalPriceTier.min_qty == min_qty).first()
+    if row is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"No volume band starting at {min_qty} cards"
+        )
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "max_qty" in updates:
+        row.max_qty = updates["max_qty"]
+    if updates.get("price_pence") is not None:
+        row.price_pence = updates["price_pence"]
+
+    if row.max_qty is not None and row.max_qty < row.min_qty:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"A band cannot end ({row.max_qty}) before it starts ({row.min_qty}).",
+        )
 
     db.commit()
     db.refresh(row)

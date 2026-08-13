@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 from zgrader import images
 from zgrader.config import config
 from zgrader.db import get_db
-from zgrader.models import CardDimensionReference
+from zgrader.models import CardDimensionReference, PhysicalPriceTier, PlanEntitlement
 from zgrader.models.grading_comparison import GradingCompany, GradingCompanyToleranceRule
 from zgrader.models.settings import get_or_create_settings
-from zgrader.schemas.catalog import BrandingOut, GameOut
+from zgrader.schemas.catalog import BrandingOut, GameOut, PricingOut
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -39,6 +39,36 @@ def _active_grading_companies(db: Session) -> list[str]:
         .all()
     }
     return [company.value for company in GradingCompany if company in active]
+
+
+@router.get("/pricing", response_model=PricingOut)
+def get_pricing(db: Session = Depends(get_db)) -> PricingOut:
+    """Every published price, from the rows that define them.
+
+    The pricing page renders entirely from this, so an operator changing a
+    figure in the admin panel changes the shopfront with no deploy -- the same
+    argument `plan_entitlements` already makes for quota caps, and the reason
+    the site copy carries no numbers at all.
+
+    Plans are ordered by price so the page can lay them out cheapest first
+    without deciding an order of its own; unpriced plans (the free tier) sort
+    ahead of the rest.
+    """
+    settings = get_or_create_settings(db)
+    plans = (
+        db.query(PlanEntitlement)
+        .order_by(PlanEntitlement.price_pence.nulls_first(), PlanEntitlement.plan)
+        .all()
+    )
+    tiers = db.query(PhysicalPriceTier).order_by(PhysicalPriceTier.min_qty).all()
+    return PricingOut(
+        plans=plans,
+        physical_tiers=tiers,
+        collection_triage_guide_pence=settings.collection_triage_guide_pence,
+        founder_price_pence=settings.founder_price_pence,
+        founder_seats=settings.founder_seats,
+        subscriber_discount_pct=settings.subscriber_discount_pct,
+    )
 
 
 @router.get("/branding", response_model=BrandingOut)

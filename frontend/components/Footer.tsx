@@ -50,6 +50,7 @@ export default function Footer() {
   const explore = [
     { href: "/about", label: t.nav.about },
     { href: "/services", label: t.nav.services },
+    { href: "/pricing", label: t.nav.pricing },
     { href: "/how-it-works", label: t.nav.howItWorks },
     { href: "/methodology", label: t.nav.methodology },
     { href: "/contact", label: t.nav.contact },

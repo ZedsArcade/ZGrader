@@ -79,6 +79,10 @@ class PlanEntitlementOut(BaseModel):
     # None = unlimited submissions on this plan.
     submission_limit: int | None
     period_days: int
+    # Whole pence. None = the plan is not sold, only granted.
+    price_pence: int | None
+    # "month", "year" or "once"; None when nothing is charged.
+    billing_period: str | None
 
 
 class PlanEntitlementUpdate(BaseModel):
@@ -87,6 +91,28 @@ class PlanEntitlementUpdate(BaseModel):
     # exclude_unset to tell the two apart.
     submission_limit: int | None = Field(default=None, ge=0, le=10_000)
     period_days: int | None = Field(default=None, ge=1, le=365)
+    # Also explicitly nullable: clearing the price is how a plan stops being
+    # sold, so None means "not for sale" rather than "leave unchanged".
+    # Capped at £10,000 -- high enough never to bind, low enough that a stray
+    # extra digit is caught before it reaches the shopfront.
+    price_pence: int | None = Field(default=None, ge=0, le=1_000_000)
+    billing_period: str | None = Field(default=None, max_length=16)
+
+
+class PhysicalPriceTierOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    min_qty: int
+    # None = the open-ended top band, "and up".
+    max_qty: int | None
+    price_pence: int
+
+
+class PhysicalPriceTierUpdate(BaseModel):
+    # Explicitly nullable: clearing max_qty is how a band becomes the
+    # open-ended one, so None means "and up" rather than "leave unchanged".
+    max_qty: int | None = Field(default=None, ge=1, le=10_000)
+    price_pence: int | None = Field(default=None, ge=0, le=1_000_000)
 
 
 class SettingsOut(BaseModel):
@@ -107,6 +133,12 @@ class SettingsOut(BaseModel):
     social_x: str | None
     social_whatsapp: str | None
     centering_adjust_limit_mm: float
+    # Loose pricing figures, whole pence. None = the offer is switched off,
+    # which is a different claim from it being free.
+    collection_triage_guide_pence: int | None
+    founder_price_pence: int | None
+    founder_seats: int | None
+    subscriber_discount_pct: int | None
 
 
 class SettingsUpdate(BaseModel):
@@ -130,6 +162,13 @@ class SettingsUpdate(BaseModel):
     # printed border is a few millimetres wide -- past that the "limit" would
     # let a line be placed anywhere and stop meaning anything.
     centering_adjust_limit_mm: float | None = Field(default=None, ge=0, le=10)
+    # Loose pricing figures, whole pence. Capped where a stray extra digit would
+    # otherwise reach the shopfront; `exclude_unset` in update_settings means
+    # omitting one leaves it alone, while sending null switches the offer off.
+    collection_triage_guide_pence: int | None = Field(default=None, ge=0, le=1_000_000)
+    founder_price_pence: int | None = Field(default=None, ge=0, le=1_000_000)
+    founder_seats: int | None = Field(default=None, ge=0, le=100_000)
+    subscriber_discount_pct: int | None = Field(default=None, ge=0, le=100)
 
     @field_validator("social_instagram", "social_facebook", "social_x")
     @classmethod
