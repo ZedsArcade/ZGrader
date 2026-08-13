@@ -162,8 +162,14 @@ export const en = {
       // Leads with the fix, not the diagnosis. Measured across 30 real
       // photographs: 8 of the 10 that failed this check were recovered by a
       // crop traced tightly around the card, and only 2 needed a new photo.
+      // The second sentence is for the 2 of 10 a re-crop cannot save.
+      // The detector finds the card by contrast against whatever is behind
+      // it, so a dark card back on a dark surface leaves it nothing to fit a
+      // line to, and no amount of re-cropping adds contrast that was never
+      // captured. Without it the one customer who cannot be rescued is told
+      // to do the only thing that will not work.
       geometry_unverified:
-        "The card's edges couldn't be located in this image, so there was nothing reliable to measure from. It's almost always the crop — drag the handles so they sit tightly around the card, with none of the background inside them, and submit again.",
+        "The card's edges couldn't be located in this image, so there was nothing reliable to measure from. Usually it's the crop — drag the handles so they sit tightly around the card, with none of the background inside them, and submit again. If that doesn't help, the card and the surface behind it were probably too close in tone to tell apart: photograph it again on a plain background that contrasts with the card.",
       geometry_aspect_mismatch:
         "The measured area isn't the shape of a card, so the millimetre figures are scaled wrong on at least one axis.",
       combined_single_side:
@@ -281,6 +287,12 @@ export const en = {
   upload: {
     title: "Upload your card scans",
     subtitle: "Add a clear photo of each side, or scan it with your device's camera.",
+    // The one thing the customer controls that matters most, said before they
+    // shoot rather than after it fails. Edges are found by contrast against the
+    // background, so a dark card on a dark surface is the case the detector
+    // cannot recover -- and nothing used to mention it anywhere.
+    backgroundHint:
+      "Stand the card on a plain surface that contrasts with it — a dark card on a light background, a pale one on dark. That contrast is what lets the card's edges be found.",
     frontLabel: "Front (required)",
     backLabel: "Back (optional)",
     backHint: "Add now, or add it later — front alone still gets you a partial check.",

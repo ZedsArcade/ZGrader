@@ -154,8 +154,10 @@ export const es: Dictionary = {
         "La carta es demasiado pequeña en esta foto para que el desgaste a esta escala sea visible: una foto más cercana permitiría medirlo.",
       capture_modest_resolution:
         "Ocupa lo suficiente para mostrar daños evidentes, no para juzgar el desgaste fino, así que esta lectura se mantiene en un rango más amplio.",
+      // Mismo motivo que en en.ts: la segunda frase es para los 2 de cada 10
+      // casos que un recorte nuevo no puede salvar.
       geometry_unverified:
-        "No se pudieron localizar los filos de la carta en esta imagen, así que no había nada fiable desde donde medir. Casi siempre es cuestión del recorte: arrastre los tiradores para que queden ceñidos a la carta, sin nada de fondo dentro, y vuelva a enviarla.",
+        "No se pudieron localizar los bordes de la carta en esta imagen, así que no había nada fiable desde donde medir. Normalmente es el recorte: arrastre los tiradores para que ciñan la carta, sin fondo dentro de ellos, y envíe de nuevo. Si aun así no funciona, es probable que la carta y la superficie de detrás tuvieran tonos demasiado parecidos: vuelva a fotografiarla sobre un fondo liso que contraste con la carta.",
       geometry_aspect_mismatch:
         "El área medida no tiene la forma de una carta, así que las cifras en milímetros están mal escaladas en al menos un eje.",
       combined_single_side:
@@ -274,6 +276,10 @@ export const es: Dictionary = {
   upload: {
     title: "Suba las fotos de su carta",
     subtitle: "Añada una foto clara de cada lado, o escanéela con la cámara de su dispositivo.",
+    // El contraste con el fondo es lo que permite encontrar los bordes, y es
+    // lo unico que el cliente controla de verdad.
+    backgroundHint:
+      "Coloque la carta sobre una superficie lisa que contraste con ella — una carta oscura sobre fondo claro, una clara sobre fondo oscuro. Ese contraste es lo que permite encontrar los bordes de la carta.",
     frontLabel: "Frente (obligatorio)",
     backLabel: "Reverso (opcional)",
     backHint:
