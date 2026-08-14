@@ -86,6 +86,23 @@ production as a 500 on every request for the affected submission), the drift har
 the assessment *state* rather than per category so the fifth is covered. Grep for `raw_score` before
 adding a fifth declining path.
 
+**A client adjustment changes the numbers; anything drawn from those numbers has to be redrawn.**
+`centering_adjustments` sits *beside* the `AnalysisResult` rather than over it, so the stored
+measurement keeps recording what was detected and clearing the adjustment restores it with no other
+trace. The consequence is that every picture derived from those widths is stale the moment one is
+applied, and there are two: the centering frame `regions._build_centering_regions` puts in
+`measurements.regions`, and the baked `{side}_centering.png` the PDF renders. The score moved and
+neither did — a published report showing detection's frame beside the customer's number, which is
+the report contradicting itself.
+
+Both are now derived at render time: the frontend remaps the region's box, and
+`recompute.redraw_centering_annotations` rewrites the drawing during report generation. That redraw
+is **unconditional** — doing it only when an adjustment exists leaves the *cleared* case carrying
+the adjusted lines forever, stale in the direction nobody thinks to check. Deriving from current
+state each time is idempotent and needs no memory of what was drawn last.
+
+Before adding another client-editable measurement, ask what is drawn from it.
+
 **Emails are stored lowercased behind a unique index on `lower(email)`.** Every user lookup must
 compare with `func.lower(...)` — see `_find_by_email` in `api/routers/auth.py`. A single
 case-sensitive `==` left a production deployment with no operator account, silently, because the
