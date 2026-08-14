@@ -1,5 +1,6 @@
 import { Card, Chip, Table } from "@heroui/react";
 import type { Assessment, Comparison, ScanSide, SubmissionDetail } from "@/lib/api";
+import { centeringHandles, ratiosFromWidths } from "@/lib/use-centering-adjust";
 import { getDictionary, type Locale } from "@/lib/i18n/context";
 import AnnotatedPhoto from "./AnnotatedPhoto";
 import StatusBadge from "./StatusBadge";
@@ -53,6 +54,7 @@ export default function SubmissionOverview({
     list.push(comp);
     comparisonsByCategory.set(comp.category, list);
   }
+  const bothSidesMeasured = submission.scan_sides.length > 1;
   const resultsBySide = new Map<ScanSide, typeof submission.analysis_results>(
     SIDES.map((side) => [side, submission.analysis_results.filter((r) => r.side === side)])
   );
@@ -144,28 +146,70 @@ export default function SubmissionOverview({
                         </span>
                       )}
                     </div>
-                    {/* The measurement behind the number, on the one category
-                        with a single figure driving it. `worse_side_pct` is what
-                        scoring.score_from_worse_pct consumes, and recompute
-                        keeps it in step with dismissals and moved border lines
-                        -- so unlike the per-side lr_ratio it cannot go stale
-                        beside the score it explains.
+                    {/* The measurement behind the number, and the form a
+                        collector actually thinks in: "47/53" says more at a
+                        glance than 7.9 does, and together they explain each
+                        other.
 
-                        Rounded to whole percent: the stored figure carries a
-                        decimal, but a tenth of a percent of border width sits
-                        well inside the noise this pipeline has measured, and
-                        quoting it would be false precision at a glance. */}
-                    {category === "centering" &&
-                      !unmeasurable &&
-                      typeof result.measurements?.worse_side_pct === "number" && (
-                        <p className="mt-1 text-xs text-muted">
-                          {t.submissionDetail.centeringSplit}{" "}
-                          <span className="font-medium tabular-nums text-foreground">
-                            {Math.round(result.measurements.worse_side_pct as number)} /{" "}
-                            {100 - Math.round(result.measurements.worse_side_pct as number)}
-                          </span>
-                        </p>
-                      )}
+                        Per side, because that is the only level at which an
+                        axis split exists -- the card above it is the combined
+                        front+back score, and there is no meaningful way to
+                        average two cards' worth of ratios into one pair. The
+                        backend combines the *worse* figure for exactly that
+                        reason.
+
+                        Derived from detected widths overlaid with the client's
+                        adjustment rather than read from the stored lr_ratio,
+                        which is written once at analysis and never updated.
+                        Using it would put a stale split beside a live score --
+                        the same staleness already fixed for the drawn frame and
+                        the methodology copy. */}
+                    {category === "centering" && !unmeasurable && (
+                      <div className="mt-1.5 flex flex-col gap-0.5">
+                        {SIDES.map((side) => {
+                          const detected = centeringHandles(resultsBySide.get(side) ?? []);
+                          if (!detected) return null;
+                          const widths = {
+                            ...detected.detected,
+                            ...(submission.centering_adjustments?.[side] ?? {}),
+                          };
+                          const { lr, tb } = ratiosFromWidths(widths);
+                          const pair = (r: [number, number]) =>
+                            `${Math.round(r[0])}/${Math.round(r[1])}`;
+                          // An axis needs both of its sides. ratiosFromWidths
+                          // falls back to 50/50 when they sum to zero, which
+                          // would publish "perfectly centred" for an axis that
+                          // was never read -- the same trap `have_lr`/`have_tb`
+                          // guards on the backend, where a missing side once
+                          // became a confident 100/0 split.
+                          const axes: [string, [number, number]][] = [];
+                          if (widths.left_px + widths.right_px > 0) {
+                            axes.push([t.submissionDetail.leftRightShort, lr]);
+                          }
+                          if (widths.top_px + widths.bottom_px > 0) {
+                            axes.push([t.submissionDetail.topBottomShort, tb]);
+                          }
+                          if (axes.length === 0) return null;
+                          return (
+                            <p key={side} className="text-[11px] leading-snug text-muted">
+                              {/* The side is only worth naming when both were
+                                  read; a front-only check has nothing to
+                                  distinguish it from. */}
+                              {bothSidesMeasured && <span>{t.breakout[side]} </span>}
+                              {axes.map(([label, ratio], i) => (
+                                <span key={label}>
+                                  {i > 0 && <span className="px-1">·</span>}
+                                  {label}{" "}
+                                  <span className="font-medium tabular-nums text-foreground">
+                                    {pair(ratio)}
+                                  </span>
+                                </span>
+                              ))}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    )}
                     {limitationCodes.length > 0 && (
                       <ul className="mt-1.5 flex flex-col gap-1">
                         {limitationCodes.map((code) => {

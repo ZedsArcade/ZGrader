@@ -36,6 +36,32 @@ export function centeringHandles(
 }
 
 /**
+ * The two centering ratios and the worse side, from four border widths.
+ *
+ * Extracted so the drag overlay and the scorecard cannot disagree about what a
+ * set of widths means -- the same reason `centering.ratios_from_widths` exists
+ * on the backend. This is the arithmetic half only: pure, so it can be applied
+ * to detected widths, adjusted ones, or a mix, wherever a ratio is displayed.
+ *
+ * The score is still never computed here. That lives in `analysis/scoring.py`,
+ * and a second copy in TypeScript is the divergence that has already caught
+ * `recompute.py` twice.
+ */
+export function ratiosFromWidths(widths: Widths): {
+  lr: [number, number];
+  tb: [number, number];
+  worse: number;
+} {
+  const lr = widths.left_px + widths.right_px;
+  const tb = widths.top_px + widths.bottom_px;
+  const lrRatio: [number, number] =
+    lr > 0 ? [(100 * widths.left_px) / lr, (100 * widths.right_px) / lr] : [50, 50];
+  const tbRatio: [number, number] =
+    tb > 0 ? [(100 * widths.top_px) / tb, (100 * widths.bottom_px) / tb] : [50, 50];
+  return { lr: lrRatio, tb: tbRatio, worse: Math.max(...lrRatio, ...tbRatio) };
+}
+
+/**
  * Drag state for the four centering lines, and the one call that rescores.
  *
  * Worth allowing at all because the border detector is the least reliable
@@ -90,13 +116,7 @@ export function useCenteringAdjust({
   const limitPx = Math.max(0, limitMm) * pxPerMm;
   const enabled = limitPx > 0 && raster !== null;
 
-  const lr = widths.left_px + widths.right_px;
-  const tb = widths.top_px + widths.bottom_px;
-  const lrRatio: [number, number] =
-    lr > 0 ? [(100 * widths.left_px) / lr, (100 * widths.right_px) / lr] : [50, 50];
-  const tbRatio: [number, number] =
-    tb > 0 ? [(100 * widths.top_px) / tb, (100 * widths.bottom_px) / tb] : [50, 50];
-  const worse = Math.max(...lrRatio, ...tbRatio);
+  const { lr: lrRatio, tb: tbRatio, worse } = ratiosFromWidths(widths);
 
   const moved = KEYS.some((k) => Math.abs(widths[k] - detected[k]) > 0.05);
   // Controls also show when an adjustment is already live on the server, so
