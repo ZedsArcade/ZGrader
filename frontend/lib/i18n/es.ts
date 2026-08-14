@@ -132,6 +132,7 @@ export const es: Dictionary = {
     unknownCard: "Carta desconocida",
     foilLabel: "Foil",
     lowerConfidence: "menor confiabilidad",
+    centeringSplit: "Lado peor",
     unmeasurable: "No medible",
     limitation: {
       card_is_foil:

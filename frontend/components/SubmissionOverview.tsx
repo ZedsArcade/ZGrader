@@ -144,6 +144,28 @@ export default function SubmissionOverview({
                         </span>
                       )}
                     </div>
+                    {/* The measurement behind the number, on the one category
+                        with a single figure driving it. `worse_side_pct` is what
+                        scoring.score_from_worse_pct consumes, and recompute
+                        keeps it in step with dismissals and moved border lines
+                        -- so unlike the per-side lr_ratio it cannot go stale
+                        beside the score it explains.
+
+                        Rounded to whole percent: the stored figure carries a
+                        decimal, but a tenth of a percent of border width sits
+                        well inside the noise this pipeline has measured, and
+                        quoting it would be false precision at a glance. */}
+                    {category === "centering" &&
+                      !unmeasurable &&
+                      typeof result.measurements?.worse_side_pct === "number" && (
+                        <p className="mt-1 text-xs text-muted">
+                          {t.submissionDetail.centeringSplit}{" "}
+                          <span className="font-medium tabular-nums text-foreground">
+                            {Math.round(result.measurements.worse_side_pct as number)} /{" "}
+                            {100 - Math.round(result.measurements.worse_side_pct as number)}
+                          </span>
+                        </p>
+                      )}
                     {limitationCodes.length > 0 && (
                       <ul className="mt-1.5 flex flex-col gap-1">
                         {limitationCodes.map((code) => {
