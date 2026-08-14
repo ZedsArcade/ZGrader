@@ -143,9 +143,41 @@ export default function AnnotatedPhoto({
     const list = (r.measurements?.regions as api.Region[] | undefined) ?? [];
     return list.map((region) => ({ ...region, category: r.category }));
   });
+
+  // The centering frame is built server-side from the *detected* border, and
+  // the stored measurement deliberately keeps holding that -- clearing an
+  // adjustment has to restore the detected figures with no other trace. So the
+  // adjustment is applied here, at render time, or the drawn frame would sit
+  // where detection put it beside a score derived from where the customer put
+  // it.
+  //
+  // The region is remapped rather than hidden and redrawn: it carries its
+  // severity, note, numbered marker and dismissal key, and all of that stays
+  // correct. Only the geometry was stale.
+  const adjustedRegions: CategoryRegion[] =
+    centeringApplied && raster
+      ? allRegions.map((region) => {
+          if (region.category !== "centering") return region;
+          const { left_px, right_px, top_px, bottom_px } = centeringApplied;
+          // Mirrors regions._build_centering_regions: the box runs from the
+          // border inward on every side.
+          const bbox: [number, number, number, number] = [
+            left_px / raster.w,
+            top_px / raster.h,
+            (raster.w - right_px) / raster.w,
+            (raster.h - bottom_px) / raster.h,
+          ];
+          return {
+            ...region,
+            bbox_norm: bbox,
+            // The marker follows the frame's top-left, as it did before.
+            anchor_norm: [bbox[0], bbox[1]] as [number, number],
+          };
+        })
+      : allRegions;
   // Worst-scoring first for priority; the visible slice is re-sorted
   // top-to-bottom below so leader lines stay tidy.
-  const ranked = allRegions
+  const ranked = adjustedRegions
     .filter((r) => r.severity === "flag")
     .sort((a, b) => a.score - b.score);
   const visible = (expanded ? ranked : ranked.slice(0, COLLAPSED_COUNT)).sort(
@@ -251,7 +283,7 @@ export default function AnnotatedPhoto({
     };
   }, [recomputeLines]);
 
-  if (!photoUrl && allRegions.length === 0) {
+  if (!photoUrl && adjustedRegions.length === 0) {
     return null;
   }
 
@@ -311,7 +343,7 @@ export default function AnnotatedPhoto({
         )}
         {photoUrl && showMarkers && (
           <RegionOverlay
-            regions={allRegions}
+            regions={adjustedRegions}
             markers={visible}
             side={side}
             dismissedRegions={dismissedRegions}
@@ -374,7 +406,7 @@ export default function AnnotatedPhoto({
           <PhotoInspector
             open={inspecting}
             photoUrl={photoUrl}
-            regions={allRegions}
+            regions={adjustedRegions}
             markers={visible}
             side={side}
             dismissedRegions={dismissedRegions}

@@ -194,3 +194,71 @@ def recompute_submission(db: Session, submission: Submission) -> None:
     ).delete()
     rules_engine.evaluate(db, submission)
     db.flush()
+
+
+def redraw_centering_annotations(db: Session, submission: Submission) -> list[str]:
+    """Redraw each side's centering overlay from detected widths + adjustment.
+
+    The stored AnalysisResult deliberately keeps holding what was *measured* --
+    clearing an adjustment must restore the detected figures with no other trace
+    -- so the drawing cannot be regenerated at analysis time and left alone. It
+    has to be derived from current state whenever it is about to be shown.
+
+    Without this, a published report shows the frame where detection put the
+    border beside a score derived from where the customer put it: the document
+    contradicting itself, which is worse than the same staleness on a web page
+    the customer can simply reload.
+
+    **Unconditional, every side, every time.** Redrawing only when an adjustment
+    exists leaves the cleared case wrong -- the file would still carry the
+    adjusted lines after the customer reverted. Deriving the image from current
+    state is idempotent and needs no record of what was drawn last.
+
+    Returns the paths rewritten, so callers can log or test what happened.
+    """
+    from zgrader.analysis import annotate, pipeline, scale
+    from zgrader.models import AnalysisCategory, ScanSide
+
+    adjustments = submission.centering_adjustments or {}
+    scans = {scan.side: scan for scan in submission.scan_images}
+    width_mm, height_mm = scale.dimensions_for(
+        db, submission.card.game if submission.card else None
+    )
+
+    rewritten: list[str] = []
+    for row in submission.analysis_results:
+        if row.category != AnalysisCategory.centering or row.side == AnalysisSide.combined:
+            continue
+        if not row.annotated_image_path or row.raw_score is None:
+            # Nothing was drawn for an unscored side -- build_regions and
+            # _annotate_category both decline together, and re-drawing here
+            # would assert a border that analysis refused to claim.
+            continue
+
+        scan = scans.get(ScanSide(row.side.value))
+        measurements = row.measurements or {}
+        if scan is None or "left_px" not in measurements:
+            continue
+
+        merged = dict(measurements)
+        merged.update(adjustments.get(row.side.value) or {})
+        # Ratios from the same function the score routes through, so the numbers
+        # printed on the drawing cannot disagree with the ones beside it.
+        ratios = centering.ratios_from_widths(
+            merged["left_px"], merged["right_px"], merged["top_px"], merged["bottom_px"]
+        )
+        merged["lr_ratio"] = ratios["lr_ratio"]
+        merged["tb_ratio"] = ratios["tb_ratio"]
+
+        try:
+            rectified = pipeline.load_deskewed_card(scan, width_mm, height_mm)
+        except ValueError:
+            # A scan that no longer rectifies must not stop a report being
+            # generated; the previous drawing stays, which is what it did
+            # before this function existed.
+            continue
+
+        annotate.annotate_centering(rectified.image, merged).save(row.annotated_image_path)
+        rewritten.append(row.annotated_image_path)
+
+    return rewritten

@@ -8,6 +8,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy.orm import Session
 
+from zgrader.analysis import recompute
 from zgrader.config import config
 from zgrader.models import AnalysisSide, GradingCompany, Report, ReportStatus, Settings, Submission
 from zgrader.reports.strings import (
@@ -231,6 +232,12 @@ def generate_report(db: Session, submission: Submission) -> Report:
     settings = db.query(Settings).first()
     if settings is None:
         raise RuntimeError("No Settings row found -- run zgrader.seed.seed_all() first")
+
+    # The overlays are drawn at analysis time from the detected border, and a
+    # client centering adjustment moves the score without moving the drawing.
+    # Redrawn here rather than on every apply: this is the moment the picture
+    # becomes a published document, and it is already the slow path.
+    recompute.redraw_centering_annotations(db, submission)
 
     context = build_report_context(submission, settings)
 
