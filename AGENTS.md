@@ -30,6 +30,19 @@ chosen px/mm from the known millimetre dimensions, so the scale is definitional 
 measured back off the image. `analysis/scale.py`'s `px_per_mm` is the older measured form, still
 correct but no longer on the analysis path.
 
+**An upload is decoded upright before its metadata is thrown away.** Every store path in
+`images.py` goes through `open_upright`, which applies the EXIF orientation to the pixels first. A
+phone does not rotate its sensor: it writes the frame the way the sensor read it and records how the
+handset was held as EXIF Orientation, leaving every viewer to rotate on the way to the screen. These
+paths re-encode to strip EXIF on purpose — the same block carries GPS — so dropping the tag without
+applying it turns an upright photograph into a permanently sideways one.
+
+That shipped. A 400×560 portrait photo was stored 560×400, and portrait is the natural way to hold a
+phone to photograph a card, so the *common* case was the broken one. The synthetic fixtures carry no
+EXIF and never could have caught it; `tests/test_upload_orientation.py` builds a file the way a
+handset actually writes one, across all eight orientation values. `CropAdjustStep`'s manual rotate
+buttons predate this and now exist for genuinely rotated scans rather than as a workaround.
+
 **Measurement geometry comes from fitted card edges, never from the customer's crop.**
 `analysis/geometry.py` fits a RANSAC line to each side — excluding a margin at both ends, so
 intersecting adjacent lines recovers the *ideal* apex even where a corner is chipped — and
@@ -152,6 +165,22 @@ aggregates would multiply-count. Put per-submission cleanup in the pipeline, nev
 `tests/test_reanalysis_replaces_results.py` calls `run_analysis` directly for that reason. The
 deletes are bulk, so they bypass the identity map and the relationship collections must be expired
 afterwards, or `_persist_combined` and `rules_engine.evaluate` read rows that no longer exist.
+
+**Every published price is a row, and the shopfront renders from the rows that enforce it.**
+`plan_entitlements` carries a plan's allowance *and* its `price_pence`; `physical_price_tiers` holds
+the in-hand volume bands; the loose figures (founder price and seats, subscriber discount, triage
+guide) sit on `Settings`. All of it is whole pence — money in floats is a rounding bug waiting for a
+total — and all of it is editable from the admin panel, because a price that needs a deploy to
+change is a price that stays wrong, exactly as the quota caps already argued.
+
+`/catalog/pricing` publishes the lot and `/pricing` renders every number from it, so **the site copy
+contains no figures at all.** That is what stops the two disagreeing: the copy used to promise "the
+first check is free" while the seed granted three a week, two descriptions of one product with
+nothing keeping them honest.
+
+Physical prices live in their own table rather than as more `plan_entitlements` rows, because
+`entitlements.active_plan()` reads that table to decide what an account may do — a row named after a
+hand-fulfilled service sitting in it is one typo from granting somebody a software plan.
 
 **The rules engine never predicts a numeric grade for any company.** It emits a severity flag and a
 templated reason, nothing more. That is a product and legal boundary, not a modelling limitation;
@@ -409,6 +438,18 @@ it, so the next attempt starts from where the last one stopped.
 
 Listed so a review reports something new rather than re-deriving these:
 
+- **Nothing takes payment, and no account can be on a paid plan.** `Subscription` is never
+  constructed anywhere, so `active_plan()` returns `free` for every user forever;
+  `stripe_subscription_id` is a placeholder column and nothing more. The pricing page therefore
+  offers "get in touch" rather than a purchase button — a checkout would be a dead end. Selling
+  works today by hand: take payment however, then top the account up with
+  `PATCH /users/{user_id}/quota`, which is a complete manual fulfilment path needing no code.
+- **The header overflows for signed-in users between roughly 768px and 1000px.** The authed desktop
+  nav measures 954px inside a 768px viewport, so the page scrolls sideways on a small laptop or a
+  landscape tablet. `NavBar` already computes `desktopLinks = publicLinks.slice(0, user ? 2 : 3)` to
+  relieve the pressure, so the link count is not what is left. The email address, which doubles as
+  the account link, is the most variable contributor. Missed by the mobile pass because that
+  measured 320, 375 and 1280 and never the `md` breakpoint with an authed nav.
 - **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
 - **The copy and the seeded plan describe different products.** The free tier *is* enforced — this
