@@ -132,6 +132,12 @@ export const en = {
     unknownCard: "Unknown card",
     foilLabel: "Foil",
     lowerConfidence: "lower confidence",
+    // Axis labels for the centering splits shown beside the score, so the
+    // number has something visible behind it. Kept to initials because they sit
+    // in a small card next to four figures; the methodology page spells out
+    // what is being measured.
+    leftRightShort: "L/R",
+    topBottomShort: "T/B",
     // Shown instead of a number when the pipeline declined to score a
     // category. Deliberately not "0" or "N/A" -- it should read as a decision
     // we made, not as data that went missing.
