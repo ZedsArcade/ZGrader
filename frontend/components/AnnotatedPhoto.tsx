@@ -98,7 +98,6 @@ export default function AnnotatedPhoto({
     onAdjusted: onAdjusted ?? (() => {}),
   });
   const canAdjust = centering !== null && onAdjusted !== undefined;
-  // Region keys whose detail (crop image + note) is folded away. Purely
   // cosmetic -- a collapsed panel stays in `visible`, so the numbered markers
   // on the photo and in the inspector are unaffected.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -154,6 +153,18 @@ export default function AnnotatedPhoto({
   // The region is remapped rather than hidden and redrawn: it carries its
   // severity, note, numbered marker and dismissal key, and all of that stays
   // correct. Only the geometry was stale.
+
+  // A flagged centering score draws its own frame as a region; an unflagged one
+  // draws nothing at all. That difference is why the border has to be rendered
+  // here for the second case.
+  const hasCenteringRegion = allRegions.some((r) => r.category === "centering");
+  // Detected widths with the client's adjustment laid over them -- the same
+  // composition the remapped region and the scorecard splits use, so all three
+  // describe the same border.
+  const appliedWidths =
+    centering && centeringApplied ? { ...centering.detected, ...centeringApplied } : centering?.detected ?? null;
+  // Region keys whose detail (crop image + note) is folded away. Purely
+
   const adjustedRegions: CategoryRegion[] =
     centeringApplied && raster
       ? allRegions.map((region) => {
@@ -356,6 +367,32 @@ export default function AnnotatedPhoto({
             enabled={adjust.enabled}
             handleLabels={t.centeringAdjust.handleLabel}
             onDrag={adjust.setWidth}
+          />
+        )}
+        {/* The measured border, drawn whenever the markings are on rather than
+            only while the adjuster is open.
+
+            Without this a well-centred card shows no border at all:
+            `regions._build_centering_regions` returns nothing once the score
+            clears its flag threshold, because regions exist to mark *findings*.
+            So the lines appeared during adjustment and vanished on closing it,
+            and an applied adjustment had nothing on the card to show for
+            itself. A synthetic fixture scoring 7.0 hid this -- it was below the
+            threshold, so it did have a region to move.
+
+            Suppressed when a centering region exists, which happens exactly
+            when the score is flagged: that region already draws this boundary
+            and carries the severity, note and dismissal with it. Drawing both
+            would double the frame. */}
+        {photoUrl && !adjusting && showMarkers && canAdjust && raster && !hasCenteringRegion && (
+          <CenteringLines
+            widths={appliedWidths ?? adjust.widths}
+            raster={raster}
+            // Read-only: no handles, so nothing here is draggable until the
+            // adjuster is opened deliberately.
+            enabled={false}
+            handleLabels={t.centeringAdjust.handleLabel}
+            onDrag={() => {}}
           />
         )}
         </div>
