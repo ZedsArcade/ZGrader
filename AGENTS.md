@@ -416,6 +416,32 @@ it, so the next attempt starts from where the last one stopped.
   new evidence; all three are measured and recorded above. The harness is
   `scripts/fixture_drift.py` plus repeat shots of one card: judge on **spread per card and how many
   photographs still produce a reading, together**, never the aggregate.
+
+  **A controlled capture experiment then separated two effects that had been confounded.** Cards 12
+  and 13 are the same card, same face, four shots each, differing only in how much of the frame the
+  card fills — 22–23 px/mm against 35–41. Filling the frame **halved** the instability, from 13.70pp
+  of worse-side spread and 2.74 points of score down to 7.00pp and 1.40. So capture quality is worth
+  real consistency and the guidance is worth giving.
+
+  It did not fix the thing that matters. At 35–41 px/mm the bottom edge still swings **1.04mm**
+  while left, right and top hold within **0.16–0.21mm** — five to six times steadier. The bottom-edge
+  concentration now holds across **four** cards (3, 6, 12, 13) and survives good capture, so it is
+  not a resolution artefact.
+
+  That points at a mechanism nobody has named: on a Japanese card the illustrator credit and card
+  number are printed hard against the bottom border, and text inside the border region crosses the
+  colour threshold *before* the true border-to-artwork step does. It is consistent with every failing
+  case so far and it is testable — mask the text band before searching, or search from the artwork
+  outward rather than from the cut inward. Untested.
+
+  **A width of `0.0` is a refusal, not a measurement.** `_fit_side` declines a side it cannot read
+  and the reading carries zero for it; `ratios_from_widths`'s `have_lr`/`have_tb` then excludes that
+  whole axis, which is correct. Any analysis that averages or spreads these widths **must drop the
+  zeros first** — counting them produced a fictional 2.68mm spread on an edge whose real readings
+  differ by 0.18mm, and it was believed for a few minutes. Note also that the higher-resolution shots
+  decline more often than they mis-measure, which is the safer failure but leaves fewer axes
+  contributing. Two of those eight shots lost the boundary entirely, so roughly a quarter of
+  well-intentioned photographs still fall back on geometry.
 - **`capture_worst_case` scores a flat 10.00 on surface.** Its noise generates plenty of raw
   variance, so it does not trip `surface.MIN_DETAIL_FRACTION` — the noise *masks* scratches rather
   than erasing them, which needs a noise measure that does not exist yet.
