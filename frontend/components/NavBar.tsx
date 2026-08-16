@@ -33,11 +33,9 @@ export default function NavBar() {
 
   // Public links, shown whether or not anyone is signed in. How many the
   // desktop bar can take depends on who is looking: signed in it also carries
-  // the dashboard, the email address, the quota chip and a logout button, and
-  // a third link tips it over at the md breakpoint -- measured at 768px, where
-  // the nav came to 771px inside the viewport and pushed the page sideways.
+  // the dashboard, the email address, the quota chip and a logout button.
   // Signed out there is room for one more, and pricing is worth the slot.
-  // The drawer carries all of them below md, and the footer always does.
+  // The drawer carries all of them below lg, and the footer always does.
   const publicLinks = [
     { href: "/about", label: t.nav.about },
     // Each brand has its own services page; the link follows whichever
@@ -69,17 +67,25 @@ export default function NavBar() {
             a phone. With it, the switch is the one element that gives, and it
             truncates instead (see BrandSwitch).
 
-            `md:min-w-max` puts that floor back once the desktop nav appears.
+            `lg:min-w-max` puts that floor back once the desktop nav appears.
             There the nav is the wide element, and letting the brand group
             shrink for it clipped the brand name by a few pixels at 1280px --
             a regression, not a fix. The overflow only ever happened on
-            mobile, so the shrink belongs there too. */}
-        <div className="flex min-w-0 items-center gap-3 md:min-w-max">
+            mobile, so the shrink belongs there too. Pinned to the same
+            breakpoint the nav uses, so the two cannot drift apart. */}
+        <div className="flex min-w-0 items-center gap-3 lg:min-w-max">
           <BrandLogo />
           <BrandSwitch />
         </div>
 
-        <nav className="hidden items-center gap-6 md:flex">
+        {/* `lg`, not `md`. The authed bar measures ~844px on its own, so with
+            the brand group and the padding it needs about 1114px before it
+            fits -- it was appearing at 768 and overflowing every viewport from
+            there to roughly 1150. Signed out it was subtler and Spanish-only:
+            "Nosotros"/"Iniciar sesión"/"Registrarse" are longer than their
+            English counterparts, which is why an English sweep at 768 passed.
+            Below lg the drawer carries everything, which it already did. */}
+        <nav className="hidden items-center gap-5 lg:flex">
           {desktopLinks.map(({ href, label }) => (
             <Link key={href} href={href} className={DESKTOP_LINK_CLASS}>
               {label}
@@ -97,11 +103,20 @@ export default function NavBar() {
                 </Link>
               )}
               {/* The address doubles as the account link -- the bar is already
-                  at its width budget and a separate "Account" item wouldn't fit. */}
+                  at its width budget and a separate "Account" item wouldn't fit.
+
+                  Bounded, because it is the one element here whose width nobody
+                  controls: a customer chooses their own address, and a long one
+                  measured 245px of an 844px bar. Truncating caps the single
+                  unbounded contributor rather than leaving the layout to hope.
+                  `title` keeps the whole address available on hover, and
+                  `aria-label` already names the destination for a screen
+                  reader, so the ellipsis costs nothing but pixels. */}
               <Link
                 href="/account"
                 aria-label={t.nav.account}
-                className="text-sm text-muted hover:text-accent link-accent-hover"
+                title={user.email}
+                className="max-w-[15ch] truncate text-sm text-muted hover:text-accent link-accent-hover"
               >
                 {user.email}
               </Link>
@@ -133,7 +148,7 @@ export default function NavBar() {
             difference between fitting and not -- three text controls plus a
             brand switch cannot share 375px. They moved into the drawer, which
             has room for them and is one tap away. */}
-        <div className="flex shrink-0 items-center gap-2 md:hidden">
+        <div className="flex shrink-0 items-center gap-2 lg:hidden">
           <ThemeSwitch />
           <NavDrawer>
             {(close) => (
