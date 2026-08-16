@@ -8,8 +8,7 @@ import StartCheckLink from "@/components/StartCheckLink";
 import OtherBrandServices from "@/components/OtherBrandServices";
 import { useTranslations } from "@/lib/i18n/context";
 import { useGradingCompanies, withCompanies } from "@/lib/use-grading-companies";
-import { bandLabel, useMoney, usePricing } from "@/lib/use-pricing";
-import type { PricedPlan } from "@/lib/api";
+import { bandLabel, useAllowanceLabel, useMoney, usePricing } from "@/lib/use-pricing";
 
 /** Copy for each plan, keyed by the slug the backend seeds. A plan the
  *  operator adds that is not in here still renders -- it falls back to its own
@@ -27,26 +26,15 @@ export default function PricingClient() {
   const companies = useGradingCompanies();
   const pricing = usePricing();
   const money = useMoney();
+  // Shared with the marketing CTAs, which quote the free tier's allowance --
+  // one formatter so the two pages cannot describe it differently.
+  const allowance = useAllowanceLabel();
 
   const billingLabel: Record<string, string> = {
     month: t.pricing.perMonth,
     year: t.pricing.perYear,
     once: t.pricing.oneOff,
   };
-
-  function allowance(plan: PricedPlan): string {
-    if (plan.submission_limit === null) return t.pricing.checksUnlimited;
-    // A one-off pack is bought, not renewed. Quoting its window would read as
-    // "25 checks every 365 days", which describes a subscription -- the exact
-    // opposite of what the pack is. The window exists only because the quota
-    // model has no persistent balance; see the seed comment.
-    if (plan.billing_period === "once") {
-      return t.pricing.checksOneOff.replace("{count}", String(plan.submission_limit));
-    }
-    return t.pricing.checksPerPeriod
-      .replace("{count}", String(plan.submission_limit))
-      .replace("{days}", String(plan.period_days));
-  }
 
   return (
     <>
