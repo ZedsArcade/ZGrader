@@ -61,6 +61,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const siteName = await getServerBusinessName();
+  // `?v=` carries the fingerprint of everything the image is drawn from, the
+  // same idiom `serviceImageUrl` uses for an operator-replaced banner. The
+  // server ignores the value and always renders current state; the parameter
+  // exists so an adjusted report is a *different URL*, which is the only lever
+  // that makes a crawler re-fetch rather than reuse what it cached.
+  const ogImage = `/api/public/reports/${encodeURIComponent(token)}/og.jpg?v=${encodeURIComponent(report.og_version)}`;
   // The submission's own language, not the viewer's: a crawler has no locale
   // switcher to read, and the customer who shared this chose that language when
   // they created the check.
@@ -81,13 +87,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       // Absolute via `metadataBase` in app/layout.tsx -- messaging apps refuse
       // a relative one. Served with no auth, because that is the only kind of
       // fetch a crawler makes.
-      images: [{ url: `/api/public/reports/${encodeURIComponent(token)}/og.png`, alt: title }],
+      //
+      // 1200x630 is what every unfurler expects; stating it saves the crawler a
+      // fetch to find out and stops some of them rendering a thumbnail.
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description: t.metaDescription,
-      images: [`/api/public/reports/${encodeURIComponent(token)}/og.png`],
+      images: [ogImage],
     },
   };
 }

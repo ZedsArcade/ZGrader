@@ -49,3 +49,13 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["zgrader*"]
+
+# Declared rather than left to `include-package-data`'s defaults. Without this
+# a wheel can carry every .py and none of the fonts, and the failure is silent
+# in the worst way: the link-preview renderer falls back to Pillow's bundled
+# face, which cannot draw accented characters, so Spanish previews come out as
+# boxes rather than erroring. The image happens to also COPY the source tree,
+# which would mask it -- exactly the kind of "works because of something
+# unrelated" that requirements.lock already taught this project.
+[tool.setuptools.package-data]
+zgrader = ["assets/fonts/*.ttf", "assets/fonts/LICENSE"]
