@@ -204,6 +204,22 @@ export const en = {
     deleteConfirm: "Delete permanently",
     deleteCancel: "Cancel",
     deleteFailed: "Couldn't delete the submission.",
+    // The share panel on the customer's own detail page.
+    shareTitle: "Share this report",
+    shareBody:
+      "Turn this on to get a link anyone can open, with no account and no sign-in. It shows the card, the scores and the findings -- never your email, your account or the submission code.",
+    shareUnavailable: "You can share a report once it's published.",
+    shareEnable: "Create a share link",
+    shareEnabling: "Creating…",
+    shareCopy: "Copy link",
+    shareCopied: "Copied",
+    // "Rotate" is jargon; what a customer wants to know is that the old link
+    // dies. Say that, since it is the destructive half of the control.
+    shareRotate: "Replace link",
+    shareRotateBody: "The old link stops working immediately. Anyone still holding it sees nothing.",
+    shareDisable: "Stop sharing",
+    shareDisabledNote: "Sharing is off. Nobody can open this report without signing in.",
+    shareFailed: "Couldn't change the share setting.",
   },
   breakout: {
     front: "Front",
@@ -727,6 +743,36 @@ export const en = {
 
     ctaTitle: "See it on your own card",
     ctaBody: "It's free to try, and you can dismiss anything you disagree with.",
+  },
+  // The shared report at /r/{token}. Most people who read this page have never
+  // seen the site and arrived from a link in a chat, so the framing has to
+  // stand on its own -- everywhere else on the site, the visitor has at least
+  // passed the landing page on the way in.
+  publicReport: {
+    metaDescription:
+      "An independent pre-grade estimate: centering, corners, edges and surface, measured from photographs.",
+    whatThisIsTitle: "What this is",
+    whatThisIsBody:
+      "An independent estimate of a card's condition, measured from photographs by automated image analysis. It is not a grade, and it does not predict one.",
+    notAffiliated:
+      "We are not a grading company and are not affiliated with {companies}, or with any other grading company.",
+    checkedOn: "Checked on",
+    scoresTitle: "What the analysis found",
+    surfaceCaveat:
+      "Surface is the least reliable of the four. These photographs are lit evenly rather than at an angle, so fine scratches can be missed and print texture is occasionally flagged as one.",
+    adjustedTitle: "Adjusted by the card's owner",
+    adjustedBody:
+      "{count} auto-detected finding(s) were dismissed by whoever ran this check, and the scores reflect that rather than the unaltered analysis.",
+    methodologyLink: "How the analysis works",
+    ctaTitle: "Check your own card",
+    ctaBody: "Upload a photo and get the same breakdown back. It's free to try.",
+    ctaButton: "Start a free check",
+    notFoundTitle: "This link isn't available",
+    // Says nothing about which of the three reasons applies. A page that
+    // distinguished "never existed" from "was revoked" would hand somebody
+    // guessing tokens the one bit the 404 exists to withhold.
+    notFoundBody:
+      "It may have been turned off by the person who shared it, replaced with a new link, or never have existed. Ask them for a current one.",
   },
   contact: {
     title: "Get in touch",

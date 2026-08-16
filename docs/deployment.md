@@ -89,6 +89,47 @@ outside the stack.
 So: don't port-forward 8080, and if you expose it on the LAN, keep that to the
 LAN.
 
+## Caching shared reports at the edge
+
+Shared reports (`/r/{token}`) are the one part of the site a stranger can reach
+in numbers, and the origin is a home server running OpenCV. The application
+already does its half:
+
+- The page is an ISR route and is served
+  `Cache-Control: s-maxage=60, stale-while-revalidate=...`. Verify with
+  `curl -sD - -o /dev/null https://<host>/r/<token> | grep -i cache-control` --
+  if it says `private, no-cache, no-store` then the route has become dynamic and
+  the caching is gone. That is a regression worth catching, not a tuning detail.
+- The images under `/api/public/reports/{token}/...` end in `.png` and carry
+  `Cache-Control: public, max-age=3600`.
+
+**Cloudflare will cache the images with no configuration and the HTML with
+none.** Its default cache keys off the file extension, so the PNGs are covered
+and the page is not. Without a Cache Rule matching `/r/*` with "Cache
+Everything", every view of a shared link reaches the origin -- the load this was
+designed to avoid. Add the rule; the origin's own `s-maxage` then governs how
+long it is held.
+
+Two things the rule must not do, both from
+`next/dist/docs/01-app/02-guides/cdn-caching.md`:
+
+- **Do not strip the `rsc` request header**, and keep the `_rsc` search
+  parameter in the cache key. They distinguish an HTML response from a React
+  Server Components payload; serving one where the other is expected breaks
+  client-side navigation.
+- **Do not cache `/api/*` beyond the public report paths.** Everything else
+  under it is per-account and authenticated.
+
+Revocation interacts with this. Rotating a share token kills the link at the
+origin immediately, but a copy already at the edge is served until `s-maxage`
+expires -- about a minute, which is the trade the 60s window was chosen for.
+Next also emits a very long `stale-while-revalidate`, so in the pathological
+case where the origin is unreachable and revalidation keeps failing, an edge
+could serve a revoked page for longer than that. If a hard bound matters more
+than the caching does, set an explicit `Cache-Control` for `/r/:path*` in
+`frontend/next.config.ts` rather than reaching for the global `expireTime`,
+which would also shorten the marketing pages' one-hour window.
+
 ## Backups
 
 The `backup` service dumps the database and archives the reports and scans

@@ -114,7 +114,14 @@ is **unconditional** — doing it only when an adjustment exists leaves the *cle
 the adjusted lines forever, stale in the direction nobody thinks to check. Deriving from current
 state each time is idempotent and needs no memory of what was drawn last.
 
-Before adding another client-editable measurement, ask what is drawn from it.
+**Every new surface that draws the frame has to do the remap too, and the public share page was the
+third.** `components/PublicReport.tsx` carries the same arithmetic as `AnnotatedPhoto`, keyed off
+the loaded image's natural dimensions, because the first version of it drew `bbox_norm` straight
+from the payload — detection's frame beside the customer's adjusted score, on the one page that gets
+shown to somebody deciding whether to buy the card.
+
+Before adding another client-editable measurement, ask what is drawn from it. Before adding another
+view of an existing one, ask whether it remaps.
 
 **Emails are stored lowercased behind a unique index on `lower(email)`.** Every user lookup must
 compare with `func.lower(...)` — see `_find_by_email` in `api/routers/auth.py`. A single
@@ -181,6 +188,38 @@ nothing keeping them honest.
 Physical prices live in their own table rather than as more `plan_entitlements` rows, because
 `entitlements.active_plan()` reads that table to decide what an account may do — a row named after a
 hand-fulfilled service sitting in it is one typo from granting somebody a software plan.
+
+**`submission_code` is operator-facing and must never appear in a public URL.** It comes from
+`submission_code_seq`, so codes are sequential and guessable — a public route keyed on one would let
+anybody walk the sequence and read every customer's report. Sharing runs on `submissions.share_token`
+instead: `secrets.token_urlsafe(16)`, NULL until a customer opts in, unique behind a partial index,
+and rotating it revokes whatever link is already out there. The code still names the directory on
+disk, so `public_reports.py` resolves token → code server-side and the code goes no further.
+
+Everything on that route answers **404, never 403** — including "the report is no longer published",
+which `sharing.is_publicly_visible` re-checks on *every* request rather than only when sharing was
+switched on. A 403 confirms something is there, which is the one bit somebody probing tokens is
+missing. Re-checking each time also means a re-run that returns a submission to `draft_ready` pulls
+the live page down by itself, with no second flag to fall out of step with the report's own status.
+
+**The public serializer is explicit because leaks happen by addition.** `schemas/public_report.py`
+has no `from_attributes` and is never handed an ORM row; `build_public_report` maps field by field.
+`SubmissionDetail` does the opposite, correctly — it is the account's view of its own submission —
+and that is exactly why it cannot be reused: under `from_attributes` the next column added to
+`Submission` is on the public page the moment it is declared, with nobody deciding that.
+
+The same trap sits one level down and is easier to miss. `AnalysisResultOut.measurements` is a bare
+`dict` straight out of JSONB, so anything the pipeline starts writing into it would be published
+too; the public model projects it onto a closed set of keys — the ones the page actually renders.
+`tests/test_public_share.py::test_public_payload_key_allowlist` compares the whole response against
+a literal set of key paths, so it fails on any **new** field rather than on a list of things somebody
+already worried about. When it breaks, answer "should a stranger see this?" and add the key
+deliberately.
+
+Sharing is not publishing: the page is `noindex, nofollow` and `/r/` is disallowed in `robots.txt`.
+A customer pasting a link into a Discord did not consent to being in Google. And the public page
+must never link the PDF — `report.html.jinja` prints the submission code and `client_email` on every
+report, which is both of the things this design exists to keep off a public URL.
 
 **The rules engine never predicts a numeric grade for any company.** It emits a severity flag and a
 templated reason, nothing more. That is a product and legal boundary, not a modelling limitation;
@@ -470,12 +509,20 @@ Listed so a review reports something new rather than re-deriving these:
   offers "get in touch" rather than a purchase button — a checkout would be a dead end. Selling
   works today by hand: take payment however, then top the account up with
   `PATCH /users/{user_id}/quota`, which is a complete manual fulfilment path needing no code.
-- **The header overflows for signed-in users between roughly 768px and 1000px.** The authed desktop
-  nav measures 954px inside a 768px viewport, so the page scrolls sideways on a small laptop or a
+- **The header overflows at 768px, and not only for signed-in users.** The authed desktop nav
+  measures 954px inside a 768px viewport, so the page scrolls sideways on a small laptop or a
   landscape tablet. `NavBar` already computes `desktopLinks = publicLinks.slice(0, user ? 2 : 3)` to
   relieve the pressure, so the link count is not what is left. The email address, which doubles as
   the account link, is the most variable contributor. Missed by the mobile pass because that
   measured 320, 375 and 1280 and never the `md` breakpoint with an authed nav.
+
+  It is **also broken signed out in Spanish**, which this entry used to imply it was not: the
+  signed-out nav measures 527px and reaches x=777 in a 768px viewport, for `document.body.scrollWidth`
+  of 777 against 768. Spanish is what tips it — "Nosotros", "Iniciar sesión" and "Registrarse" are
+  materially longer than their English counterparts — so an English-only sweep at 768 passes. It is
+  the whole site, not one page; reproduce on `/how-it-works` as readily as anywhere else. Checking
+  both languages at 768 is what found it, which is the case for the four-width, two-language rule in
+  `frontend/AGENTS.md` being followed rather than sampled.
 - **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
 - **Nobody ever has to pay on today's settings.** The free tier *is* enforced and it *is* described

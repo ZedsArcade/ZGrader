@@ -6,6 +6,7 @@ import { Card } from "@heroui/react";
 import Button from "@/components/Button";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RequireAuth from "@/components/RequireAuth";
+import SharePanel from "@/components/SharePanel";
 import SubmissionOverview from "@/components/SubmissionOverview";
 import Skeleton from "@/components/Skeleton";
 import ErrorState from "@/components/ErrorState";
@@ -154,6 +155,11 @@ function Detail({ code }: { code: string }) {
             locale={locale}
             onToggleRegion={handleToggleRegion}
             onAdjusted={setSubmission}
+          />
+          <SharePanel
+            code={code}
+            token={token!}
+            publishable={submission.status === "published"}
           />
           {UPLOAD_ALLOWED_STATUSES.has(submission.status) && !submission.confirmed_sides.includes("back") && (
             <UploadStep

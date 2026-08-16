@@ -188,6 +188,20 @@ export const es: Dictionary = {
     deleteConfirm: "Eliminar permanentemente",
     deleteCancel: "Cancelar",
     deleteFailed: "No se pudo eliminar el envío.",
+    shareTitle: "Compartir este informe",
+    shareBody:
+      "Actívelo para obtener un enlace que cualquiera puede abrir, sin cuenta y sin iniciar sesión. Muestra la carta, las puntuaciones y los hallazgos; nunca su correo, su cuenta ni el código del envío.",
+    shareUnavailable: "Podrá compartir el informe una vez publicado.",
+    shareEnable: "Crear enlace para compartir",
+    shareEnabling: "Creando…",
+    shareCopy: "Copiar enlace",
+    shareCopied: "Copiado",
+    shareRotate: "Reemplazar enlace",
+    shareRotateBody:
+      "El enlace anterior deja de funcionar de inmediato. Quien lo tenga no verá nada.",
+    shareDisable: "Dejar de compartir",
+    shareDisabledNote: "No se está compartiendo. Nadie puede abrir este informe sin iniciar sesión.",
+    shareFailed: "No se pudo cambiar la configuración de compartir.",
   },
   breakout: {
     front: "Frente",
@@ -689,6 +703,29 @@ export const es: Dictionary = {
 
     ctaTitle: "Véalo en su propia carta",
     ctaBody: "Probarlo es gratuito y puede descartar lo que no le convenza.",
+  },
+  publicReport: {
+    metaDescription:
+      "Una estimación independiente de pre-calificación: centrado, esquinas, bordes y superficie, medidos a partir de fotografías.",
+    whatThisIsTitle: "Qué es esto",
+    whatThisIsBody:
+      "Una estimación independiente del estado de una carta, medida a partir de fotografías mediante análisis de imagen automatizado. No es una calificación ni predice ninguna.",
+    notAffiliated:
+      "No somos una compañía de calificación y no estamos afiliados a {companies} ni a ninguna otra compañía de calificación.",
+    checkedOn: "Revisada el",
+    scoresTitle: "Lo que encontró el análisis",
+    surfaceCaveat:
+      "La superficie es la menos fiable de las cuatro. Estas fotografías están iluminadas de forma uniforme y no en ángulo, así que pueden pasarse por alto rayones finos y a veces se marca la textura de impresión como uno.",
+    adjustedTitle: "Ajustado por el propietario de la carta",
+    adjustedBody:
+      "Quien realizó esta revisión descartó {count} hallazgo(s) detectado(s) automáticamente, y las puntuaciones reflejan eso en lugar del análisis sin alterar.",
+    methodologyLink: "Cómo funciona el análisis",
+    ctaTitle: "Revise su propia carta",
+    ctaBody: "Suba una foto y reciba el mismo desglose. Probarlo es gratuito.",
+    ctaButton: "Empezar un análisis gratis",
+    notFoundTitle: "Este enlace no está disponible",
+    notFoundBody:
+      "Puede que quien lo compartió lo haya desactivado, lo haya reemplazado por uno nuevo, o que nunca haya existido. Pídale un enlace actualizado.",
   },
   contact: {
     title: "Contacto",

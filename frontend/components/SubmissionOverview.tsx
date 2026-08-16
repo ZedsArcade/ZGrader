@@ -2,31 +2,11 @@ import { Card, Chip, Table } from "@heroui/react";
 import type { Assessment, Comparison, ScanSide, SubmissionDetail } from "@/lib/api";
 import { centeringHandles, ratiosFromWidths } from "@/lib/use-centering-adjust";
 import { getDictionary, type Locale } from "@/lib/i18n/context";
+import { CATEGORY_ORDER, SEVERITY_COLOR, gradeTierClass } from "@/lib/grade-display";
 import AnnotatedPhoto from "./AnnotatedPhoto";
 import StatusBadge from "./StatusBadge";
 
 const SIDES: ScanSide[] = ["front", "back"];
-
-const CATEGORY_ORDER = ["centering", "corners", "edges", "surface"] as const;
-
-const SEVERITY_COLOR: Record<string, "success" | "warning" | "danger"> = {
-  none: "success",
-  minor: "warning",
-  major: "danger",
-};
-
-// Thresholds are a judgment call: the backend has no discrete "grade"
-// concept, only a continuous raw_score per category, so these map that
-// score onto the synthwave grade-tier palette (--grade-gem/mint/warn).
-// Compared against the same one-decimal rounding used for display (not the
-// raw float), so a score that *displays* as "9.5" can't fall on the wrong
-// side of the 9.5 threshold just from floating-point noise below that digit.
-function gradeTierClass(score: number): string {
-  const rounded = Math.round(score * 10) / 10;
-  if (rounded >= 9.9) return "grade-gem";
-  if (rounded >= 9.5) return "grade-mint";
-  return "grade-warn";
-}
 
 export default function SubmissionOverview({
   submission,

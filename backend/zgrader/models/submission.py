@@ -1,7 +1,8 @@
+import datetime
 import enum
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Sequence, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Sequence, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -104,6 +105,41 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=SubmissionLanguage.en,
         server_default=SubmissionLanguage.en.value,
         nullable=False,
+    )
+
+    # The secret behind a public share link. NULL == not shared, which is the
+    # default and the only state a submission reaches on its own.
+    #
+    # This exists because `submission_code` cannot be it. Codes come from
+    # `submission_code_seq` and are therefore sequential and guessable, so a
+    # public URL carrying one would let anyone walk the sequence and read every
+    # customer's report. The code stays operator-facing -- support, invoices,
+    # ops -- and never appears in a public URL; this does.
+    #
+    # `secrets.token_urlsafe(16)` gives 128 bits in 22 characters. The column is
+    # wider than that so the entropy can be raised later without a migration.
+    share_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    share_enabled_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        # Partial, because most submissions are never shared and there is no
+        # reason to carry them in the index that resolves a public URL. Postgres
+        # already allows many NULLs under a plain unique index, so this is about
+        # size rather than correctness.
+        #
+        # Declared here rather than as raw SQL in the migration on purpose:
+        # `create_all` builds it, so the test database has the same uniqueness
+        # constraint production does. `ix_users_email_lower` is the counterexample
+        # -- it lives only in a migration, so a whole class of constraint
+        # violation cannot reproduce under pytest.
+        Index(
+            "ix_submissions_share_token",
+            "share_token",
+            unique=True,
+            postgresql_where=text("share_token IS NOT NULL"),
+        ),
     )
 
     user: Mapped["User"] = relationship(back_populates="submissions", foreign_keys=[user_id])  # noqa: F821

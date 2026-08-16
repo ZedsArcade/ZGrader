@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from zgrader import entitlements, images
+from zgrader import entitlements, images, sharing
 from zgrader.analysis import assessment, pipeline, preprocessing, recompute, scale
 from zgrader.api.deps import get_current_user, require_operator, require_verified_user
 from zgrader.config import config
@@ -32,6 +32,7 @@ from zgrader.reports import builder
 from zgrader.scan_ingest import read_scan_metadata, sha256_file
 from zgrader.storage import purge_submission_files
 from zgrader.schemas.admin import AutoPublishUpdate
+from zgrader.schemas.public_report import ShareStateOut
 from zgrader.schemas.submission import (
     CenteringAdjustIn,
     CropCheckOut,
@@ -546,6 +547,113 @@ def download_report(code: str, user: User = Depends(get_current_user), db: Sessi
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Report not yet published")
 
     return FileResponse(report.pdf_path, media_type="application/pdf", filename=f"{code}.pdf")
+
+
+@router.get("/{code}/share", response_model=ShareStateOut)
+def get_share(
+    code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> ShareStateOut:
+    """Whether this submission is shared, and the link if it is.
+
+    Its own endpoint rather than a field on SubmissionDetail, for two reasons.
+    The model is returned straight from the ORM under `from_attributes`, so a
+    derived field would need either a property on the model (which would import
+    the sharing module, which imports the model) or a second copy of the URL
+    building. And keeping the token off the detail payload means it is fetched
+    only by the screen that shows it, rather than riding along on every read of
+    every submission.
+    """
+    return sharing.share_state(_get_owned_submission(code, user, db))
+
+
+@router.post("/{code}/share", response_model=ShareStateOut)
+def enable_share(
+    code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> ShareStateOut:
+    """Turn on the public link for this submission.
+
+    Idempotent: an already-shared submission gets its existing token back rather
+    than a new one. Rotating is a separate, explicit call, because a customer
+    pressing "share" twice must not silently kill the link they pasted somewhere
+    a minute ago.
+
+    Refused unless the latest report is published -- the same bar
+    `download_report` sets for the customer's own download. A link handed to a
+    stranger must not be able to show numbers that have not been reviewed, nor
+    numbers that change under the same URL when they are.
+    """
+    submission = _get_owned_submission(code, user, db)
+    if not sharing.is_publicly_visible(submission):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "This report is not published yet, so it cannot be shared"
+        )
+    if submission.share_token is None:
+        submission.share_token = sharing.new_token()
+        submission.share_enabled_at = datetime.datetime.now(datetime.timezone.utc)
+        db.add(
+            AuditLog(
+                submission_id=submission.id,
+                user_id=user.id,
+                # The token is deliberately absent from `detail`. The audit log
+                # is readable in the admin panel, and a secret recorded there is
+                # the same secret in a second place -- one that outlives the
+                # rotation meant to kill it.
+                action="share_enabled",
+                detail={},
+            )
+        )
+        db.commit()
+        db.refresh(submission)
+    return sharing.share_state(submission)
+
+
+@router.post("/{code}/share/rotate", response_model=ShareStateOut)
+def rotate_share(
+    code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> ShareStateOut:
+    """Issue a new token, killing every link already out there.
+
+    This is the revoke-and-reshare path: a customer who posted a link somewhere
+    they regret gets a working report back at a different address.
+    """
+    submission = _get_owned_submission(code, user, db)
+    if submission.share_token is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Sharing is not enabled for this submission")
+    submission.share_token = sharing.new_token()
+    submission.share_enabled_at = datetime.datetime.now(datetime.timezone.utc)
+    db.add(
+        AuditLog(
+            submission_id=submission.id,
+            user_id=user.id,
+            action="share_rotated",
+            detail={},
+        )
+    )
+    db.commit()
+    db.refresh(submission)
+    return sharing.share_state(submission)
+
+
+@router.delete("/{code}/share", status_code=status.HTTP_204_NO_CONTENT)
+def disable_share(
+    code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> None:
+    """Stop sharing. Idempotent -- turning off something already off is a 204,
+    not an error, so a client that lost track of the state can always get to
+    "not shared" in one call."""
+    submission = _get_owned_submission(code, user, db)
+    if submission.share_token is not None:
+        submission.share_token = None
+        submission.share_enabled_at = None
+        db.add(
+            AuditLog(
+                submission_id=submission.id,
+                user_id=user.id,
+                action="share_disabled",
+                detail={},
+            )
+        )
+        db.commit()
 
 
 @router.post("/{code}/approve", response_model=SubmissionDetail)
