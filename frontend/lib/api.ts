@@ -122,6 +122,65 @@ export interface SubmissionDetail {
   company_comparisons: Comparison[];
 }
 
+/** Whether a submission has a public link, and what it is.
+ *
+ *  Its own request rather than a field on SubmissionDetail: the token is a
+ *  secret, and it has no business riding along on every read of every
+ *  submission. Only the screen that shows the link asks for it. */
+export interface ShareState {
+  enabled: boolean;
+  /** The full https://.../r/{token} address, built server-side from the
+   *  configured public origin so what lands in a clipboard is reachable. */
+  url: string | null;
+  enabled_at: string | null;
+}
+
+/** What an unauthenticated visitor to /r/{token} is served.
+ *
+ *  Intentionally NOT SubmissionDetail with fields removed. The backend builds
+ *  this field by field (backend/zgrader/schemas/public_report.py) so a new
+ *  column cannot reach a public page by being declared; this type is the
+ *  frontend half of that contract and should be kept just as literal. */
+export interface PublicReport {
+  card: Card | null;
+  /** The language the submission was created in. Used for the server-rendered
+   *  link-preview metadata only -- a crawler has no locale switcher. */
+  language: "en" | "es";
+  created_at: string;
+  client_adjusted: boolean;
+  dismissed_count: number;
+  sides: ScanSide[];
+  results: PublicAnalysisResult[];
+  comparisons: Comparison[];
+  centering_adjustments: Partial<Record<ScanSide, CenteringWidths>>;
+  /** Only the companies with an active tolerance rule, so the disclaimer on a
+   *  public page can never name one the operator switched off. */
+  grading_companies: string[];
+}
+
+export interface PublicAnalysisResult {
+  category: string;
+  side: string;
+  /** Null = could not be measured. Render "not measurable", never a zero. */
+  raw_score: number | null;
+  flags: { lower_confidence: boolean; reason: string | null };
+  measurements: PublicMeasurements;
+}
+
+/** The closed projection of the stored measurements blob -- see the backend
+ *  module for why this is a fixed set rather than a pass-through dict. */
+export interface PublicMeasurements {
+  regions: Region[];
+  assessment: Assessment | null;
+  original_raw_score: number | null;
+  ai_observations: { note: string }[];
+  px_per_mm: number | null;
+  left_px: number | null;
+  right_px: number | null;
+  top_px: number | null;
+  bottom_px: number | null;
+}
+
 // A [x, y] pixel point in a scan's own raw-image coordinate space --
 // ScanImage.crop_points on the backend.
 export type CropPoint = [number, number];
@@ -456,6 +515,39 @@ export async function getBranding(): Promise<Branding> {
  *  on the shopfront, not anything per-user. */
 export async function fetchPricing(): Promise<Pricing> {
   return request("/catalog/pricing");
+}
+
+// --- sharing -----------------------------------------------------------
+//
+// Enable is idempotent and rotate is not, deliberately: pressing "share" twice
+// must not kill a link already pasted somewhere, whereas rotating exists
+// precisely to kill it.
+
+export async function getShareState(token: string, code: string): Promise<ShareState> {
+  return request(`/submissions/${code}/share`, { headers: authHeaders(token) });
+}
+
+export async function enableShare(token: string, code: string): Promise<ShareState> {
+  return request(`/submissions/${code}/share`, { method: "POST", headers: authHeaders(token) });
+}
+
+export async function rotateShare(token: string, code: string): Promise<ShareState> {
+  return request(`/submissions/${code}/share/rotate`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+}
+
+export async function disableShare(token: string, code: string): Promise<void> {
+  await request(`/submissions/${code}/share`, { method: "DELETE", headers: authHeaders(token) });
+}
+
+/** Unlike every other card image in this file, these need no Bearer token: the
+ *  share token in the path is the credential. That is what lets them go
+ *  straight into an <img src> and be cached at the edge -- the whole point,
+ *  given the origin is a home server running OpenCV. */
+export function publicImageUrl(shareToken: string, side: string, kind: string): string {
+  return `${API_BASE}/public/reports/${shareToken}/images/${side}_${kind}.png`;
 }
 
 /** Slugs identifying the six service tiers on /services. Must stay in step

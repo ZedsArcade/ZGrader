@@ -3,7 +3,7 @@ import logging
 
 from fastapi import FastAPI
 
-from zgrader.api.routers import admin, auth, catalog, contact, submissions
+from zgrader.api.routers import admin, auth, catalog, contact, public_reports, submissions
 from zgrader.config import config
 from zgrader.db import SessionLocal
 from zgrader.seed import seed_all
@@ -52,6 +52,8 @@ app.include_router(submissions.router)
 app.include_router(admin.router)
 app.include_router(catalog.router)
 app.include_router(contact.router)
+# Unauthenticated by design -- the share token in the path is the credential.
+app.include_router(public_reports.router)
 
 
 @app.get("/health")
