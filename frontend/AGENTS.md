@@ -10,11 +10,22 @@ Both were established by measuring, after a pass that tested only what looked li
 than eyeball: the browser can answer both questions exactly.
 
 **No page scrolls horizontally.** Check `document.body.scrollWidth === window.innerWidth` at **320,
-375, 768 and 1280**, signed in *and* signed out, in **both languages**. Every one of those has caught
-something the others did not, and **768 is still broken** — signed in, and signed out in Spanish
-too, where the longer nav labels tip it to 777 (see the root `AGENTS.md`). Both halves of the rule
-earned their place on that one width: the first sweep tested 320, 375 and 1280 and missed it, and a
-later English-only pass at 768 missed the signed-out case for the same reason.
+375, 768, 1024 and 1280**, signed in *and* signed out, in **both languages**. Every one of those has
+caught something the others did not, and 768 caught the worst of it — the desktop nav used to appear
+at `md` while the authed bar needed ~1114px to fit, so 768 through ~1150 scrolled sideways.
+
+**1024 is in the list because of that fix.** Moving the nav to `lg` makes 1024 the first width where
+it renders, so it is now the tightest case rather than a comfortable one; a sweep that skips it would
+not notice the day it stops fitting again.
+
+Both halves of the rule earned their place on that one bug: a 320/375/1280 sweep never looked at 768,
+and an English-only pass there still missed the signed-out case, which only overflows in Spanish
+because "Nosotros", "Iniciar sesión" and "Registrarse" are longer than their English counterparts.
+
+The lasting lesson is about *what* to fix. The nav had two independent causes and only one was a
+breakpoint; the other was the email address, whose width nobody controls because a customer chooses
+their own. Capping it (`max-w-[15ch] truncate`) took the authed bar from 844px to 737px. Look for the
+unbounded contributor before tuning gaps.
 
 The header is the usual culprit, and the fix has a shape worth knowing. Both brand names come from
 `Settings`, so the brand switch's width is operator-controlled and unbounded; `min-w-0` plus

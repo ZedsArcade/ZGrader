@@ -539,22 +539,13 @@ Listed so a review reports something new rather than re-deriving these:
   offers "get in touch" rather than a purchase button — a checkout would be a dead end. Selling
   works today by hand: take payment however, then top the account up with
   `PATCH /users/{user_id}/quota`, which is a complete manual fulfilment path needing no code.
-- **The header overflows at 768px, and not only for signed-in users.** The authed desktop nav
-  measures 954px inside a 768px viewport, so the page scrolls sideways on a small laptop or a
-  landscape tablet. `NavBar` already computes `desktopLinks = publicLinks.slice(0, user ? 2 : 3)` to
-  relieve the pressure, so the link count is not what is left. The email address, which doubles as
-  the account link, is the most variable contributor. Missed by the mobile pass because that
-  measured 320, 375 and 1280 and never the `md` breakpoint with an authed nav.
-
-  It is **also broken signed out in Spanish**, which this entry used to imply it was not: the
-  signed-out nav measures 527px and reaches x=777 in a 768px viewport, for `document.body.scrollWidth`
-  of 777 against 768. Spanish is what tips it — "Nosotros", "Iniciar sesión" and "Registrarse" are
-  materially longer than their English counterparts — so an English-only sweep at 768 passes. It is
-  the whole site, not one page; reproduce on `/how-it-works` as readily as anywhere else. Checking
-  both languages at 768 is what found it, which is the case for the four-width, two-language rule in
-  `frontend/AGENTS.md` being followed rather than sampled.
 - **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
+- **The desktop nav links are 20px tall**, under the 24px WCAG 2.5.8 floor the site otherwise holds
+  itself to. `DESKTOP_LINK_CLASS` carries no padding, so the height is `text-sm`'s line box.
+  `frontend/AGENTS.md` already documents the remedy — `-my-2 py-2`, negative margins absorbing the
+  padding so no layout moves — it has simply never been applied here. Measured signed out at 1280:
+  five links at 20px.
 - **Nobody ever has to pay on today's settings.** The free tier *is* enforced and it *is* described
   accurately — those were two earlier versions of this entry, and both are now settled.
   `submissions.py` refuses on `quota.can_submit` and consumes on create, the rules live in the
@@ -569,9 +560,24 @@ Listed so a review reports something new rather than re-deriving these:
   every cap renews. "N checks per account, ever" needs a nullable `period_days` meaning *never
   resets*, or an explicit lifetime cap — a very large `period_days` works arithmetically but shows
   the customer a countdown measured in decades.
-Three entries left this list rather than being forgotten, and the reason each was here is still
+Four entries left this list rather than being forgotten, and the reason each was here is still
 worth knowing: outbound mail now goes through a real relay (the operator's send-test-email action
 in the admin panel is what proves it, and it reports what SMTP actually did); Postgres is backed up
 nightly by `infra/backup/`; and `submission_code` comes from `submission_code_seq` rather than
 `COUNT(*) + 1`, so a code is issued once and never reissued — see the comment on
 `models/submission.py`, which keeps the full reasoning.
+
+The fourth was **the header overflowing at 768px**, and it is worth knowing why it lasted. The
+desktop nav appeared at `md` but the authed bar needs about 1114px before it fits, so every viewport
+from 768 to roughly 1150 scrolled sideways — measured at **+379px** signed in at 768 and **+123px**
+at 1024, with a long address. Signed out it was subtler and Spanish-only, +10px, because "Nosotros",
+"Iniciar sesión" and "Registrarse" are longer than their English counterparts; an English sweep at
+768 passed and a 320/375/1280 sweep never looked. Two separate causes, one of them invisible to
+half the test matrix.
+
+Both are now closed structurally rather than by tuning. The nav appears at `lg`, which removes the
+whole 768–1023 band from the question instead of trying to fit inside it, and the email address —
+the one element whose width nobody controls, since a customer picks their own — is capped at
+`max-w-[15ch] truncate`. That mattered more than it looks: it took the authed bar from 844px to
+737px on its own. Bounding an unbounded contributor is the fix that keeps working when the next
+long address arrives.
