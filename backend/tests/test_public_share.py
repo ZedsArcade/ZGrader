@@ -261,6 +261,10 @@ def test_public_payload_key_allowlist(shared):
         # top level
         "card", "language", "created_at", "client_adjusted", "dismissed_count",
         "sides", "results", "comparisons", "centering_adjustments", "grading_companies",
+        # Added deliberately: a hash of what the link-preview image is drawn
+        # from, so an adjusted report gets a different og:image URL. Derived
+        # from what the page already shows, so it discloses nothing new.
+        "og_version",
         # card
         "game", "card_name", "set_name", "card_number", "foil",
         # results

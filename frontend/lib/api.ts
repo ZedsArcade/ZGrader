@@ -156,6 +156,10 @@ export interface PublicReport {
   /** Only the companies with an active tolerance rule, so the disclaimer on a
    *  public page can never name one the operator switched off. */
   grading_companies: string[];
+  /** Hash of everything the link-preview image is drawn from. Appended to the
+   *  og:image URL as ?v= so a re-unfurl after an adjustment asks for a
+   *  different URL and cannot be served a picture of the old numbers. */
+  og_version: string;
 }
 
 export interface PublicAnalysisResult {

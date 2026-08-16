@@ -27,6 +27,8 @@ import datetime
 
 from pydantic import BaseModel
 
+from zgrader.analysis import og_image
+
 # The measurement keys the public page actually reads. Each one is here because
 # something renders it; see the frontend reference beside it. Anything else in
 # `measurements` is dropped.
@@ -144,6 +146,12 @@ class PublicReportOut(BaseModel):
     # line on a public page can never name one the operator has switched off.
     # Same source as the rest of the site: catalog._active_grading_companies.
     grading_companies: list[str] = []
+    # A hash of everything the link-preview image is drawn from, appended to its
+    # URL as ?v=. Changing state changes this, so a crawler that re-unfurls
+    # after an adjustment asks for a different URL and cannot be handed a
+    # cached picture of the old numbers. Not a secret: it is derived from what
+    # the page already shows.
+    og_version: str = ""
 
 
 class ShareStateOut(BaseModel):
@@ -262,4 +270,5 @@ def build_public_report(
         ],
         centering_adjustments=submission.centering_adjustments or {},
         grading_companies=grading_companies,
+        og_version=og_image.fingerprint(submission),
     )

@@ -123,6 +123,23 @@ shown to somebody deciding whether to buy the card.
 Before adding another client-editable measurement, ask what is drawn from it. Before adding another
 view of an existing one, ask whether it remaps.
 
+**The link-preview image gets the same guarantee from the other direction: its cache key is its
+state.** `analysis/og_image.py` renders `/r/{token}`'s `og:image` on demand and caches it as
+`og_{fingerprint}.jpg`, where the fingerprint hashes every input the picture is drawn from — the four
+combined scores, `client_adjusted`, `dismissed_regions`, `centering_adjustments`, card identity,
+language. A change makes the old file *unreachable* rather than stale, and the `?v=` on the URL means
+a crawler re-unfurling asks for a different address.
+
+That is deliberately not the unconditional-redraw shape, because nothing calls it at a natural
+moment: an unfurl arrives whenever a stranger pastes a link. Deriving the key from state means **no
+mutation path has to remember to regenerate**, which matters here more than usual — a path added
+later inherits correctness instead of being a fifth thing that forgot. The test that pins it is that
+*clearing* an adjustment restores the original fingerprint; the forward direction is easy and the
+reverse is where the equivalent bug lived.
+
+The image draws the plain `front_base.png`, never an annotated one, so it is not a fifth surface
+needing the remap arithmetic.
+
 **Emails are stored lowercased behind a unique index on `lower(email)`.** Every user lookup must
 compare with `func.lower(...)` — see `_find_by_email` in `api/routers/auth.py`. A single
 case-sensitive `==` left a production deployment with no operator account, silently, because the
@@ -225,6 +242,19 @@ report, which is both of the things this design exists to keep off a public URL.
 templated reason, nothing more. That is a product and legal boundary, not a modelling limitation;
 the same applies to the "not affiliated with" disclaimers, which are generated from the *enabled*
 company list so the copy can't name a company the operator switched off.
+
+**A font that is merely present is not a font that can draw the text.** The link-preview image is the
+only thing here that rasterises type, and a missing glyph is not an error — it is a box, silently, in
+the right place and the right size. Pillow's bundled fallback face renders **á, ñ and the em dash as
+tofu**, so the Spanish preview came out as boxes while a test asserting the image was 1200×630 JPEG
+passed happily. `og_image._renders_glyphs` now compares each required character against a private-use
+codepoint that no font defines, and `fonts_cover_spanish` is asserted in the suite.
+
+DejaVu ships in `zgrader/assets/fonts/` for that reason, rather than being taken from the system: the
+container installs `fonts-dejavu-core` for WeasyPrint, but relying on that would make correctness
+depend on the host, which is the same trap as the Pango DLL. `pyproject.toml` declares it under
+`[tool.setuptools.package-data]` — without that a wheel carries every `.py` and none of the fonts,
+and the Dockerfile's `COPY zgrader` would mask it.
 
 **Surface analysis is lower-confidence by design and says so publicly.** A flatbed lights the card
 diffusely; a grader uses raking light that casts a shadow along a scratch. Faint defects are missed

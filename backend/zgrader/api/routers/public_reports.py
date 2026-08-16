@@ -23,10 +23,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from zgrader import sharing
+from zgrader.analysis import og_image
 from zgrader.api.ratelimit import rate_limit
 from zgrader.api.routers.catalog import _active_grading_companies
 from zgrader.config import config
 from zgrader.db import get_db
+from zgrader.models.settings import get_or_create_settings
 from zgrader.schemas.public_report import PublicReportOut, build_public_report
 
 router = APIRouter(prefix="/public/reports", tags=["public"])
@@ -69,19 +71,34 @@ def get_public_report(token: str, db: Session = Depends(get_db)) -> PublicReport
 
 
 @router.get(
-    "/{token}/og.png",
+    "/{token}/og.jpg",
     dependencies=[Depends(rate_limit("public_og", _RATE_LIMIT, _RATE_WINDOW_SECONDS))],
 )
 def get_public_og_image(token: str, db: Session = Depends(get_db)) -> FileResponse:
-    """The link preview image, at a stable name.
+    """The link preview image: card, scores, and the framing, composed.
 
-    A fixed address so the OG tag does not have to know which files this
-    submission happens to have -- and so the crawler fetching it (Discord,
-    WhatsApp, Reddit) gets a plain cacheable PNG with no token header, which is
-    the only kind of fetch those crawlers make.
+    What most people see of a shared report is this, not the page.
+
+    `?v=` is accepted and **ignored**, exactly as `catalog.get_service_image`
+    treats its own version parameter. The parameter exists to change the URL so
+    caches miss; the content served is always current state. Serving whatever
+    an old `v` used to mean would be the stale published artefact this whole
+    arrangement exists to avoid -- so a crawler holding a stale URL gets the
+    right picture rather than a 404 or an old one.
+
+    Rendered on demand and cached on disk under a name derived from the state,
+    so the work happens once per distinct version rather than once per crawler.
     """
     submission = sharing.resolve_shared_submission(token, db)
-    return _image_response(submission, "front_base.png")
+    settings = get_or_create_settings(db)
+    path = og_image.ensure(submission, settings.business_name, Path(config.reports_dir))
+    if not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.get(
