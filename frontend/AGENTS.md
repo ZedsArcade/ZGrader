@@ -11,8 +11,10 @@ than eyeball: the browser can answer both questions exactly.
 
 **No page scrolls horizontally.** Check `document.body.scrollWidth === window.innerWidth` at **320,
 375, 768 and 1280**, signed in *and* signed out, in **both languages**. Every one of those has caught
-something the others did not — 768 signed in is still broken (see the root `AGENTS.md`), and it was
-missed precisely because the first sweep tested 320, 375 and 1280.
+something the others did not, and **768 is still broken** — signed in, and signed out in Spanish
+too, where the longer nav labels tip it to 777 (see the root `AGENTS.md`). Both halves of the rule
+earned their place on that one width: the first sweep tested 320, 375 and 1280 and missed it, and a
+later English-only pass at 768 missed the signed-out case for the same reason.
 
 The header is the usual culprit, and the fix has a shape worth knowing. Both brand names come from
 `Settings`, so the brand switch's width is operator-controlled and unbounded; `min-w-0` plus
