@@ -5,9 +5,13 @@ import StartCheckLink from "@/components/StartCheckLink";
 import { Card, buttonVariants, cn } from "@heroui/react";
 import PageHeader from "@/components/PageHeader";
 import { useTranslations } from "@/lib/i18n/context";
+import { useFreeAllowanceSentence } from "@/lib/use-pricing";
 
 export default function HowItWorksClient() {
   const t = useTranslations();
+  // Null until /catalog/pricing answers, and the CTA reads properly without
+  // it -- the figure is never written into the copy.
+  const freeAllowance = useFreeAllowanceSentence();
 
   const steps = [
     { title: t.howItWorks.step1Title, body: t.howItWorks.step1Body },
@@ -95,7 +99,10 @@ export default function HowItWorksClient() {
           <Card.Title>{t.howItWorks.ctaTitle}</Card.Title>
         </Card.Header>
         <Card.Content>
-          <p className="text-sm text-muted">{t.howItWorks.ctaBody}</p>
+          <p className="text-sm text-muted">
+            {t.howItWorks.ctaBody}
+            {freeAllowance ? ` ${freeAllowance}` : ""}
+          </p>
           <div className="mt-4">
             <StartCheckLink
               className={cn(buttonVariants({ variant: "primary" }), "btn-press btn-neon-hover")}
