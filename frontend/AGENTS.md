@@ -39,6 +39,18 @@ Prices and allowances are never written into the copy — they come from `/catal
 operator changing a figure in the admin panel changes the page. Copy carries `{price}` / `{count}`
 placeholders instead.
 
+**Outside `/pricing`, a quoted figure is appended to a sentence that already stands without it.**
+The marketing CTAs on `/how-it-works` and `/methodology` read "It's free to try", and
+`useFreeAllowanceSentence` adds "Free accounts get 3 checks every 7 days." once the catalog answers.
+An unreachable API therefore costs precision rather than leaving a hole in the page. `/pricing`
+itself is the deliberate exception and shows a `Skeleton`, because a price list with a price missing
+from it is not a price list — but a call to action with a number missing is still a call to action.
+
+Those two CTAs were the last copy in the site carrying a figure of its own, and they said "The first
+check is free" while the seed granted three a week. Nothing catches this automatically: a test
+banning digits in the copy would trip over `physicalTurnaround`'s honest "5-7 working days", and the
+placeholder forms contain no digit to key off. Grep the dictionaries for a number before adding one.
+
 **Read Spanish back rendered in a browser, not just typechecked.** Accented characters and em dashes
 have been mangled more than once by tooling that round-trips the file; `tsc` cannot see it and the
 page can. So can a formatter that is not given a locale: `Intl.ListFormat` and

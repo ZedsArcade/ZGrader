@@ -525,14 +525,15 @@ Listed so a review reports something new rather than re-deriving these:
   `frontend/AGENTS.md` being followed rather than sampled.
 - **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
-- **The copy and the seeded plan describe different products.** The free tier *is* enforced — this
-  entry used to claim otherwise, naming a `FREE_TIER_LIMIT` that has never existed in the codebase.
+- **Nobody ever has to pay on today's settings.** The free tier *is* enforced and it *is* described
+  accurately — those were two earlier versions of this entry, and both are now settled.
   `submissions.py` refuses on `quota.can_submit` and consumes on create, the rules live in the
   admin-editable `plan_entitlements` table (`GET`/`PATCH /plans/{plan}`), and `QuotaChip` counts the
-  customer down. What is unsettled is the *number*: the seed grants free accounts **3 checks per 7
-  days, renewing**, while `en.ts` says "The first check is free" in two places — so on today's
-  settings nobody ever has to pay. One of the two has to move, and the limit is a panel value rather
-  than a deploy, deliberately.
+  customer down. The copy no longer disagrees either: `useFreeAllowanceSentence` renders the CTAs on
+  `/how-it-works` and `/methodology` from the same row the quota check reads, so "The first check is
+  free" cannot outlive a seed granting three a week again. What remains is purely the *number* — 3
+  checks per 7 days, renewing, is generous enough that the paid tiers have nothing to sell. That is
+  a business decision, and it is a panel value rather than a deploy, deliberately.
 - **A lifetime allowance is not expressible.** `period_days` is `NOT NULL` with
   `CheckConstraint("period_days >= 1")` and `_roll_period_forward` always advances the window, so
   every cap renews. "N checks per account, ever" needs a nullable `period_days` meaning *never

@@ -492,6 +492,9 @@ export const en = {
     checksPerPeriod: "{count} checks every {days} days",
     checksUnlimited: "Unlimited checks",
     checksOneOff: "{count} checks",
+    // Quoted by the marketing pages as well as this one, which is why it lives
+    // here beside the allowance strings it is built from.
+    freeAllowance: "Free accounts get {allowance}.",
     freeCta: "Start a free check",
     paidCta: "Get in touch",
     // Said plainly rather than discovered at a dead end: nothing here takes
@@ -625,7 +628,9 @@ export const en = {
     faq6A:
       "They're stored so your report keeps working, and used for nothing else. You can delete a submission at any time, which removes its scans, analysis and report.",
     ctaTitle: "Ready to try it?",
-    ctaBody: "The first check is free.",
+    // No figure here: the allowance sentence is appended from /catalog/pricing
+    // at render time, so this has to read properly on its own.
+    ctaBody: "It's free to try.",
     methodologyLink: "Read the full methodology",
   },
   methodology: {
@@ -737,7 +742,7 @@ export const en = {
       "This is an independent estimate to help you decide whether a card is worth submitting. It is not a grade, and it never predicts a number on any grading company's behalf. We're not affiliated with {companies}, or with any other grading company. Their standards are their own, they change, and a human grader's judgement on the day is not something software can promise to reproduce.",
 
     ctaTitle: "See it on your own card",
-    ctaBody: "The first check is free, and you can dismiss anything you disagree with.",
+    ctaBody: "It's free to try, and you can dismiss anything you disagree with.",
   },
   // The shared report at /r/{token}. Most people who read this page have never
   // seen the site and arrived from a link in a chat, so the framing has to

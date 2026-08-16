@@ -458,6 +458,7 @@ export const es: Dictionary = {
     checksPerPeriod: "{count} análisis cada {days} días",
     checksUnlimited: "Análisis ilimitados",
     checksOneOff: "{count} análisis",
+    freeAllowance: "Las cuentas gratuitas incluyen {allowance}.",
     freeCta: "Empezar un análisis gratis",
     paidCta: "Contactar",
     paidNote: "Por ahora los planes de pago se gestionan directamente: envíe un mensaje y se configura a mano.",
@@ -587,7 +588,7 @@ export const es: Dictionary = {
     faq6A:
       "Se almacenan para que su informe siga funcionando, y no se usan para nada más. Puede eliminar un envío en cualquier momento, lo que borra sus escaneos, el análisis y el informe.",
     ctaTitle: "¿Listo para probarlo?",
-    ctaBody: "La primera revisión es gratuita.",
+    ctaBody: "Probarlo es gratuito.",
     methodologyLink: "Leer la metodología completa",
   },
   methodology: {
@@ -701,7 +702,7 @@ export const es: Dictionary = {
       "Es una estimación independiente para ayudarle a decidir si merece la pena enviar una carta. No es una calificación, y nunca predice una nota en nombre de ninguna empresa calificadora. No estamos afiliados a {companies} ni a ninguna otra empresa de calificación. Sus normas son suyas, cambian, y el criterio de un calificador humano en un día concreto no es algo que un software pueda prometer reproducir.",
 
     ctaTitle: "Véalo en su propia carta",
-    ctaBody: "La primera revisión es gratuita y puede descartar lo que no le convenza.",
+    ctaBody: "Probarlo es gratuito y puede descartar lo que no le convenza.",
   },
   publicReport: {
     metaDescription:
