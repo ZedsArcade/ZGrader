@@ -287,6 +287,40 @@ pipeline. After changing anything in `analysis/`, run
 `backend/scripts/generate_methodology_figures.py` — otherwise the page describes software that no
 longer exists. `tests/test_methodology_figures.py` fails if the filter stops rejecting text.
 
+**Request concurrency is CPU concurrency, because `confirm-crop` runs the pipeline inside the
+request.** FastAPI runs sync endpoints in the anyio threadpool — **40 threads** by default, not one
+per uvicorn worker — so without a bound forty simultaneous submissions are forty simultaneous
+OpenCV pipelines, and every other sync endpoint queues behind them for a thread. On a self-hosted
+box that starves everything sharing the machine, not just the analysis.
+
+`api/capacity.py` holds two limits, answering different questions. The **global cap**
+(`max_concurrent_analyses`, default 2) is about the machine and answers **503** with `Retry-After`.
+The **per-user cap of one** is about an account and answers **409**, because "you already have one
+running" is actionable where "server busy" invites an immediate retry that fails identically. Both
+acquire **without waiting**: a caller left hanging is worse than one told to come back, and a
+blocking acquire would hold a threadpool thread for the length of somebody else's pipeline, which is
+the behaviour the cap exists to prevent. Both release in `finally`, since a leaked slot never returns.
+
+It lives at the API boundary and **not** inside `run_analysis`, which is the opposite of where
+per-submission cleanup belongs — deliberately. Cleanup is a correctness guarantee every caller needs
+identically. This is a policy about who gets *refused*, and it differs by caller: the API rejects,
+the worker must queue, because a background poll has nowhere to report a 503 to.
+
+**A cap on how many analyses run means little without a cap on how wide each one spreads.** OpenCV
+defaults to one thread per core, so two capped analyses still fan out across the whole box.
+`cpu.pin_analysis_threads` applies `config.analysis_threads` (default 2) via `cv2.setNumThreads` at
+both API and worker startup — measured on a 4000×3000 photograph, `detect_boundary` runs 58.6ms at
+24 threads, 57.5ms at 4, 64.8ms at 2 and 84.7ms at 1, so the work stops scaling near 4 and holding
+it to 2 costs about 11%.
+
+Set through the API and not an environment variable, because **`OPENCV_NUM_THREADS` is not an
+OpenCV variable at all**; the real one is `OPENCV_FOR_THREADS` and it is honoured only by some
+parallel backends — on a Windows build neither moved `getNumThreads()`. A knob that looks like a
+control and silently does nothing is the exact failure `test_compose_env_coverage.py` exists for.
+NumPy's bundled OpenBLAS is a **separate pool** that ignores all of this and reads
+`OMP_NUM_THREADS`/`OPENBLAS_NUM_THREADS` at import time, so those are set in `docker-compose.yml`
+and cannot be applied from code.
+
 **Every setting in `config.py` must be reachable through `docker-compose.yml`.** Compose only
 forwards variables named in a service's `environment:` block; anything else in `.env` is invisible
 to the container. `tests/test_compose_env_coverage.py` enforces this against an explicit exclusion

@@ -151,7 +151,17 @@ export default function CropAdjustStep({
       const updated = await api.confirmCrop(token, code, side, toPixels(points));
       onConfirmed(updated);
     } catch (err) {
-      toastError(err instanceof api.ApiError ? err.message : t.cropAdjust.confirmFailed);
+      // Two refusals here are capacity, not failure, and both are recoverable
+      // by waiting -- so they get their own wording. The server's own message
+      // is accurate but generic; these say what to do next, which is the
+      // difference between "something broke" and "come back in a minute".
+      if (err instanceof api.ApiError && err.status === 503) {
+        toastError(t.cropAdjust.confirmBusy);
+      } else if (err instanceof api.ApiError && err.status === 409) {
+        toastError(t.cropAdjust.confirmAlreadyRunning);
+      } else {
+        toastError(err instanceof api.ApiError ? err.message : t.cropAdjust.confirmFailed);
+      }
     } finally {
       setConfirming(false);
     }

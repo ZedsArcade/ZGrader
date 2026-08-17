@@ -110,6 +110,41 @@ class ZGraderConfig(BaseSettings):
     # Safety-net poll interval for submissions the watcher may have missed.
     worker_poll_interval_seconds: float = 30.0
 
+    # How many analyses may run inside API requests at once.
+    #
+    # `confirm-crop` runs the whole OpenCV pipeline synchronously in the
+    # request. FastAPI runs sync endpoints in the anyio threadpool -- 40 threads
+    # by default -- so without a cap forty concurrent submissions become forty
+    # concurrent pipelines, and every other sync endpoint queues behind them.
+    #
+    # This bounds the *API*'s share only. The worker is a separate container
+    # and single-threaded, so the box's real ceiling is this + 1.
+    max_concurrent_analyses: int = 2
+
+    # Threads OpenCV may use per analysis, applied with cv2.setNumThreads at
+    # startup.
+    #
+    # Left alone, OpenCV uses one thread per core, so `max_concurrent_analyses`
+    # would cap the number of analyses while each still fanned out across the
+    # whole machine -- a cap that does not mean what it looks like. On an
+    # 8-core box, 2 API analyses plus the worker's 1 at 2 threads each is 6
+    # threads, which leaves room for Postgres and everything else Unraid runs.
+    #
+    # Measured on a 4000x3000 photograph, `detect_boundary`: 58.6ms at 24
+    # threads, 57.5ms at 4, 64.8ms at 2, 84.7ms at 1. The work stops scaling
+    # around 4, so holding it to 2 costs about 11% and 1 costs 45%.
+    #
+    # Set with the API rather than an environment variable on purpose:
+    # `OPENCV_NUM_THREADS` is not an OpenCV variable at all, and the real
+    # `OPENCV_FOR_THREADS` is honoured only by some parallel backends -- on a
+    # Windows build neither moved getNumThreads(). A knob that silently does
+    # nothing is the exact failure test_compose_env_coverage.py exists for.
+    #
+    # NumPy's bundled OpenBLAS is a separate pool and ignores this; it takes
+    # OMP_NUM_THREADS / OPENBLAS_NUM_THREADS, which have to be set before numpy
+    # is imported and therefore live in docker-compose.yml rather than here.
+    analysis_threads: int = 2
+
     @model_validator(mode="after")
     def _reject_insecure_production_defaults(self) -> "ZGraderConfig":
         """Refuse to start a production deployment on shipped-default secrets.
