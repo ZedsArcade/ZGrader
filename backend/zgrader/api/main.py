@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from zgrader.api.routers import admin, auth, catalog, contact, public_reports, submissions
 from zgrader.config import config
+from zgrader.cpu import pin_analysis_threads
 from zgrader.db import SessionLocal
 from zgrader.seed import seed_all
 
@@ -21,6 +22,11 @@ logger = logging.getLogger(__name__)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Bound each analysis's share of the machine before any request can run
+    # one. Pairs with api/capacity.py, which bounds how many run at once --
+    # neither cap means much on its own.
+    pin_analysis_threads()
+
     # Idempotent -- ensures reference data and the optional bootstrap admin
     # (ZGRADER_ADMIN_EMAIL/PASSWORD) exist whenever the API starts, without
     # depending on the worker having run first.

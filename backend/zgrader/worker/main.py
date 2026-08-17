@@ -12,6 +12,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from zgrader.config import config
+from zgrader.cpu import pin_analysis_threads
 from zgrader.db import SessionLocal
 from zgrader.models import Submission, SubmissionStatus
 from zgrader.seed import seed_all
@@ -79,6 +80,12 @@ def _poll_pending_submissions() -> None:
 
 
 def run_forever() -> None:
+    # This process runs one analysis at a time, so it needs no semaphore -- but
+    # it does need the same per-analysis thread limit as the API, or its single
+    # analysis spreads across every core and the API's cap stops meaning
+    # anything about the machine.
+    pin_analysis_threads()
+
     db = SessionLocal()
     try:
         seed_all(db)

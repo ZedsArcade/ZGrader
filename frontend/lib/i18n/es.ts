@@ -340,6 +340,10 @@ export const es: Dictionary = {
     confirming: "Confirmando…",
     loadFailed: "No se pudo cargar la foto para recortar.",
     confirmFailed: "No se pudo confirmar el recorte.",
+    confirmBusy:
+      "El analizador está ocupado en este momento. Su recorte no se ha perdido: espere un momento y vuelva a confirmarlo.",
+    confirmAlreadyRunning:
+      "Ya tiene una carta en análisis. Espere a que termine y luego confirme este recorte.",
     snapButton: "Ajustar a los bordes detectados",
     snapFailed: "No se pudo refinar el recorte.",
     rotateLeft: "Girar a la izquierda",

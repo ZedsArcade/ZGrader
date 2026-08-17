@@ -142,6 +142,22 @@ def _reset_rate_limits():
     ratelimit.reset()
 
 
+@pytest.fixture(autouse=True)
+def _reset_analysis_capacity():
+    """Clear the analysis semaphore and in-flight set between tests.
+
+    Same reasoning as the rate limiter: the state is process-global for the
+    life of the worker. A test that raises while holding a slot would otherwise
+    shrink the cap for every test after it, and the failure would surface as an
+    unrelated 503 somewhere else entirely.
+    """
+    from zgrader.api import capacity
+
+    capacity._reset()
+    yield
+    capacity._reset()
+
+
 def register_and_verify(client, email: str, password: str = "hunter2pass") -> str:
     """Register a client account, confirm the email, and return a token.
 

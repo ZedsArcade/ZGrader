@@ -89,6 +89,36 @@ outside the stack.
 So: don't port-forward 8080, and if you expose it on the LAN, keep that to the
 LAN.
 
+## Capacity on a shared box
+
+Two knobs, and they only make sense together.
+
+`ZGRADER_MAX_CONCURRENT_ANALYSES` (default 2) bounds how many analyses run inside
+API requests at once. `confirm-crop` runs the OpenCV pipeline in the request, so
+without it a burst of submissions turns into a burst of pipelines and starves
+everything else on the machine. The worker container runs one more on top, so
+the real ceiling is this **+ 1**.
+
+`ZGRADER_ANALYSIS_THREADS` (default 2) bounds how wide each one spreads. Left
+alone OpenCV takes a thread per core, so the cap above would limit the number of
+analyses while each still used the whole box. Compose passes the same number as
+`OMP_NUM_THREADS` and `OPENBLAS_NUM_THREADS`, because NumPy's bundled OpenBLAS
+is a separate pool that reads those at import time.
+
+On an 8-core box the defaults give `(2 + 1) × 2 = 6` threads of analysis, leaving
+room for Postgres, the frontend and whatever else Unraid is running. Raising
+either is an `.env` edit and a restart.
+
+A request that arrives with every slot taken gets **503** with `Retry-After`; a
+customer who already has an analysis running gets **409**. Neither waits — a
+hang is worse than a clear refusal, and the frontend says so in both languages.
+
+Rate limits are per-IP and in-process (`backend/zgrader/api/ratelimit.py`), which
+is correct for one uvicorn worker and **wrong the moment you add `--workers`**:
+each worker keeps its own counters and the effective limit multiplies. The same
+applies to the capacity cap. If this ever needs more than one worker, both need
+replacing with something shared, not tuning.
+
 ## Caching shared reports at the edge
 
 Shared reports (`/r/{token}`) are the one part of the site a stranger can reach
