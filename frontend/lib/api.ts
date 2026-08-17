@@ -551,7 +551,7 @@ export async function disableShare(token: string, code: string): Promise<void> {
  *  straight into an <img src> and be cached at the edge -- the whole point,
  *  given the origin is a home server running OpenCV. */
 export function publicImageUrl(shareToken: string, side: string, kind: string): string {
-  return `${API_BASE}/public/reports/${shareToken}/images/${side}_${kind}.png`;
+  return `${API_BASE}/public/reports/${shareToken}/images/${side}_${kind}.jpg`;
 }
 
 /** Slugs identifying the six service tiers on /services. Must stay in step

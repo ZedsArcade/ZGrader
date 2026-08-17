@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from zgrader import sharing
-from zgrader.analysis import og_image
+from zgrader.analysis import artifacts, og_image
 from zgrader.api.ratelimit import rate_limit
 from zgrader.api.routers.catalog import _active_grading_companies
 from zgrader.config import config
@@ -38,16 +38,20 @@ router = APIRouter(prefix="/public/reports", tags=["public"])
 _RATE_LIMIT = 120
 _RATE_WINDOW_SECONDS = 60
 
-#: Filenames the pipeline writes per side, as `{side}_{kind}.png` in
-#: reports/{code}/. Matched against a pattern rather than globbed, so a request
-#: can only ever name a file this pipeline produces.
+#: The kinds the pipeline writes per side in reports/{code}/. Matched against a
+#: pattern rather than globbed, so a request can only ever name a file this
+#: pipeline produces.
 _SIDES = ("front", "back")
 _IMAGE_KIND_RE = re.compile(r"^(base|centering|(centering|corners|edges|surface)_[a-z0-9_]+_crop)$")
 
 
-def _image_response(submission, filename: str) -> FileResponse:
-    path = Path(config.reports_dir) / submission.submission_code / filename
-    if not path.is_file():
+def _image_response(submission, stem: str) -> FileResponse:
+    # The stem is resolved to whichever format exists: derived images are JPEG
+    # now, and a submission analysed before that still has its PNG. The URL's
+    # own extension is therefore not what decides -- which also means a link
+    # already unfurled somewhere keeps working.
+    path = artifacts.find(Path(config.reports_dir) / submission.submission_code, stem)
+    if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
     # Cached hard at the edge. The token is the only thing in the URL and a
     # rotation issues a new one, so a stale cache entry belongs to a URL that no
@@ -55,7 +59,7 @@ def _image_response(submission, filename: str) -> FileResponse:
     # outlive its own address.
     return FileResponse(
         path,
-        media_type="image/png",
+        media_type=artifacts.media_type(path),
         headers={"Cache-Control": "public, max-age=3600"},
     )
 
@@ -101,6 +105,15 @@ def get_public_og_image(token: str, db: Session = Depends(get_db)) -> FileRespon
     )
 
 
+# Both suffixes route here, and neither decides what is served -- `find`
+# resolves the stem to whatever exists on disk. `.jpg` is what the page emits
+# now; `.png` stays because links unfurled before this change are already out
+# there in chats, and a preview that breaks retroactively is the one failure
+# this feature cannot afford. Cloudflare caches either by extension.
+@router.get(
+    "/{token}/images/{side}_{kind}.jpg",
+    dependencies=[Depends(rate_limit("public_image", _RATE_LIMIT, _RATE_WINDOW_SECONDS))],
+)
 @router.get(
     "/{token}/images/{side}_{kind}.png",
     dependencies=[Depends(rate_limit("public_image", _RATE_LIMIT, _RATE_WINDOW_SECONDS))],
@@ -120,4 +133,4 @@ def get_public_image(
     if side not in _SIDES or not _IMAGE_KIND_RE.match(kind):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
     submission = sharing.resolve_shared_submission(token, db)
-    return _image_response(submission, f"{side}_{kind}.png")
+    return _image_response(submission, f"{side}_{kind}")

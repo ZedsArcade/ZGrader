@@ -256,6 +256,28 @@ depend on the host, which is the same trap as the Pango DLL. `pyproject.toml` de
 `[tool.setuptools.package-data]` — without that a wheel carries every `.py` and none of the fonts,
 and the Dockerfile's `COPY zgrader` would mask it.
 
+**Derived images are illustrations, not archives, and they are sized like it.** One real two-sided
+submission left **160MB** of reports beside **13MB** of customer scans — the derived data was twelve
+times the source it came from. Two causes, both now fixed and pinned by
+`tests/test_derived_image_size.py`:
+
+`annotate.crop_region` had a size *floor* (`min_output_px`) and no ceiling, so a crease's bounding
+box — which spans most of the card by design — was zoomed 4× into a **9132×12752** image. That is
+116 megapixels, about 350MB held in memory, for a panel the page renders a few hundred pixels wide;
+large enough to trip Pillow's decompression-bomb guard and to exceed WebP's maximum dimension. And
+everything was written as lossless PNG, for pictures nothing re-reads to measure anything.
+
+Together, 160MB became **8MB** with no measurement moving — `scripts/fixture_drift.py` reported no
+drift across 23 fixtures, which is the check that separates "changed how it is stored" from "changed
+what it says".
+
+`analysis/artifacts.py` owns both halves: the format on write and the lookup on read. They are the
+same decision, and splitting them is how a directory fills with files nothing can serve. **Old
+reports keep their PNGs** — `artifacts.find` tries both suffixes, and the public image route accepts
+either extension so a link already unfurled in a chat does not break. Nothing is regenerated on
+purpose: re-running analysis can produce different numbers than the customer was shown, and a
+storage problem is no reason to quietly restate somebody's result.
+
 **Surface analysis is lower-confidence by design and says so publicly.** A flatbed lights the card
 diffusely; a grader uses raking light that casts a shadow along a scratch. Faint defects are missed
 and printed text is sometimes flagged. Don't remove the caveat — it's load-bearing for trust and it's

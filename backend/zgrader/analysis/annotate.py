@@ -32,6 +32,7 @@ def crop_region(
     bbox_px: tuple[float, float, float, float],
     zoom: int = 4,
     min_output_px: int = 280,
+    max_output_px: int = 1000,
     pad_fraction: float = 0.6,
     color: tuple[int, int, int] = _FLAG_COLOR,
     line_px: tuple[float, float, float, float] | None = None,
@@ -42,7 +43,15 @@ def crop_region(
     any bbox from any category.
 
     When `line_px` (x0, y0, x1, y1 in full-card pixels) is given, the segment
-    is drawn instead of the bounding box -- see the comment below."""
+    is drawn instead of the bounding box -- see the comment below.
+
+    `max_output_px` is a ceiling on the longest side, and it exists because
+    `min_output_px` was a floor with nothing above it. A crease's bounding box
+    spans most of the card by design, so zooming it 4x produced a 9132x12752
+    image: 116 megapixels, about 350MB held in memory, 14MB written to disk --
+    for a panel the page renders a few hundred pixels wide. Large enough to
+    trip Pillow's decompression-bomb guard and to exceed WebP's maximum
+    dimension, neither of which is a thing a thumbnail should be near."""
     h, w = card_image.shape[:2]
     x0, y0, x1, y1 = bbox_px
     box_w, box_h = x1 - x0, y1 - y0
@@ -61,6 +70,11 @@ def crop_region(
         crop_x0, crop_y0 = 0, 0
 
     scale = max(zoom, min_output_px / max(1, min(crop_w, crop_h)))
+    # The ceiling wins over the floor: a crop already larger than the cap is
+    # scaled *down*, which is what the near-full-card crease boxes need. The
+    # floor still applies to genuinely small regions, where it is the whole
+    # point -- a 40px corner chip has to be enlarged to be looked at.
+    scale = min(scale, max_output_px / max(1, max(crop_w, crop_h)))
     out_w, out_h = max(1, int(crop_w * scale)), max(1, int(crop_h * scale))
 
     pil_crop = _to_pil(crop).resize((out_w, out_h), Image.NEAREST)

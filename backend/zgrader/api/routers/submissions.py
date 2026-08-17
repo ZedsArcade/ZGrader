@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from zgrader import entitlements, images, sharing
-from zgrader.analysis import assessment, pipeline, preprocessing, recompute, scale
+from zgrader.analysis import artifacts, assessment, pipeline, preprocessing, recompute, scale
 from zgrader.api import capacity
 from zgrader.api.deps import get_current_user, require_operator, require_verified_user
 from zgrader.api.ratelimit import rate_limit
@@ -552,10 +552,12 @@ def get_side_photo(
     annotated-photo display -- saved once per side in
     pipeline.py::_persist_side. 404 until analysis has actually run."""
     _get_owned_submission(code, user, db)
-    photo_path = Path(config.reports_dir) / code / f"{side}_base.png"
-    if not photo_path.is_file():
+    # Resolved rather than named: derived images are JPEG now, and a submission
+    # analysed before that change still has its PNG on disk.
+    photo_path = artifacts.find(Path(config.reports_dir) / code, f"{side}_base")
+    if photo_path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo not available yet")
-    return FileResponse(photo_path, media_type="image/png")
+    return FileResponse(photo_path, media_type=artifacts.media_type(photo_path))
 
 
 @router.get("/{code}/scans/{side}/regions/{category}/{region_id}/crop")
@@ -576,10 +578,12 @@ def get_region_crop(
     _get_owned_submission(code, user, db)
     if not _REGION_ID_RE.match(region_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Region not found")
-    crop_path = Path(config.reports_dir) / code / f"{side}_{category}_{region_id}_crop.png"
-    if not crop_path.is_file():
+    crop_path = artifacts.find(
+        Path(config.reports_dir) / code, f"{side}_{category}_{region_id}_crop"
+    )
+    if crop_path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Region crop not available")
-    return FileResponse(crop_path, media_type="image/png")
+    return FileResponse(crop_path, media_type=artifacts.media_type(crop_path))
 
 
 @router.get("/{code}/report")
