@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -295,7 +297,11 @@ def test_side_photo_available_after_analysis(db_session, sample_scan_paths):
 
     resp = client.get(f"/submissions/{code}/scans/front/photo", headers=_auth_headers(token))
     assert resp.status_code == 200
-    assert resp.headers["content-type"] == "image/png"
+    # JPEG since derived images stopped being archives -- 160MB of lossless PNG
+    # per submission for pictures nothing re-reads to measure anything. The
+    # content type follows the file on disk, not the request, which is what
+    # lets a submission analysed before that change keep serving its PNG.
+    assert resp.headers["content-type"] == "image/jpeg"
     assert len(resp.content) > 0
 
 
@@ -327,6 +333,41 @@ def test_region_crop_available_for_flagged_region(db_session, sample_scan_paths)
     resp = client.get(
         f"/submissions/{code}/scans/front/regions/corners/top_left/crop", headers=_auth_headers(token)
     )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/jpeg"
+    assert len(resp.content) > 0
+
+
+def test_a_report_written_before_jpeg_still_serves(db_session, sample_scan_paths):
+    """The compatibility guarantee, at the route rather than in a unit test.
+
+    Nothing regenerates existing reports -- re-running analysis can produce
+    different numbers than the customer was shown -- so every submission
+    analysed before derived images became JPEG still has PNGs on disk. If the
+    route stopped resolving them, every one of those reports would 404 while
+    its row looked perfectly healthy.
+    """
+    from PIL import Image
+
+    from zgrader.config import config
+
+    token = _register_and_login("legacypng@example.com")
+    code = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    ).json()["submission_code"]
+    _upload(token, code, "front", sample_scan_paths["pokemon_front"])
+    _confirm_crop(token, code, "front")
+
+    # Put the directory back the way an older analysis left it.
+    reports = Path(config.reports_dir) / code
+    jpeg = reports / "front_base.jpg"
+    assert jpeg.is_file(), "expected the new analysis to have written a JPEG"
+    with Image.open(jpeg) as img:
+        img.convert("RGB").save(reports / "front_base.png")
+    jpeg.unlink()
+
+    resp = client.get(f"/submissions/{code}/scans/front/photo", headers=_auth_headers(token))
+
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/png"
     assert len(resp.content) > 0
