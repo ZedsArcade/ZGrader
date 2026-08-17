@@ -34,9 +34,23 @@ nav appears, because there the nav is the wide one and letting the brand group s
 brand name. Wide content — tables especially — scrolls inside its own `overflow-x-auto` container,
 never the page.
 
-**No interactive control is under 24×24 px** (WCAG 2.5.8). Enumerate `a, button, [role=slider]`,
-take `getBoundingClientRect()`, and assert. Raw `input` elements read 0×0 or 13×13 because they sit
-behind a styled label — measure the visible control, not the input.
+**No interactive control is under 24×24 px** (WCAG 2.5.8). Enumerate `a, button, [role=slider]` and
+assert — but **`getBoundingClientRect()` on the element you selected is not the target**, and it is
+wrong in both directions:
+
+- A raw `input` reads 0×0 or 13×13 because it sits hidden behind a styled label. Measuring it
+  over-reports a problem that is not there. The theme switch's input says 13×13; the label you can
+  actually press said 32×**16**, which was a real failure and is now padded to 28.
+- An **inline** `<a>` wrapping a block child reports only its *line box*, which under-reports. The
+  quota chip's link measured 19px and looked like a violation; the chip inside it is 40px and the
+  link was never the target. That one cost a wrong "fix" before the baseline was measured.
+
+So take the **union of the element's own box and its descendants'**, and skip anything inside a
+`<label>` in favour of the label itself. Then the number means something.
+
+The remedy for a genuinely short control is `-my-2 py-2` (or `-my-1 py-1`): padding lifts the target,
+negative margins give the space back, so nothing on screen moves. Assert the header's height is
+unchanged afterwards — that is what proves the margins absorbed it.
 
 Drag handles get a **44px transparent hit area around an unchanged dot**, sized that way round on
 purpose: the dot marks where the border line or card corner sits, so growing it would obscure the

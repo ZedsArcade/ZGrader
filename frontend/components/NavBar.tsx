@@ -15,8 +15,13 @@ import ThemeSwitch from "@/components/theme-switch";
 import LocaleSwitch from "@/components/locale-switch";
 import NavDrawer from "@/components/nav-drawer";
 
+// `-my-2 py-2` is the site's shape for this: the padding lifts the hit area
+// from `text-sm`'s 20px line box to 36px, and the negative margin absorbs it so
+// nothing moves. The link looks identical and the bar keeps its height -- only
+// the target a finger or a shaky cursor has to hit gets bigger (WCAG 2.5.8
+// wants 24px; this clears it).
 const DESKTOP_LINK_CLASS =
-  "text-sm font-medium text-foreground hover:text-accent link-accent-hover";
+  "-my-2 py-2 text-sm font-medium text-foreground hover:text-accent link-accent-hover";
 const DRAWER_LINK_CLASS =
   "rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover";
 
@@ -116,7 +121,7 @@ export default function NavBar() {
                 href="/account"
                 aria-label={t.nav.account}
                 title={user.email}
-                className="max-w-[15ch] truncate text-sm text-muted hover:text-accent link-accent-hover"
+                className="-my-2 max-w-[15ch] truncate py-2 text-sm text-muted hover:text-accent link-accent-hover"
               >
                 {user.email}
               </Link>

@@ -541,11 +541,10 @@ Listed so a review reports something new rather than re-deriving these:
   `PATCH /users/{user_id}/quota`, which is a complete manual fulfilment path needing no code.
 - **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
   `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
-- **The desktop nav links are 20px tall**, under the 24px WCAG 2.5.8 floor the site otherwise holds
-  itself to. `DESKTOP_LINK_CLASS` carries no padding, so the height is `text-sm`'s line box.
-  `frontend/AGENTS.md` already documents the remedy — `-my-2 py-2`, negative margins absorbing the
-  padding so no layout moves — it has simply never been applied here. Measured signed out at 1280:
-  five links at 20px.
+- **HeroUI's drawer renders a 1×1 "Dismiss" button**, under any target-size floor. It is library
+  internals rather than our markup, so closing it means overriding a third-party component or
+  patching it; the drawer is also dismissable by tapping the overlay and by Escape, so nobody is
+  stranded. Noted because a WCAG sweep will keep reporting it.
 - **Nobody ever has to pay on today's settings.** The free tier *is* enforced and it *is* described
   accurately — those were two earlier versions of this entry, and both are now settled.
   `submissions.py` refuses on `quota.can_submit` and consumes on create, the rules live in the
@@ -560,7 +559,7 @@ Listed so a review reports something new rather than re-deriving these:
   every cap renews. "N checks per account, ever" needs a nullable `period_days` meaning *never
   resets*, or an explicit lifetime cap — a very large `period_days` works arithmetically but shows
   the customer a countdown measured in decades.
-Four entries left this list rather than being forgotten, and the reason each was here is still
+Five entries left this list rather than being forgotten, and the reason each was here is still
 worth knowing: outbound mail now goes through a real relay (the operator's send-test-email action
 in the admin panel is what proves it, and it reports what SMTP actually did); Postgres is backed up
 nightly by `infra/backup/`; and `submission_code` comes from `submission_code_seq` rather than
@@ -581,3 +580,14 @@ the one element whose width nobody controls, since a customer picks their own �
 `max-w-[15ch] truncate`. That mattered more than it looks: it took the authed bar from 844px to
 737px on its own. Bounding an unbounded contributor is the fix that keeps working when the next
 long address arrives.
+
+The fifth was **the desktop nav links at 20px**, under the 24px WCAG 2.5.8 floor, now carrying
+`-my-2 py-2` — 36px of target, no layout moved, header still 64px. The theme switch went with them:
+its visible label was 32×**16** and is now 28 tall behind an unchanged 32×16 track.
+
+What is worth keeping from that pass is how nearly it went wrong. A third "violation", the quota
+chip at 19px, was **not one** — its link is `display: inline`, so `getBoundingClientRect()` returned
+the line box while the chip inside it was already 40px. A fix was written and reverted only because
+the original was measured for comparison first. The audit has to take the union of an element and
+its descendants, or it is wrong in both directions at once: over-reporting hidden inputs,
+under-reporting inline wrappers. `frontend/AGENTS.md` carries the method.
