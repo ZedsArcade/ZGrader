@@ -21,7 +21,7 @@ has to remember to regenerate anything. A path added later inherits that for
 free, which matters because "something downstream forgot" is the failure mode
 this codebase keeps meeting.
 
-The card image drawn here is the plain `front_base.png`, never an annotated one.
+The card image drawn here is the plain `front_base` image, never an annotated one.
 That is a deliberate limit: an overlay would make this a fourth surface that has
 to remap the centering frame from current widths, and at preview size the frame
 is barely legible anyway.
@@ -33,6 +33,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from zgrader.analysis import artifacts
 from zgrader.models import AnalysisCategory, AnalysisSide, Submission
 from zgrader.reports.strings import CATEGORY_LABELS
 
@@ -188,7 +189,9 @@ def fingerprint(submission: Submission) -> str:
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
-def _draw_card_photo(canvas: Image.Image, photo_path: Path, box: tuple[int, int, int, int]) -> int:
+def _draw_card_photo(
+    canvas: Image.Image, photo_path: Path | None, box: tuple[int, int, int, int]
+) -> int:
     """Fit the card into `box`, centred, and return the x its right edge reached.
 
     Returns the edge rather than assuming it, because a card's aspect ratio is
@@ -196,7 +199,7 @@ def _draw_card_photo(canvas: Image.Image, photo_path: Path, box: tuple[int, int,
     different shape from a Pokemon one.
     """
     left, top, right, bottom = box
-    if not photo_path.is_file():
+    if photo_path is None or not photo_path.is_file():
         return left
 
     with Image.open(photo_path) as photo:
@@ -231,9 +234,11 @@ def render(submission: Submission, business_name: str, dest: Path) -> Path:
     canvas = Image.new("RGB", (OG_WIDTH, OG_HEIGHT), _BACKGROUND)
     draw = ImageDraw.Draw(canvas)
 
+    # Resolved rather than named: derived images are JPEG now, and a submission
+    # analysed before that change still has a PNG here.
     photo_right = _draw_card_photo(
         canvas,
-        dest.parent / "front_base.png",
+        artifacts.find(dest.parent, "front_base"),
         (_MARGIN, _MARGIN, _MARGIN + 300, OG_HEIGHT - _MARGIN - 70),
     )
 

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from zgrader.analysis import (
     ai,
     annotate,
+    artifacts,
     assessment,
     centering,
     corners,
@@ -140,7 +141,7 @@ def _persist_side(
     # The plain deskewed photo, previously never persisted (it only existed
     # transiently as `card_image`) -- the web results page's base photo for
     # this side, served by GET /submissions/{code}/scans/{side}/photo.
-    annotate.to_pil(card_image).save(reports_dir / f"{side.value}_base.png")
+    artifacts.save_derived(annotate.to_pil(card_image), reports_dir, f"{side.value}_base")
 
     h, w = card_image.shape[:2]
     language = submission.language.value
@@ -166,8 +167,7 @@ def _persist_side(
             # turns into an edge-roughness channel.
             result["measurements"]["card_geometry"] = geometry
         image = _annotate_category(category, card_image, result, extra)
-        image_path = reports_dir / f"{side.value}_{category.value}.png"
-        image.save(image_path)
+        image_path = artifacts.save_derived(image, reports_dir, f"{side.value}_{category.value}")
 
         result["measurements"]["regions"] = regions.build_regions(
             category, (h, w), px_per_mm, language, result, extra
@@ -195,8 +195,9 @@ def _persist_side(
                 else None
             )
             crop = annotate.crop_region(card_image, bbox_px, line_px=line_px)
-            crop_path = reports_dir / f"{side.value}_{category.value}_{region['id']}_crop.png"
-            crop.save(crop_path)
+            artifacts.save_derived(
+                crop, reports_dir, f"{side.value}_{category.value}_{region['id']}_crop"
+            )
 
         db.add(
             AnalysisResult(

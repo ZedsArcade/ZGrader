@@ -13,9 +13,11 @@ Dismissed keys are "{side}:{category}:{region_id}", e.g.
 "front:surface:blob_2" -- see Submission.dismissed_regions.
 """
 
+from pathlib import Path
+
 from sqlalchemy.orm import Session
 
-from zgrader.analysis import assessment, centering, rules_engine, scoring, surface
+from zgrader.analysis import artifacts, assessment, centering, rules_engine, scoring, surface
 from zgrader.models import AnalysisSide, GradingCompanyComparison, Submission
 
 
@@ -258,7 +260,12 @@ def redraw_centering_annotations(db: Session, submission: Submission) -> list[st
             # before this function existed.
             continue
 
-        annotate.annotate_centering(rectified.image, merged).save(row.annotated_image_path)
+        # Written back to the path the row already holds, in whatever format
+        # that path names -- a submission analysed before derived images became
+        # JPEG keeps its PNG, because the row still points at it.
+        artifacts.save_to(
+            annotate.annotate_centering(rectified.image, merged), Path(row.annotated_image_path)
+        )
         rewritten.append(row.annotated_image_path)
 
     return rewritten
