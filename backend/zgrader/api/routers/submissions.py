@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 
 from zgrader import entitlements, images, sharing
 from zgrader.analysis import assessment, pipeline, preprocessing, recompute, scale
+from zgrader.api import capacity
 from zgrader.api.deps import get_current_user, require_operator, require_verified_user
+from zgrader.api.ratelimit import rate_limit
 from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.email.notifications import send_report_published, send_submission_received
@@ -53,6 +55,24 @@ _UPLOADABLE_STATUSES = (
     SubmissionStatus.draft_ready,
 )
 _REGION_ID_RE = re.compile(r"^[a-z0-9_]+$")
+
+# Per-IP ceilings on the authenticated surface. Deliberately generous -- these
+# are not guessing targets like login, and the quota already bounds how much
+# real work an account can ask for. They exist so a runaway client or a
+# credentialled scraper meets a wall well before the box does.
+#
+# The crop helpers share one bucket and get the loosest limit of the three:
+# they fire repeatedly while somebody drags the crop handles, so a tight cap
+# would make the adjuster feel broken rather than protect anything. They are
+# also much cheaper than a full analysis -- boundary detection or a single
+# geometry fit, not the whole pipeline -- which is why they are rate limited
+# rather than held behind the capacity semaphore.
+_submission_create_limit = rate_limit("submission_create", limit=30, window_seconds=3600)
+_scan_upload_limit = rate_limit("scan_upload", limit=60, window_seconds=3600)
+_confirm_crop_limit = rate_limit("confirm_crop", limit=30, window_seconds=3600)
+_crop_helper_limit = rate_limit("crop_helpers", limit=120, window_seconds=3600)
+_submission_read_limit = rate_limit("submission_read", limit=300, window_seconds=300)
+_submission_delete_limit = rate_limit("submission_delete", limit=30, window_seconds=3600)
 _REGION_KEY_RE = re.compile(r"^(front|back):(centering|corners|edges|surface):[a-z0-9_]+$")
 _SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff", ".tif": "image/tiff"}
 
@@ -109,7 +129,12 @@ def get_quota(
     )
 
 
-@router.post("", response_model=SubmissionDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=SubmissionDetail,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(_submission_create_limit)],
+)
 def create_submission(
     payload: SubmissionCreate,
     user: User = Depends(require_verified_user),
@@ -170,7 +195,9 @@ def create_submission(
     return submission
 
 
-@router.get("", response_model=list[SubmissionSummary])
+@router.get(
+    "", response_model=list[SubmissionSummary], dependencies=[Depends(_submission_read_limit)]
+)
 def list_submissions(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Submission]:
     query = db.query(Submission)
     if user.role != UserRole.operator:
@@ -178,12 +205,18 @@ def list_submissions(user: User = Depends(get_current_user), db: Session = Depen
     return query.order_by(Submission.created_at.desc()).all()
 
 
-@router.get("/{code}", response_model=SubmissionDetail)
+@router.get(
+    "/{code}", response_model=SubmissionDetail, dependencies=[Depends(_submission_read_limit)]
+)
 def get_submission(code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Submission:
     return _get_owned_submission(code, user, db)
 
 
-@router.delete("/{code}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{code}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_submission_delete_limit)],
+)
 def delete_submission(
     code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> None:
@@ -220,7 +253,9 @@ def delete_submission(
     return None
 
 
-@router.post("/{code}/scans", response_model=SubmissionDetail)
+@router.post(
+    "/{code}/scans", response_model=SubmissionDetail, dependencies=[Depends(_scan_upload_limit)]
+)
 async def upload_scan(
     code: str,
     side: Literal["front", "back"] = Form(...),
@@ -321,7 +356,7 @@ def get_side_raw(
     return FileResponse(scan.file_path, media_type=media_type)
 
 
-@router.get("/{code}/scans/{side}/suggest-crop")
+@router.get("/{code}/scans/{side}/suggest-crop", dependencies=[Depends(_crop_helper_limit)])
 def suggest_crop(
     code: str,
     side: Literal["front", "back"],
@@ -353,7 +388,7 @@ def _validate_points(payload: CropPointsIn, scan: ScanImage) -> None:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Points must be within the image bounds")
 
 
-@router.post("/{code}/scans/{side}/snap-crop")
+@router.post("/{code}/scans/{side}/snap-crop", dependencies=[Depends(_crop_helper_limit)])
 def snap_crop(
     code: str,
     side: Literal["front", "back"],
@@ -374,7 +409,11 @@ def snap_crop(
     return {"points": points}
 
 
-@router.post("/{code}/scans/{side}/check-crop", response_model=CropCheckOut)
+@router.post(
+    "/{code}/scans/{side}/check-crop",
+    response_model=CropCheckOut,
+    dependencies=[Depends(_crop_helper_limit)],
+)
 def check_crop(
     code: str,
     side: Literal["front", "back"],
@@ -419,7 +458,11 @@ def check_crop(
     )
 
 
-@router.post("/{code}/scans/{side}/confirm-crop", response_model=SubmissionDetail)
+@router.post(
+    "/{code}/scans/{side}/confirm-crop",
+    response_model=SubmissionDetail,
+    dependencies=[Depends(_confirm_crop_limit)],
+)
 def confirm_crop(
     code: str,
     side: Literal["front", "back"],
@@ -445,7 +488,11 @@ def confirm_crop(
     db.refresh(submission)
 
     confirmed = _confirmed_sides(submission)
-    submission = _advance_submission(db, submission, confirmed, {ScanSide(side)}, code)
+    # The pipeline runs inside this call, so this is where request concurrency
+    # becomes CPU concurrency. The guard refuses rather than queues -- see
+    # api/capacity.py for why a 503 beats a hang here.
+    with capacity.analysis_slot(user.id, code):
+        submission = _advance_submission(db, submission, confirmed, {ScanSide(side)}, code)
     db.refresh(submission)
     return submission
 

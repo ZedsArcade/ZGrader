@@ -60,6 +60,21 @@ services:
       ZGRADER_SMTP_FROM: ${ZGRADER_SMTP_FROM:-noreply@zgrader.local}
       ZGRADER_SMTP_USE_TLS: ${ZGRADER_SMTP_USE_TLS:-false}
       ZGRADER_SMTP_IMPLICIT_TLS: ${ZGRADER_SMTP_IMPLICIT_TLS:-false}
+      # How many analyses may run inside API requests at once. confirm-crop
+      # runs the OpenCV pipeline in the request, so without this a burst of
+      # submissions saturates the API and everything sharing the box with it.
+      # The worker adds one more on top of this.
+      ZGRADER_MAX_CONCURRENT_ANALYSES: ${ZGRADER_MAX_CONCURRENT_ANALYSES:-2}
+      # Threads each analysis may use. Without it the cap above limits how many
+      # analyses run while each still spreads across every core.
+      ZGRADER_ANALYSIS_THREADS: ${ZGRADER_ANALYSIS_THREADS:-2}
+      # NumPy's bundled OpenBLAS is a second thread pool that ignores the
+      # setting above, and it reads these before the app gets a say -- they
+      # have to be real environment variables, not ZGRADER_ settings, because
+      # they are consumed at numpy import time. Kept equal to
+      # ZGRADER_ANALYSIS_THREADS so one number describes the machine's share.
+      OMP_NUM_THREADS: ${ZGRADER_ANALYSIS_THREADS:-2}
+      OPENBLAS_NUM_THREADS: ${ZGRADER_ANALYSIS_THREADS:-2}
     depends_on:
       postgres:
         condition: service_healthy

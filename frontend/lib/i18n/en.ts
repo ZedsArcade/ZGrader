@@ -361,6 +361,12 @@ export const en = {
     confirming: "Confirming…",
     loadFailed: "Couldn't load the photo for cropping.",
     confirmFailed: "Couldn't confirm the crop.",
+    // Capacity, not failure. Both are recoverable by waiting, and both say so
+    // rather than leaving someone to guess whether to retry.
+    confirmBusy:
+      "The analyser is busy right now. Your crop wasn't lost -- wait a moment and confirm again.",
+    confirmAlreadyRunning:
+      "You already have a card being analysed. Wait for that one to finish, then confirm this crop.",
     snapButton: "Snap to detected edges",
     snapFailed: "Couldn't refine the crop.",
     rotateLeft: "Rotate left",
