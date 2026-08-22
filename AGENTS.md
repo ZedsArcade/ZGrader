@@ -309,6 +309,22 @@ pipeline. After changing anything in `analysis/`, run
 `backend/scripts/generate_methodology_figures.py` — otherwise the page describes software that no
 longer exists. `tests/test_methodology_figures.py` fails if the filter stops rejecting text.
 
+**Rate limiting already exists, and it is in-process on purpose.** `api/ratelimit.py` is a
+fixed-window per-IP limiter that reads `CF-Connecting-IP` in production, and it is already applied
+to login, register, password reset, verification resend, contact, the admin test-email action, the
+public report routes and the authenticated submission endpoints. Do not add a second limiter — a
+request to "add rate limiting" is a request to extend `rate_limit(name, limit, window)` onto more
+routes.
+
+Login counts **failed** attempts only, deliberately. Counting successes would lock out an office, a
+household, or anyone behind carrier-grade NAT, and it slows a password guesser down not at all,
+since a guesser has no successful attempts to spend.
+
+In-process because the deployment is one uvicorn worker on one box. That is correct today and
+**silently wrong the moment `--workers` is added**: each worker keeps its own counters and every
+limit multiplies. The same applies to `api/capacity.py`. Neither is a tuning problem at that point;
+both need replacing with something shared.
+
 **Request concurrency is CPU concurrency, because `confirm-crop` runs the pipeline inside the
 request.** FastAPI runs sync endpoints in the anyio threadpool — **40 threads** by default, not one
 per uvicorn worker — so without a bound forty simultaneous submissions are forty simultaneous
@@ -437,6 +453,13 @@ only, so reach it over a tunnel:
 ssh -N -L 5432:127.0.0.1:5432 <host>
 ```
 
+**Check what is actually listening on 5432 before pointing anything at it.** On a development
+machine that tunnel makes `127.0.0.1:5432` the *production* database, which looks identical to a
+local one and is one `ZGRADER_DATABASE_URL` away from being written to by a dev server or a seeding
+script. `Get-NetTCPConnection -LocalPort 5432 -State Listen` naming `ssh.exe` as the owning process
+is the tell. Use `zgrader_test` and scratch file directories for anything exploratory.
+
+
 **The suite is destructive and guards itself accordingly.** It drops every table at session start,
 deletes every row after each test, and removes the scans and reports directories after each test.
 Two guards in `tests/conftest.py` keep that contained: it refuses to start unless the database name
@@ -444,6 +467,11 @@ ends in `_test`, and it forces the scans/reports directories to a fresh temp dir
 rather than honouring the environment. Neither is decoration — without the first, a typo drops the
 production schema; without the second, any shell with `ZGRADER_SCANS_DIR` exported deletes customer
 scans.
+
+**Do not pipe pytest through `tail` or `head`.** The pipe replaces pytest's exit status with the
+filter's, so a run with 260 errors reports success, and it discards the traceback that would have
+explained them. Redirect to a file and read the tail of that instead. Both halves of this were
+learned in the same five minutes.
 
 **Only one suite at a time against a given database.** The per-run temp directories make the
 *files* concurrency-safe and it is easy to read that as the whole story, but the schema is shared:
@@ -632,6 +660,19 @@ Listed so a review reports something new rather than re-deriving these:
   free" cannot outlive a seed granting three a week again. What remains is purely the *number* — 3
   checks per 7 days, renewing, is generous enough that the paid tiers have nothing to sell. That is
   a business decision, and it is a panel value rather than a deploy, deliberately.
+- **The backup restore drill has never been run against a real Postgres.** `infra/backup/drill.sh`
+  rehearses the whole procedure against throwaway data, and its shell logic and its refuse-unless-
+  scratch guard are tested — but the dev machine it was written on has no `psql`, no `pg_dump` and
+  no Docker, so the actual `pg_restore` step is unexercised. Run it once on the box before believing
+  in the backups:
+
+  ```
+  docker compose run --rm --entrypoint /usr/local/bin/drill.sh backup
+  ```
+
+  The offsite half (`verify-offsite.sh`) is likewise unrun, and needs the age private key, which by
+  design is not on the server. Until both have been run once, `docs/backup.md`'s own warning applies
+  to this project: an untested backup is a belief.
 - **A lifetime allowance is not expressible.** `period_days` is `NOT NULL` with
   `CheckConstraint("period_days >= 1")` and `_roll_period_forward` always advances the window, so
   every cap renews. "N checks per account, ever" needs a nullable `period_days` meaning *never
