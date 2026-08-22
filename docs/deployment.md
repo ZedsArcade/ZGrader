@@ -219,18 +219,110 @@ how the service runs.
 The frontend container has no bind mount and runs as the base image's `node`
 user; nothing to configure.
 
+## The reference deployment has no `docker compose`
+
+Portainer owns the stack and carries its own compose implementation *inside its
+own container*. Nothing installs a compose binary on Unraid itself, so every
+`docker compose ...` line in these docs works on a development machine and
+fails on the box with `unknown command`. The containers are still ordinary
+compose containers -- `docker inspect` shows
+`com.docker.compose.project=zgrader-app` -- they were simply created by
+something you cannot invoke from that shell.
+
+Two consequences, both easier to learn now than at speed.
+
+**The stack directory is Portainer's, and it has no `.git`.** A Repository
+stack is exported to `/mnt/user/appdata/portainer/compose/<stack id>/` as a
+plain tree plus a `stack.env`, so `git log` there fails and tells you nothing
+about which commit is deployed. Check by file instead -- whether a path added
+by the change you are looking for exists:
+
+```bash
+ls /mnt/user/appdata/portainer/compose/2/backend/zgrader/api/routers/public_reports.py
+```
+
+**Anything documented as `docker compose run --rm ... backup` has to be
+translated.** The services are already running, so `docker exec` reaches the
+same image, environment, network and volumes without needing compose at all:
+
+| Documented | On the box |
+|---|---|
+| `docker compose run --rm --entrypoint /usr/local/bin/drill.sh backup` | `docker exec -e PGHOST=postgres zgrader-app-backup-1 /usr/local/bin/drill.sh` |
+| `docker compose run --rm backup --once` | `docker exec zgrader-app-backup-1 /usr/local/bin/backup.sh --once` |
+| `docker compose down` / `up -d` | Stop / start the stack in Portainer |
+
+`PGHOST=postgres` is the addition worth remembering: `drill.sh` defaults it to
+`localhost`, which is right from a host that has the client tools and wrong
+from inside a container, where Postgres is a service name on the compose
+network.
+
+`verify-offsite.sh` is the exception. It needs the age private key *inside* the
+container and `docker exec` cannot add a mount, so run it from a workstation
+that has `rclone`, `age` and `pg_restore` -- which is where the private key
+should be living anyway. If it must happen on the box, a one-off container can
+mount the key and borrow the stack's own environment (**untested** -- there is
+no offsite remote configured yet):
+
+```bash
+docker run --rm \
+  --env-file /mnt/user/appdata/portainer/compose/2/stack.env \
+  -e BACKUP_AGE_IDENTITY=/key.txt \
+  -v /path/to/key.txt:/key.txt:ro \
+  zgrader-app-backup /usr/local/bin/verify-offsite.sh
+```
+
 ## Upgrading an existing deployment
 
 1. Set `ZGRADER_ENV`, `ZGRADER_SECRET_KEY` and `ZGRADER_SITE_URL` in `.env`
    (see `.env.example`). **The stack will not come up without the first two.**
 2. Pull and redeploy. The `migrate` service runs `alembic upgrade head` before
    the backend starts, as it always has.
+
+   **A failed build is silent, and looks exactly like a successful one.**
+   Compose builds services in parallel and aborts the whole `up` if any of them
+   fails, which leaves every previous container running and serving normally.
+   The site does not change, so nothing tells you. This is not hypothetical:
+   this box served eight days of merged work as "deployed" that way, and the
+   only trace was in `docker image ls` timestamps -- the small `backup` image
+   had rebuilt, the large `backend` one had not.
+
+   `migrate` hides it rather than catching it. A one-shot service that has
+   already exited 0 satisfies `service_completed_successfully`, so a redeploy
+   which does not recreate that container never re-runs migrations at all and
+   `alembic_version` stays where it was. New code against an old schema is the
+   dangerous version of this; that time it was old code against an old schema,
+   which is merely wasted.
+
+   The cause was disk. A rebuild holds the old image, the new one and
+   BuildKit's cache at once, so it needs headroom well beyond steady state --
+   the `backend` image alone is roughly 1.5GB of opencv, scipy, Pillow and
+   WeasyPrint, and the build cache had grown to 281 entries. Unraid's default
+   20GB `docker.img` is not enough for a stack that builds from source; 60GB
+   leaves room. `pip` reports it honestly as `OSError: [Errno 28] No space left
+   on device`, but only in the build log Portainer discards when the dialog is
+   closed.
 3. The migration adds the account/consent columns and lowercases existing email
    addresses. If two accounts differ only by case, it **aborts with an
    explanatory error and changes nothing** — that needs a human decision about
    which account is real, not a silent merge.
 4. Existing users are marked verified by the migration, so nobody already
    registered is locked out by the new verification requirement.
+5. **Check that it deployed**, rather than assuming it from the absence of an
+   error:
+
+   ```bash
+   docker ps -a --format '{{.Names}}\t{{.Status}}' | grep zgrader
+   ```
+
+   ```bash
+   docker exec zgrader-app-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select version_num from alembic_version"'
+   ```
+
+   Every container should report an age in seconds; `migrate` should show
+   `Exited (0)` from moments ago rather than from the previous deploy; and the
+   version should be the newest revision in `backend/alembic/versions/`. If
+   `migrate`'s timestamp is old while the others are fresh, the build failed --
+   read its log before doing anything else.
 
 ## Email is not optional
 
@@ -255,7 +347,5 @@ Honest list of what this deployment does *not* have yet:
   CSP and the token-version revocation reduce the exposure; moving to an
   `httpOnly` cookie is the real fix and is a focused piece of work of its own.
   Worth doing before advertising the service widely.
-- **No dependency lockfile on the backend,** so each image build resolves the
-  newest release of everything, including libraries that parse uploaded bytes.
 - **No retention policy** for scans, reports or audit rows. They accumulate
   until deleted by hand.

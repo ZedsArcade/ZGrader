@@ -660,19 +660,27 @@ Listed so a review reports something new rather than re-deriving these:
   free" cannot outlive a seed granting three a week again. What remains is purely the *number* — 3
   checks per 7 days, renewing, is generous enough that the paid tiers have nothing to sell. That is
   a business decision, and it is a panel value rather than a deploy, deliberately.
-- **The backup restore drill has never been run against a real Postgres.** `infra/backup/drill.sh`
-  rehearses the whole procedure against throwaway data, and its shell logic and its refuse-unless-
-  scratch guard are tested — but the dev machine it was written on has no `psql`, no `pg_dump` and
-  no Docker, so the actual `pg_restore` step is unexercised. Run it once on the box before believing
-  in the backups:
+- **The offsite half of the backup has never been proved.** The local half now has. On 2026-08-22
+  `infra/backup/drill.sh` ran against the deployed Postgres and passed: dump written by the real
+  `backup.sh`, database dropped and recreated, `pg_restore` run, two rows and three files verified
+  back. It had never run before then because the dev machine it was written on has no `psql`, no
+  `pg_dump` and no Docker.
+
+  Be precise about what that bought. It proves the *procedure* — that these tools, this image and
+  this Postgres 16 can complete a round trip. It says nothing about the real dataset, which has
+  still never been restored, and its three files were invented by the script.
+
+  On the box there is no compose binary at all, so the invocation is not the one in `docs/backup.md`
+  — see `docs/deployment.md`:
 
   ```
-  docker compose run --rm --entrypoint /usr/local/bin/drill.sh backup
+  docker exec -e PGHOST=postgres zgrader-app-backup-1 /usr/local/bin/drill.sh
   ```
 
-  The offsite half (`verify-offsite.sh`) is likewise unrun, and needs the age private key, which by
-  design is not on the server. Until both have been run once, `docs/backup.md`'s own warning applies
-  to this project: an untested backup is a belief.
+  `verify-offsite.sh` remains unrun and cannot run yet: it needs the age private key, which by
+  design is not on the server, and no `BACKUP_OFFSITE_REMOTE` is configured for it to read from. So
+  encryption, upload, download and decryption are all still untested, and `docs/backup.md`'s own
+  warning applies to that half: an untested backup is a belief.
 - **A lifetime allowance is not expressible.** `period_days` is `NOT NULL` with
   `CheckConstraint("period_days >= 1")` and `_roll_period_forward` always advances the window, so
   every cap renews. "N checks per account, ever" needs a nullable `period_days` meaning *never
