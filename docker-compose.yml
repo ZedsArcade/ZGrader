@@ -167,10 +167,41 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-zgrader}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      # Where a copy goes that survives this box. Empty means "local only",
+      # which is a supported state, not a broken one -- the offsite step logs
+      # one line and does nothing until a destination exists. Any rclone remote
+      # works: an Unassigned Devices disk, another machine, a bucket.
+      BACKUP_OFFSITE_REMOTE: ${BACKUP_OFFSITE_REMOTE:-}
+      # The *public* half of an age key pair. The private half must not be on
+      # this machine: that is what makes a stolen box unable to read the
+      # backups it wrote. Without this set, the offsite step refuses to send
+      # rather than sending customer scans and a dump of email addresses in
+      # the clear.
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+      # Longer than the local window on purpose: offsite protects against the
+      # failures noticed slowly. This is also the number the privacy policy
+      # states, so changing it means changing the page.
+      BACKUP_OFFSITE_RETENTION_DAYS: ${BACKUP_OFFSITE_RETENTION_DAYS:-30}
+      # rclone reads its whole configuration from the environment, so there is
+      # no config file to mount and no secret in the repo. Name the remote
+      # OFFSITE and set the type plus whatever that backend needs; for a local
+      # disk mounted into this container, type=local is enough.
+      RCLONE_CONFIG_OFFSITE_TYPE: ${RCLONE_CONFIG_OFFSITE_TYPE:-}
+      RCLONE_CONFIG_OFFSITE_ACCOUNT: ${RCLONE_CONFIG_OFFSITE_ACCOUNT:-}
+      RCLONE_CONFIG_OFFSITE_KEY: ${RCLONE_CONFIG_OFFSITE_KEY:-}
+      RCLONE_CONFIG_OFFSITE_HOST: ${RCLONE_CONFIG_OFFSITE_HOST:-}
+      RCLONE_CONFIG_OFFSITE_USER: ${RCLONE_CONFIG_OFFSITE_USER:-}
+      RCLONE_CONFIG_OFFSITE_PASS: ${RCLONE_CONFIG_OFFSITE_PASS:-}
     volumes:
       - ${BACKUP_HOST_PATH:-./data/backups}:/backups
       - ${REPORTS_DATA_PATH:-reports_data}:/data/reports:ro
       - ${SCANS_HOST_PATH:-./data/scans}:/data/scans:ro
+      # The offsite disk, once there is one. Defaults to the local backup
+      # directory so the mount is always valid; pointing it at an Unassigned
+      # Devices disk (/mnt/disks/<name>) is the whole setup step, alongside
+      # setting BACKUP_OFFSITE_REMOTE=offsite:/offsite and
+      # RCLONE_CONFIG_OFFSITE_TYPE=local.
+      - ${OFFSITE_HOST_PATH:-./data/backups}:/offsite
     depends_on:
       postgres:
         condition: service_healthy

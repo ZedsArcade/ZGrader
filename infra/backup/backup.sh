@@ -25,6 +25,10 @@ BACKUP_DIR="${BACKUP_DIR:-/backups}"
 DATA_DIR="${BACKUP_DATA_DIR:-/data}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 INTERVAL_SECONDS="${BACKUP_INTERVAL_SECONDS:-86400}"
+# Sibling script rather than inlined: the local path above is already tested and
+# must not regress behind a new feature, and the offsite step needs a different
+# failure policy -- it may fail without failing the backup.
+OFFSITE_SCRIPT="${BACKUP_OFFSITE_SCRIPT:-$(dirname "${BASH_SOURCE[0]}")/offsite.sh}"
 PGHOST="${PGHOST:-postgres}"
 PGUSER="${POSTGRES_USER:-zgrader}"
 PGDATABASE="${POSTGRES_DB:-zgrader}"
@@ -72,6 +76,8 @@ run_once() {
   [ -d "${DATA_DIR}/reports" ] && targets+=(reports)
   [ -d "${DATA_DIR}/scans" ] && targets+=(scans)
 
+  local produced=("$dump_final")
+
   if [ "${#targets[@]}" -eq 0 ]; then
     log "wrote $(basename "$dump_final") ($(du -h "$dump_final" | cut -f1)); no reports or scans directories to archive yet"
   else
@@ -81,7 +87,19 @@ run_once() {
       return 1
     fi
     mv "$files_tmp" "$files_final"
+    produced+=("$files_final")
     log "wrote $(basename "$dump_final") ($(du -h "$dump_final" | cut -f1)) and $(basename "$files_final") ($(du -h "$files_final" | cut -f1))"
+  fi
+
+  # Offsite, if a destination is configured. Deliberately here: after the dump
+  # has been proved readable and renamed into place, so only a backup already
+  # known to be good is copied anywhere.
+  #
+  # Its failure is logged and does NOT fail this run. The local copy is already
+  # safe by this point, and a dead network must not be reported as a backup
+  # problem -- that is how a real failure gets lost among ignorable ones.
+  if [ -x "$OFFSITE_SCRIPT" ]; then
+    "$OFFSITE_SCRIPT" "${produced[@]}" || fail "offsite copy did not complete; the local backup above is still good"
   fi
 
   # Rotation runs only after a verified success, so a run of failures can

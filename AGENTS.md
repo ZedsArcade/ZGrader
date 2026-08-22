@@ -104,7 +104,7 @@ adding a fifth declining path.
 measurement keeps recording what was detected and clearing the adjustment restores it with no other
 trace. The consequence is that every picture derived from those widths is stale the moment one is
 applied, and there are two: the centering frame `regions._build_centering_regions` puts in
-`measurements.regions`, and the baked `{side}_centering.png` the PDF renders. The score moved and
+`measurements.regions`, and the baked `{side}_centering` image the PDF renders. The score moved and
 neither did — a published report showing detection's frame beside the customer's number, which is
 the report contradicting itself.
 
@@ -137,7 +137,7 @@ later inherits correctness instead of being a fifth thing that forgot. The test 
 *clearing* an adjustment restores the original fingerprint; the forward direction is easy and the
 reverse is where the equivalent bug lived.
 
-The image draws the plain `front_base.png`, never an annotated one, so it is not a fifth surface
+The image draws the plain `front_base` image, never an annotated one, so it is not a fifth surface
 needing the remap arithmetic.
 
 **Emails are stored lowercased behind a unique index on `lower(email)`.** Every user lookup must
@@ -342,6 +342,28 @@ control and silently does nothing is the exact failure `test_compose_env_coverag
 NumPy's bundled OpenBLAS is a **separate pool** that ignores all of this and reads
 `OMP_NUM_THREADS`/`OPENBLAS_NUM_THREADS` at import time, so those are set in `docker-compose.yml`
 and cannot be applied from code.
+
+**A backup that only exists on the box is half a backup, and the encryption runs one way.**
+`infra/backup/backup.sh` writes a verified dump plus a `tar` of reports and scans locally;
+`offsite.sh` then sends an encrypted copy to any rclone remote. Three rules hold it together.
+
+Offsite runs **after** the dump has been proved readable and renamed into place — the same
+"act only on a verified backup" rule that already governs rotation. Its failure is logged and
+**never fails the local backup**, because a dead network reported as a backup failure is how a real
+failure gets lost among ignorable ones. And with `BACKUP_OFFSITE_REMOTE` unset it does nothing at
+all, so the feature ships before the destination exists.
+
+Encryption is to an **age recipient public key**, so the box can write backups it cannot read — take
+the machine and you get ciphertext. The private half lives off it, which is also why
+`verify-offsite.sh` is a deliberate act by whoever holds the key rather than something the server
+does to itself. If `BACKUP_OFFSITE_REMOTE` is set and `BACKUP_AGE_RECIPIENT` is not, the step
+**refuses**: what would leave otherwise is customer card photographs and a dump of email addresses
+and password hashes.
+
+**The 30-day offsite retention is a published promise, not just a setting.** Privacy policy §5 tells
+customers a deleted submission can persist in a backup for up to that long — corrected in the same
+change, because it previously claimed deletion was "permanently and immediately" while a 14-day
+local archive existed. Change `BACKUP_OFFSITE_RETENTION_DAYS` and that page has to change with it.
 
 **Every setting in `config.py` must be reachable through `docker-compose.yml`.** Compose only
 forwards variables named in a service's `environment:` block; anything else in `.env` is invisible

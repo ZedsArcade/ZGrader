@@ -18,7 +18,29 @@
 # database, change both, and the build will still be using the same tag.
 FROM postgres:16
 
+# rclone moves the copy, age encrypts it. Both are single binaries in Debian,
+# so this stays a two-package image rather than a build.
+#
+# age encrypts to a *public* key, which is what lets this container write
+# backups it cannot itself read -- the private half never comes near the box.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    rclone \
+    age \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY backup.sh /usr/local/bin/backup.sh
-RUN chmod 0755 /usr/local/bin/backup.sh
+COPY offsite.sh /usr/local/bin/offsite.sh
+COPY verify-offsite.sh /usr/local/bin/verify-offsite.sh
+# The drill needs psql/pg_dump/pg_restore, which this image already has by
+# virtue of its base -- so it runs in here rather than expecting a Postgres
+# client on the Unraid host, which there is no reason to install:
+#
+#     docker compose run --rm --entrypoint /usr/local/bin/drill.sh backup
+COPY drill.sh /usr/local/bin/drill.sh
+RUN chmod 0755 \
+    /usr/local/bin/backup.sh \
+    /usr/local/bin/offsite.sh \
+    /usr/local/bin/verify-offsite.sh \
+    /usr/local/bin/drill.sh
 
 ENTRYPOINT ["/usr/local/bin/backup.sh"]
