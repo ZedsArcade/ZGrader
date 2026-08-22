@@ -128,6 +128,10 @@ undo:
 docker compose run --rm backup --once
 ```
 
+On the reference deployment, which has no compose binary, that is
+`docker exec zgrader-app-backup-1 /usr/local/bin/backup.sh --once` -- see
+`docs/deployment.md`.
+
 Writes one backup to the same destination and exits non-zero if it did not
 happen, so it can be chained ahead of whatever you were about to do. This is
 the thing that was missing when a destructive change had to be preceded by a
@@ -161,6 +165,15 @@ so that is the second time.
 docker compose run --rm --entrypoint /usr/local/bin/drill.sh backup
 ```
 
+On the reference deployment there is no compose binary, so it is a `docker exec`
+into the already-running service instead. `PGHOST` is the part that is easy to
+miss -- `drill.sh` defaults it to `localhost`, which is wrong from inside a
+container:
+
+```
+docker exec -e PGHOST=postgres zgrader-app-backup-1 /usr/local/bin/drill.sh
+```
+
 It builds a scratch database and a directory of fake scans and reports, backs
 them up with the real `backup.sh`, destroys the originals, restores, and checks
 that the rows and files came back. It runs inside the backup container because
@@ -190,6 +203,14 @@ discover anything.
 
 **Run both once now**, while the database is small enough that a mistake costs
 nothing.
+
+The local drill has been run: it passed against the deployed Postgres on
+2026-08-22, restoring two rows and three files. Note what that does and does not
+settle. It proves the procedure -- these tools, this image, this server, a
+complete round trip -- and it proves nothing whatever about the real dataset,
+which has still never been restored. The offsite half has not been run at all
+and cannot be until an age key pair exists and `BACKUP_OFFSITE_REMOTE` points
+somewhere.
 
 ## The restore drill
 

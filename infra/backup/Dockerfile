@@ -36,6 +36,13 @@ COPY verify-offsite.sh /usr/local/bin/verify-offsite.sh
 # client on the Unraid host, which there is no reason to install:
 #
 #     docker compose run --rm --entrypoint /usr/local/bin/drill.sh backup
+#
+# The reference deployment has no compose binary -- Portainer carries its own,
+# inside its own container -- so there it is a docker exec into the running
+# service instead. PGHOST is the easy part to miss: drill.sh defaults it to
+# localhost, which is right from a host shell and wrong from in here.
+#
+#     docker exec -e PGHOST=postgres zgrader-app-backup-1 /usr/local/bin/drill.sh
 COPY drill.sh /usr/local/bin/drill.sh
 RUN chmod 0755 \
     /usr/local/bin/backup.sh \
