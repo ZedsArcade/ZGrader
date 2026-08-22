@@ -895,7 +895,7 @@ export const en = {
       "Images you upload are used to produce your report and for nothing else. They are not sold, not published, and not used to advertise the service or to train anything without asking you first and separately. They are stored so your report continues to work when you open it later.",
     s5Title: "5. How long we keep it",
     s5Body:
-      "Submissions, scans, analysis and reports are kept while your account is open, so you can go back to them. Deleting a submission removes its scans, analysis and report permanently and immediately. Ask us to close your account and we will delete your personal data, keeping only what we are legally required to retain.",
+      "Submissions, scans, analysis and reports are kept while your account is open, so you can go back to them. Deleting a submission removes its scans, analysis and report from the service immediately. Backups are the one exception, and we would rather state it than imply otherwise: encrypted copies are kept for up to 30 days and then deleted, so a deleted submission can persist in a backup for that long. If we ever restore from one, we re-apply any deletions made since it was taken. Ask us to close your account and we will delete your personal data on the same basis, keeping only what we are legally required to retain.",
     s6Title: "6. Who else sees it",
     s6Body:
       "Nobody, other than the service operator. We do not sell personal data and we do not share it with grading companies or any other third party, except where a supplier is strictly necessary to run the service (such as hosting or sending email), or where we are legally required to disclose it.",

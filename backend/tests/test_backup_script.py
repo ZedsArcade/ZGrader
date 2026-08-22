@@ -184,3 +184,168 @@ def test_the_archive_contains_both_trees(rig):
         names = handle.getnames()
     assert any(name.startswith("reports") for name in names), names
     assert any(name.startswith("scans") for name in names), names
+
+
+# --- offsite ---------------------------------------------------------------
+#
+# The offsite step has one rule the local backup does not: it must never turn a
+# good local backup into a failed run. It also has one refusal the local backup
+# does not: it will not send customer data unencrypted. Both are shell logic,
+# so both are testable here against stub rclone/age binaries.
+
+
+def _offsite_rig(rig, *, remote="offsite:bucket", recipient="age1stubrecipient", age_ok=True,
+                 rclone_ok=True):
+    """Stub `age` and `rclone`, and record what they were asked to do."""
+    calls = rig["tmp"] / "rclone-calls.txt"
+    _stub(
+        rig["bin"],
+        "age",
+        f"""
+        # Real age reads stdin and writes ciphertext; the stub just marks it.
+        printf 'ENCRYPTED:'
+        cat
+        exit {0 if age_ok else 1}
+        """,
+    )
+    _stub(
+        rig["bin"],
+        "rclone",
+        f"""
+        echo "$@" >> "{_sh_path(calls)}"
+        # rcat consumes stdin, as the real one does -- without this the
+        # upstream `age` in the pipe gets SIGPIPE and the test measures the
+        # wrong thing.
+        if [ "$1" = "rcat" ]; then cat > /dev/null; fi
+        exit {0 if rclone_ok else 1}
+        """,
+    )
+    env = {
+        "BACKUP_OFFSITE_REMOTE": remote,
+        "BACKUP_AGE_RECIPIENT": recipient,
+    }
+    return calls, env
+
+
+def _run_with(rig, extra_env) -> subprocess.CompletedProcess:
+    env = {
+        **os.environ,
+        "PATH": f"{rig['bin']}{os.pathsep}{os.environ['PATH']}",
+        "BACKUP_DIR": _sh_path(rig["backups"]),
+        "BACKUP_DATA_DIR": _sh_path(rig["data"]),
+        "POSTGRES_PASSWORD": "irrelevant",
+        **extra_env,
+    }
+    return subprocess.run(
+        [BASH, str(SCRIPT), "--once"], env=env, capture_output=True, text=True, timeout=60
+    )
+
+
+def test_nothing_is_sent_when_no_destination_is_configured(rig):
+    """Shipping before the disk exists is a supported state. An operator who has
+    not chosen a destination gets one quiet line, not a nightly failure."""
+    _stub(rig["bin"], "pg_dump", 'printf "PGDMP-fake"\n')
+    _stub(rig["bin"], "pg_restore", "exit 0\n")
+
+    result = _run_with(rig, {})
+
+    assert result.returncode == 0
+    assert "keeping backups on this box only" in result.stdout
+    assert list(rig["backups"].glob("db-*.dump"))
+
+
+def test_a_configured_destination_receives_both_files_encrypted(rig):
+    _stub(rig["bin"], "pg_dump", 'printf "PGDMP-fake"\n')
+    _stub(rig["bin"], "pg_restore", "exit 0\n")
+    calls, env = _offsite_rig(rig)
+
+    result = _run_with(rig, env)
+
+    assert result.returncode == 0, result.stderr
+    sent = calls.read_text(encoding="utf-8")
+    # The dump and the files archive, both as .age, plus the prune.
+    assert "rcat offsite:bucket/db-" in sent and ".dump.age" in sent
+    assert "rcat offsite:bucket/files-" in sent and ".tar.gz.age" in sent
+    assert "delete --min-age 30d" in sent
+
+
+def test_it_refuses_to_send_customer_data_unencrypted(rig):
+    """What leaves here is card photographs and a dump of email addresses and
+    password hashes. Sending that in the clear is a decision this script does
+    not make silently -- and the local backup still has to succeed."""
+    _stub(rig["bin"], "pg_dump", 'printf "PGDMP-fake"\n')
+    _stub(rig["bin"], "pg_restore", "exit 0\n")
+    calls, env = _offsite_rig(rig, recipient="")
+    env["BACKUP_AGE_RECIPIENT"] = ""
+
+    result = _run_with(rig, env)
+
+    assert "refusing to send customer data unencrypted" in result.stderr
+    assert not calls.exists(), "nothing should have been uploaded"
+    assert list(rig["backups"].glob("db-*.dump")), "the local backup must still be good"
+    assert result.returncode == 0, "an offsite refusal must not fail the local backup"
+
+
+def test_an_offsite_failure_does_not_fail_the_local_backup(rig):
+    """A dead network must not be reported as a backup problem. That is how a
+    real failure gets lost among ignorable ones."""
+    _stub(rig["bin"], "pg_dump", 'printf "PGDMP-fake"\n')
+    _stub(rig["bin"], "pg_restore", "exit 0\n")
+    _calls, env = _offsite_rig(rig, rclone_ok=False)
+
+    result = _run_with(rig, env)
+
+    assert result.returncode == 0
+    assert "offsite copy did not complete" in result.stderr
+    assert list(rig["backups"].glob("db-*.dump"))
+    assert list(rig["backups"].glob("files-*.tar.gz"))
+
+
+def test_a_failed_encryption_is_caught_rather_than_uploading_nothing(rig):
+    """`age | rclone` without pipefail reports rclone's status, so a failing
+    encrypt would look like a successful upload of an empty object."""
+    _stub(rig["bin"], "pg_dump", 'printf "PGDMP-fake"\n')
+    _stub(rig["bin"], "pg_restore", "exit 0\n")
+    _calls, env = _offsite_rig(rig, age_ok=False)
+
+    result = _run_with(rig, env)
+
+    assert "could not send" in result.stderr
+    assert result.returncode == 0, "the local backup is still good"
+
+
+def test_nothing_is_sent_when_the_dump_itself_failed(rig):
+    """Upload only what has been verified -- the same rule that governs
+    rotation. A run that produced no good dump must reach the remote with
+    nothing at all."""
+    _stub(rig["bin"], "pg_dump", "exit 1\n")
+    _stub(rig["bin"], "pg_restore", "exit 0\n")
+    calls, env = _offsite_rig(rig)
+
+    result = _run_with(rig, env)
+
+    assert result.returncode == 1
+    assert not calls.exists(), "a failed dump must not be uploaded"
+
+
+# --- the drill's safety catch ---------------------------------------------
+
+
+DRILL = Path(__file__).resolve().parents[2] / "infra" / "backup" / "drill.sh"
+
+
+@pytest.mark.parametrize("name", ["zgrader", "zgrader_prod", "postgres"])
+def test_the_drill_refuses_a_database_that_is_not_obviously_scratch(name):
+    """It drops and recreates whatever it is pointed at, so the name guard is
+    the only thing between a rehearsal and an outage. Same shape as the test
+    suite's own refusal to run unless the database ends in `_test`."""
+    result = subprocess.run(
+        [BASH, str(DRILL)],
+        env={**os.environ, "DRILL_DB": name},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 1
+    assert "refusing to run against" in result.stderr
