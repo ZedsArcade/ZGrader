@@ -95,11 +95,19 @@ and password hashes in the clear. That refusal does not fail the local backup.
 | local (`BACKUP_RETENTION_DAYS`) | 14 days | enough to undo a recent mistake |
 | offsite (`BACKUP_OFFSITE_RETENTION_DAYS`) | 30 days | the failures offsite protects against are the ones noticed slowly |
 
-**The offsite number is stated in the privacy policy.** Section 5 tells
-customers a deleted submission can persist in a backup for up to 30 days, so
-changing this setting means changing that page -- otherwise the site is making
-a promise the system does not keep, which is the specific thing that section
-was corrected to stop doing.
+**Both numbers are stated in the privacy policy.** Section 5 tells customers
+how long a deleted submission can persist in a backup, so changing either
+setting means changing that page -- otherwise the site is making a promise the
+system does not keep, which is the specific thing that section was corrected to
+stop doing.
+
+Right now it quotes the **local** figure, because no `BACKUP_OFFSITE_REMOTE` is
+configured: `offsite.sh` does nothing, so the only backups that exist are the
+14-day local ones. Section 5 says so, and says in as many words that those
+copies are **not encrypted** and contain report PDFs carrying the account's
+email address. The page previously described 30-day encrypted copies, which was
+a description of a configuration that was not running. **When offsite is
+switched on, section 5 changes in the same commit** -- and only then.
 
 ## The service is built, not pulled
 

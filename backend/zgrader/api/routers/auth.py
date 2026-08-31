@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import func
+from sqlalchemy import Text, cast, func
 from sqlalchemy.orm import Session
 
 from zgrader.api.deps import get_current_user
@@ -54,7 +54,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Bumped whenever the terms change, and recorded against each acceptance so
 # you can show which version someone agreed to.
-CURRENT_TERMS_VERSION = "2026-07"
+CURRENT_TERMS_VERSION = "2026-08"
 
 
 def _find_by_email(db: Session, email: str) -> User | None:
@@ -303,6 +303,22 @@ def delete_account(
         )
 
     codes = [s.submission_code for s in user.submissions]
+
+    # Nulling user_id is *most* of the anonymisation, but two actions record
+    # the address in `detail` rather than relying on the FK, so on its own it
+    # would leave the very thing an erasure is about sitting in the JSONB body.
+    # Scrub those keys first, while user_id still identifies the rows -- after
+    # the null below there is nothing left to find them by.
+    db.query(AuditLog).filter(AuditLog.user_id == user.id).update(
+        {AuditLog.detail: AuditLog.detail.op("-")(cast("email", Text))},
+        synchronize_session=False,
+    )
+    # `user_quota_adjusted` is written by an *operator* acting on this account,
+    # so its user_id is the operator's and the subject is named in the body.
+    db.query(AuditLog).filter(AuditLog.detail["target_user_id"].astext == str(user.id)).update(
+        {AuditLog.detail: AuditLog.detail.op("-")(cast("target_email", Text))},
+        synchronize_session=False,
+    )
 
     # Detach the audit trail before the FK targets disappear. Nulling user_id
     # is the anonymisation: the action and its detail survive, the identity

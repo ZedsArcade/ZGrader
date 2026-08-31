@@ -58,6 +58,7 @@ export default function Footer() {
   const legal = [
     { href: "/terms", label: t.nav.terms },
     { href: "/privacy", label: t.nav.privacy },
+    { href: "/refunds", label: t.nav.refunds },
   ];
 
   return (

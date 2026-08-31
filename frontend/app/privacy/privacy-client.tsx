@@ -19,6 +19,7 @@ export default function PrivacyClient() {
     { title: t.privacy.s7Title, body: t.privacy.s7Body },
     { title: t.privacy.s8Title, body: t.privacy.s8Body },
     { title: t.privacy.s9Title, body: t.privacy.s9Body },
+    { title: t.privacy.s10Title, body: t.privacy.s10Body },
   ];
 
   return (

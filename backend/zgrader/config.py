@@ -110,6 +110,21 @@ class ZGraderConfig(BaseSettings):
     # Safety-net poll interval for submissions the watcher may have missed.
     worker_poll_interval_seconds: float = 30.0
 
+    # How long a contact-form enquiry is kept before the worker purges it.
+    #
+    # This is a published promise, not just a knob: the privacy policy tells
+    # customers enquiries are deleted after this long, so changing it means
+    # changing that page -- the same rule that already governs
+    # BACKUP_OFFSITE_RETENTION_DAYS.
+    #
+    # `contact_messages` is deliberately not FK'd to `users` (the sender need
+    # not have an account), so account deletion cannot reach it and nothing
+    # else would ever remove it. Without this the table is the one place that
+    # accumulates names, addresses, message bodies and IPs forever.
+    #
+    # 0 disables the purge, for an operator who would rather keep the history.
+    contact_message_retention_days: int = 365
+
     # How many analyses may run inside API requests at once.
     #
     # `confirm-crop` runs the whole OpenCV pipeline synchronously in the

@@ -20,6 +20,7 @@ export const en = {
     contact: "Contact",
     terms: "Terms",
     privacy: "Privacy",
+    refunds: "Refunds",
   },
   status: {
     created: "Created",
@@ -834,7 +835,7 @@ export const en = {
   terms: {
     title: "Terms & Conditions",
     updated: "Last updated",
-    updatedValue: "July 2026",
+    updatedValue: "August 2026",
     intro:
       "These terms cover your use of {businessName}. By creating an account or submitting a card, you agree to them. Please read the disclaimer below in particular.",
     disclaimerTitle: "Important disclaimer",
@@ -860,7 +861,7 @@ export const en = {
       "Where you send a card to us, we handle it with care and keep handling to a minimum. Nothing is done to a physical card beyond scanning unless you have specifically requested it and we have agreed it with you in writing. You are responsible for postage to us and for insuring a card in transit at a value you are comfortable with. Restoration work, where agreed, carries an inherent risk of damage and a restored card may be graded as altered or refused outright by a grading company; that risk is explained and agreed before any work begins.",
     s7Title: "7. Fees",
     s7Body:
-      "The basic image analysis is currently free to use, subject to fair-use limits. Paid services are described on the Services page; where a service is marked as coming soon or planned it is not yet available to buy. Fees for any paid service are agreed with you before work starts.",
+      "The basic image analysis is currently free to use, subject to fair-use limits. Paid services are described on the Services page; where a service is marked as coming soon or planned it is not yet available to buy. Fees for any paid service are agreed with you before work starts. Nothing is sold through this website: where you buy a service, we arrange payment with you directly. Cancellation and refunds are covered by the Refund Policy, which forms part of these terms.",
     s8Title: "8. Limitation of liability",
     s8Body:
       "To the extent permitted by law, we are not liable for decisions you make on the basis of a report, for grading outcomes, for loss of profit or expected value, or for the difference between a report and a grading company's decision. Nothing in these terms limits liability for death or personal injury caused by negligence, for fraud, or for anything else that cannot lawfully be limited. Where a card is lost or damaged while in our care, our liability is limited to the agreed handling arrangements for that card.",
@@ -878,38 +879,74 @@ export const en = {
   privacy: {
     title: "Privacy Policy",
     updated: "Last updated",
-    updatedValue: "July 2026",
+    updatedValue: "August 2026",
     intro:
-      "This explains what personal data {businessName} collects, why, and what you can do about it. We collect as little as the service needs to work.",
+      "This explains what personal data {businessName} collects, why, and what you can do about it. We collect as little as the service needs to work, and this page describes what the software actually does rather than what a policy template would say.",
     s1Title: "1. Who is responsible",
     s1Body:
-      "{businessName}, based in Gibraltar, is the data controller for the personal data described here. You can reach us via the contact page.",
+      "{businessName}, based in Gibraltar, is the data controller for the personal data described here. The service is run by one operator. You can reach us via the contact page.",
     s2Title: "2. What we collect",
     s2Body:
-      "Your email address and a securely hashed password, so you can log in. Details of the cards you submit -- game, card name, set and number. The images you upload or that we produce by scanning your card, along with the analysis derived from them. Basic records of actions taken on your submissions, so there is an audit trail. We do not collect payment card details on this site, and we do not use advertising or tracking cookies.",
+      "To run your account: your email address and, unless you sign in with Google, a securely hashed password. Optionally a display name. We also record when you accepted the terms and which version, whether you opted in to marketing, and when you last signed in. If you sign in with Google we ask Google for two things only \u2014 your verified email address and the account identifier that lets us recognise you next time. We never receive your Google password. About your cards: the game, name, set and number you enter, the images you upload or that we produce by scanning a card you send us, the analysis derived from them, and the report. If you use the contact form: your name, email address, subject, message, the language you wrote in, and the IP address the message came from, which we keep to deal with abuse of the form. We also keep an audit record of actions taken on submissions. Your browser stores your sign-in token and your language and brand preferences on your own device; these are not cookies and are not used to track you. We do not use advertising or analytics tracking, and we never see your payment card details.",
     s3Title: "3. Why we use it, and on what basis",
     s3Body:
-      "We use your email to run your account, verify it, and send you notifications about your own submissions. We use your card details and images to produce the analysis and report you asked for. Both are necessary to perform the service you requested. We keep audit records to protect the integrity of the service, which is our legitimate interest as an operator.",
+      "We use your email address to run your account, confirm it is yours, and tell you about your own submissions. We use your card details and images to produce the analysis and report you asked for. Both are necessary to perform the service you requested. We keep audit records, and the IP address attached to a contact message, to protect the service from abuse and to keep an accurate record of what happened \u2014 our legitimate interest as the operator. Marketing email, if we ever send any, goes only to people who have opted in, and you can withdraw that from your account page at any time.",
     s4Title: "4. Your card images",
     s4Body:
-      "Images you upload are used to produce your report and for nothing else. They are not sold, not published, and not used to advertise the service or to train anything without asking you first and separately. They are stored so your report continues to work when you open it later.",
+      "Images you upload are used to produce your report and for nothing else. They are not sold, not published, and not used to advertise the service or to train anything without asking you first and separately. A photograph taken on a phone normally carries EXIF metadata, which can include the GPS coordinates of where it was taken \u2014 often someone's home. Every image is decoded and re-encoded the moment it reaches us, which discards that metadata before anything is written to disk: we keep the picture and not the place it was taken. The rotation recorded in that metadata is applied to the pixels first, so nothing is stored sideways. Separately, you can choose to publish a finished report at a private link. While that is switched on, anyone holding the link can read the report and see its images without signing in. The page asks search engines not to index it, but a link you have given out is beyond our control until you switch sharing off, which revokes it immediately and permanently.",
     s5Title: "5. How long we keep it",
     s5Body:
-      "Submissions, scans, analysis and reports are kept while your account is open, so you can go back to them. Deleting a submission removes its scans, analysis and report from the service immediately. Backups are the one exception, and we would rather state it than imply otherwise: encrypted copies are kept for up to 30 days and then deleted, so a deleted submission can persist in a backup for that long. If we ever restore from one, we re-apply any deletions made since it was taken. Ask us to close your account and we will delete your personal data on the same basis, keeping only what we are legally required to retain.",
-    s6Title: "6. Who else sees it",
+      "Submissions, scans, analysis and reports are kept for as long as your account is open, so you can go back to them; there is no automatic expiry, and you can delete any individual submission or your whole account whenever you like. Contact form messages are deleted automatically twelve months after they are sent. Backups are the one place where deleted material lingers, and we would rather state it plainly than imply otherwise: a backup of the database and of the stored files is taken to the server itself and kept for 14 days before being deleted. Those local backups are not encrypted, and they include report PDFs, which carry the account's email address. So a submission or an account you delete today can still exist in a backup for up to 14 days afterwards. If we ever restore from one, we re-apply any deletions made since it was taken. We are working on an encrypted, off-site copy with a 30-day retention; this page will change on the day that starts running, and it is not running yet.",
+    s6Title: "6. Deleting your account and your data",
     s6Body:
-      "Nobody, other than the service operator. We do not sell personal data and we do not share it with grading companies or any other third party, except where a supplier is strictly necessary to run the service (such as hosting or sending email), or where we are legally required to disclose it.",
-    s7Title: "7. Your rights",
+      "You do not need to email anyone. Deleting a single submission from your dashboard removes its scans, its analysis, its report and every image derived from it, from the database and from disk, straight away. Closing your account from the account page does the same for every submission you have, and then removes the account itself \u2014 your email address, your password hash, your Google sign-in link if you have one, and your preferences. It is a real deletion and not a flag on a row that stays behind. We keep the audit record of what happened, because it protects the integrity of the service, but the identity is stripped out of it: the entries no longer name you, and the two kinds of entry that recorded an email address in their body have it removed as part of the same operation. None of this can be undone, and the backup point in the section above is the one exception.",
+    s7Title: "7. Who else sees it",
     s7Body:
-      "Under Gibraltar data protection law you can ask for a copy of your data, ask us to correct it, ask us to delete it, object to or ask us to restrict certain processing, and ask for your data in a portable form. Contact us and we will respond within the statutory time limit. If you are unhappy with how we handle a request, you can complain to the Gibraltar Regulatory Authority.",
-    s8Title: "8. Security",
+      "Nobody, other than the service operator. We do not sell personal data and we do not share it with grading companies. The service runs on hardware the operator owns rather than at a hosting company, so your images are not sitting on someone else's cloud. Three suppliers are unavoidably involved and are named here rather than hidden behind a general clause: Cloudflare carries traffic between your browser and the service, and sees the connection and your IP address; an email provider delivers the messages we send you, and sees your address and the contents of those messages; and Google, only if you choose to sign in with Google, which tells them you use this service. Beyond that we disclose personal data only where we are legally required to.",
+    s8Title: "8. Your rights",
     s8Body:
-      "Passwords are stored hashed, never in plain text. Access to submissions and images is restricted to the account that owns them and to the operator. No system is perfectly secure, but we keep access narrow and the stored data minimal.",
-    s9Title: "9. Changes",
+      "Under Gibraltar data protection law you can ask for a copy of your data, ask us to correct it, ask us to delete it, object to or ask us to restrict certain processing, and ask for your data in a portable form. Deletion you can do yourself, immediately, as described above. For a copy or an export, contact us \u2014 there is no self-service button for that yet, so we produce it by hand, and we will respond within the statutory time limit. If you are unhappy with how we handle a request, you can complain to the Gibraltar Regulatory Authority.",
+    s9Title: "9. Security",
     s9Body:
+      "Passwords are stored hashed, never in plain text. Changing your password, or resetting it, ends every other session signed in as you. Access to submissions and images is restricted to the account that owns them and to the operator, and a report shared by link is reachable only through a long random token that reveals nothing about the account behind it. Two things are worth knowing rather than glossing over: your sign-in token is held in your browser's storage, which a serious cross-site scripting flaw could reach, and the on-server backups described in section 5 are not encrypted. No system is perfectly secure, but we keep access narrow and the stored data minimal.",
+    s10Title: "10. Changes",
+    s10Body:
       "If this policy changes, the date at the top of this page changes with it. Material changes affecting how we use your data will be brought to your attention.",
     reviewNote:
-      "This policy is written in plain language rather than legal boilerplate. It is not legal advice; if you need advice about your own position, speak to a qualified adviser.",
+      "This policy is written in plain language rather than legal boilerplate, and describes the software as it currently behaves. It is not legal advice; if you need advice about your own position, speak to a qualified adviser.",
+  },
+  refunds: {
+    title: "Refund Policy",
+    updated: "Last updated",
+    updatedValue: "August 2026",
+    intro:
+      "When you can cancel a paid service from {businessName}, when you can get your money back, and the point after which you cannot. It forms part of our Terms & Conditions.",
+    s1Title: "1. What this covers",
+    s1Body:
+      "This policy covers services you pay for. The free image analysis costs nothing and so has nothing to refund \u2014 if you are on the free allowance, none of this applies to you. Nothing is bought through this website: there is no checkout, so every paid service is arranged with you directly and the price is agreed before any work starts.",
+    s2Title: "2. Your right to cancel",
+    s2Body:
+      "You have 14 days from the day we agree to provide a service to change your mind and cancel it, without giving a reason. Tell us through the contact page within that window and we will refund what you have paid, subject to the two sections below.",
+    s3Title: "3. Asking us to start straight away",
+    s3Body:
+      "Most people want their report quickly, so we will normally begin as soon as you have paid. If you ask us to start within the 14-day window, you are agreeing that work may begin immediately, and two things follow. Once the service has been fully performed, the right to cancel is used up and there is no refund. If you cancel while it is only part done, we refund what you paid less a fair amount for the work already carried out. We will tell you this at the point you ask us to start, so it is never a surprise.",
+    s4Title: "4. Image analysis and reports",
+    s4Body:
+      "A digital report is fully performed the moment it is delivered to you \u2014 we cannot take it back, and you have already had the thing you paid for. So a paid analysis is refundable in full up until we begin work on it, and not afterwards. If you cancel after paying but before we start, you get everything back.",
+    s5Title: "5. Physical cards sent to us",
+    s5Body:
+      "Where you post a card for us to handle, you can cancel and receive a full refund of the service fee at any point before we begin scanning it, and we will return the card to you. After scanning has begun the service is under way and section 3 applies. Postage to us is yours to pay and is not refundable, since it has already been spent. Where we return a card because you cancelled, we cover return postage; where a card is returned for any other reason, return postage is agreed with you beforehand.",
+    s6Title: "6. Restoration and other irreversible work",
+    s6Body:
+      "Restoration cannot be undone, so it is treated differently and deliberately so. It is only ever carried out after we have set out what is proposed and you have agreed it in writing, and once that work has started it is not refundable. The risks \u2014 including that a restored card may be graded as altered, or refused outright by a grading company \u2014 are explained to you before you agree, not afterwards.",
+    s7Title: "7. If something has gone wrong",
+    s7Body:
+      "This is separate from changing your mind and is not limited by the sections above. If a service was not carried out with reasonable care and skill, if we failed to deliver what was agreed, or if we made a mistake, tell us and we will put it right \u2014 by redoing the work or by refunding it, whichever is appropriate. A report reaching a conclusion you disagree with is not in itself a fault: our reports are estimates and the Terms explain what they are and are not. A report produced from the wrong card, or one we never delivered, plainly is. Nothing here affects your statutory rights.",
+    s8Title: "8. How to ask, and how long it takes",
+    s8Body:
+      "Ask through the contact page, telling us what you paid for and, where you have one, the submission code. We will confirm whether a refund is due within five working days. Approved refunds go back by the same method you paid by, within 14 days of us agreeing them. We do not charge a fee for processing a refund.",
+    reviewNote:
+      "This policy is written in plain language rather than legal boilerplate. It is not legal advice, and it does not reduce any right you have under Gibraltar consumer law; if you need advice about your own position, speak to a qualified adviser.",
   },
 } as const;
 
