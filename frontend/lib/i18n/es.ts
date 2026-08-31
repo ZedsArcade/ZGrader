@@ -269,6 +269,23 @@ export const es: Dictionary = {
     deleteConfirm: "Eliminar permanentemente",
     deleteCancel: "Cancelar",
     deleteFailed: "No se pudo eliminar su cuenta.",
+    googleTitle: "Acceso con Google",
+    googleConnectedBody:
+      "Su cuenta de Google está conectada, así que puede iniciar sesión con ella o con su contraseña.",
+    googleNotConnectedBody:
+      "Conecte su cuenta de Google y podrá iniciar sesión con un toque en lugar de escribir su contraseña. Su dirección de correo no cambia, y no tiene por qué coincidir con la de Google.",
+    googleConnect: "Conectar Google",
+    googleConnecting: "Abriendo Google…",
+    googleDisconnect: "Desconectar Google",
+    googleDisconnectTitle: "¿Desconectar Google?",
+    googleDisconnectBody:
+      "A partir de entonces iniciará sesión con su contraseña. Esto también cierra su sesión en todos los demás sitios, incluido cualquier dispositivo en el que otra persona pudiera tenerla abierta.",
+    googleLinked: "Cuenta de Google conectada.",
+    googleUnlinked:
+      "Cuenta de Google desconectada. Se ha cerrado su sesión en los demás dispositivos.",
+    googleNoPassword:
+      "Se registró con Google y no ha establecido una contraseña, por lo que desconectarla le dejaría sin forma de iniciar sesión. Establezca una primero con el enlace de contraseña olvidada de la página de acceso.",
+    googleFailed: "No se pudo cambiar su conexión con Google.",
   },
   forgotPassword: {
     title: "Restablecer su contraseña",

@@ -55,11 +55,25 @@ class UserOut(BaseModel):
     display_name: str | None = None
     marketing_consent: bool = False
     terms_accepted_at: datetime.datetime | None = None
+    # Both drive the account page's Google section: whether to offer connect
+    # or disconnect, and whether disconnecting would lock the person out.
+    google_connected: bool = False
+    has_usable_password: bool = True
 
 
 class UpdateProfileRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=200)
     marketing_consent: bool | None = None
+
+
+class GoogleLinkStartOut(BaseModel):
+    """Where to send the browser to connect a Google account.
+
+    A URL rather than a redirect: minting it needs the caller's token, which
+    only an XHR carries, so the navigation happens from the client afterwards.
+    """
+
+    url: str
 
 
 class GoogleStatusOut(BaseModel):

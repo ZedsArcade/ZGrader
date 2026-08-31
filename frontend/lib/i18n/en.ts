@@ -287,6 +287,22 @@ export const en = {
     deleteConfirm: "Delete permanently",
     deleteCancel: "Cancel",
     deleteFailed: "Couldn't delete your account.",
+    googleTitle: "Google sign-in",
+    googleConnectedBody:
+      "Your Google account is connected, so you can sign in with either it or your password.",
+    googleNotConnectedBody:
+      "Connect your Google account and you can sign in with one tap instead of typing your password. Your email address stays as it is, and it does not have to match your Google one.",
+    googleConnect: "Connect Google",
+    googleConnecting: "Opening Google…",
+    googleDisconnect: "Disconnect Google",
+    googleDisconnectTitle: "Disconnect Google?",
+    googleDisconnectBody:
+      "You'll sign in with your password from then on. This also signs you out everywhere else, including any device someone else might be signed in on.",
+    googleLinked: "Google account connected.",
+    googleUnlinked: "Google account disconnected. You've been signed out on other devices.",
+    googleNoPassword:
+      "You signed up with Google and haven't set a password, so disconnecting would leave you with no way to sign in. Set one first using the forgotten-password link on the sign-in page.",
+    googleFailed: "Couldn't change your Google connection.",
   },
   forgotPassword: {
     title: "Reset your password",
