@@ -142,3 +142,9 @@ def note_failed_login(request: Request) -> None:
 register_rate_limit = rate_limit("register", limit=5, window_seconds=3600)
 password_reset_rate_limit = rate_limit("password_reset", limit=3, window_seconds=3600)
 verification_resend_rate_limit = rate_limit("verify_resend", limit=3, window_seconds=3600)
+
+# Looser than the email-sending limits above, because this sends no mail and
+# an authenticated person retrying a connect they abandoned at Google's
+# account chooser is ordinary rather than suspicious. It exists so minting
+# signed link states is not an unbounded operation.
+google_link_rate_limit = rate_limit("google_link", limit=10, window_seconds=900)

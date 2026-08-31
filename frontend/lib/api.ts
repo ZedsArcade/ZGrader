@@ -21,6 +21,10 @@ export interface User {
   display_name: string | null;
   marketing_consent: boolean;
   terms_accepted_at: string | null;
+  google_connected: boolean;
+  // False for an account created through Google that never set one. The
+  // account page needs it to explain why disconnecting is unavailable.
+  has_usable_password: boolean;
 }
 
 export interface Card {
@@ -499,6 +503,21 @@ export async function getGoogleStatus(): Promise<{ enabled: boolean }> {
 
 /** Full-page navigation, not fetch: the OAuth flow is a browser redirect to
  *  Google and back, so it has to leave the SPA. */
+/** Begin connecting Google to the account already signed in.
+ *
+ * Returns a URL for the caller to navigate to rather than being a plain link,
+ * because the backend has to know who is asking and the session token rides
+ * on this request -- a navigation would not carry it. */
+export async function startGoogleLink(token: string): Promise<{ url: string }> {
+  return request("/auth/google/link/start", { method: "POST", headers: authHeaders(token) });
+}
+
+/** Detach Google. Returns a replacement token: unlinking retires every
+ *  session, this tab's included, exactly as changing a password does. */
+export async function unlinkGoogle(token: string): Promise<{ access_token: string }> {
+  return request("/auth/google/link", { method: "DELETE", headers: authHeaders(token) });
+}
+
 export function googleStartUrl(next = "/dashboard"): string {
   return `${API_BASE}/auth/google/start?next=${encodeURIComponent(next)}`;
 }

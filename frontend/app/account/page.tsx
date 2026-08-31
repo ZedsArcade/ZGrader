@@ -27,11 +27,43 @@ function AccountInner() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [confirmingUnlink, setConfirmingUnlink] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     setDisplayName(user.display_name ?? "");
     setMarketing(user.marketing_consent);
   }, [user]);
+
+  // The whole section stays hidden on a deployment with no OAuth client, the
+  // same way the sign-in button does -- offering to connect an account to
+  // something unconfigured only dead-ends.
+  useEffect(() => {
+    api
+      .getGoogleStatus()
+      .then((s) => setGoogleEnabled(s.enabled))
+      .catch(() => setGoogleEnabled(false));
+  }, []);
+
+  // The backend finishes the connect flow by redirecting back here with a
+  // result in the query string, since it is a full-page navigation and has no
+  // other way to report. Read it once, then strip it so a refresh does not
+  // replay the message.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linked = params.get("google_linked");
+    const failed = params.get("google_error");
+    if (!linked && !failed) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (linked) {
+      toastSuccess(t.account.googleLinked);
+      void refreshUser();
+    } else if (failed) {
+      toastError(failed);
+    }
+  }, [refreshUser, t]);
 
   if (!user || !token) return null;
 
@@ -77,6 +109,36 @@ function AccountInner() {
       // Same message either way -- the endpoint deliberately doesn't say
       // whether the address needed confirming.
       toastSuccess(t.account.resent);
+    }
+  }
+
+  async function handleGoogleConnect() {
+    setGoogleBusy(true);
+    try {
+      const { url } = await api.startGoogleLink(token!);
+      // Navigate rather than fetch: this leaves the site for Google's account
+      // chooser and comes back as a fresh page load.
+      window.location.href = url;
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : t.account.googleFailed);
+      setGoogleBusy(false);
+    }
+  }
+
+  async function handleGoogleDisconnect() {
+    setGoogleBusy(true);
+    try {
+      const { access_token } = await api.unlinkGoogle(token!);
+      // Disconnecting retires every session including this tab's, so adopt
+      // the replacement or the next request 401s -- same as a password change.
+      await adoptToken(access_token);
+      await refreshUser();
+      toastSuccess(t.account.googleUnlinked);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : t.account.googleFailed);
+    } finally {
+      setGoogleBusy(false);
+      setConfirmingUnlink(false);
     }
   }
 
@@ -176,6 +238,44 @@ function AccountInner() {
         </Card.Content>
       </Card>
 
+      {googleEnabled && (
+        <Card>
+          <Card.Header>
+            <Card.Title>{t.account.googleTitle}</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            {user.google_connected ? (
+              <>
+                <p className="text-sm text-muted">{t.account.googleConnectedBody}</p>
+                {!user.has_usable_password && (
+                  <p className="mt-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted">
+                    {t.account.googleNoPassword}
+                  </p>
+                )}
+                <div className="mt-4">
+                  <Button
+                    variant="secondary"
+                    isDisabled={googleBusy || !user.has_usable_password}
+                    onPress={() => setConfirmingUnlink(true)}
+                  >
+                    {t.account.googleDisconnect}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted">{t.account.googleNotConnectedBody}</p>
+                <div className="mt-4">
+                  <Button variant="secondary" isDisabled={googleBusy} onPress={handleGoogleConnect}>
+                    {googleBusy ? t.account.googleConnecting : t.account.googleConnect}
+                  </Button>
+                </div>
+              </>
+            )}
+          </Card.Content>
+        </Card>
+      )}
+
       <Card>
         <Card.Header>
           <Card.Title>{t.account.dangerTitle}</Card.Title>
@@ -193,6 +293,16 @@ function AccountInner() {
           </div>
         </Card.Content>
       </Card>
+
+      <ConfirmDialog
+        open={confirmingUnlink}
+        title={t.account.googleDisconnectTitle}
+        body={t.account.googleDisconnectBody}
+        confirmLabel={t.account.googleDisconnect}
+        cancelLabel={t.account.deleteCancel}
+        onConfirm={handleGoogleDisconnect}
+        onCancel={() => setConfirmingUnlink(false)}
+      />
 
       <ConfirmDialog
         open={confirmingDelete}

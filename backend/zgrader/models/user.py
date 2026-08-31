@@ -108,3 +108,16 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     def has_usable_password(self) -> bool:
         """False for an account that only signs in through a provider."""
         return bool(self.hashed_password)
+
+    @property
+    def google_connected(self) -> bool:
+        """Whether a Google account is attached, for UserOut.
+
+        Derived rather than stored: `identities` is already the single source
+        of truth and a boolean column beside it would be a second one, free to
+        disagree the first time a row is removed by the FK cascade rather than
+        by the unlink endpoint.
+        """
+        from zgrader.models.identity import GOOGLE
+
+        return any(identity.provider == GOOGLE for identity in self.identities)

@@ -11,6 +11,7 @@ from zgrader.api.deps import get_current_user
 from zgrader.auth import google as google_oauth
 from zgrader.config import config
 from zgrader.api.ratelimit import (
+    google_link_rate_limit,
     login_rate_limit,
     note_failed_login,
     password_reset_rate_limit,
@@ -41,6 +42,7 @@ from zgrader.storage import purge_submission_files
 from zgrader.schemas.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    GoogleLinkStartOut,
     GoogleStatusOut,
     RegisterRequest,
     ResendVerificationRequest,
@@ -371,6 +373,70 @@ def google_start(next: str = "/dashboard") -> RedirectResponse:
     )
 
 
+@router.post("/google/link/start", response_model=GoogleLinkStartOut)
+def google_link_start(
+    user: User = Depends(get_current_user), _: None = Depends(google_link_rate_limit)
+) -> GoogleLinkStartOut:
+    """Begin attaching a Google account to the account already signed in.
+
+    Returns the URL instead of redirecting, and that is the point rather than
+    a style choice. The session token lives in localStorage, so it rides on an
+    XHR and *not* on a navigation -- had this been a plain link to a redirect,
+    the server would have had no idea who was asking. Authenticating here and
+    handing back a URL keeps the proof of identity on the request that can
+    carry it, and reduces the navigation to a signed state that already names
+    the account.
+    """
+    if not config.google_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Google sign-in is not configured")
+    return GoogleLinkStartOut(
+        url=google_oauth.link_authorization_url(google_oauth.issue_link_state(str(user.id)))
+    )
+
+
+@router.delete("/google/link", response_model=TokenResponse)
+def google_unlink(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> TokenResponse:
+    """Detach the Google account, provided that leaves a way back in.
+
+    Refused without a password, because an account that only signs in through
+    Google and then removes Google has locked itself out permanently. The
+    escape route exists and the message names it: forgot-password sets a hash
+    on an account that never had one.
+
+    token_version is bumped for the same reason a password change bumps it --
+    this removes a credential. If somebody had attached *their* Google account
+    to this one, unlinking is the remediation, and without the bump whatever
+    session they already hold would outlive the change meant to end it. That
+    retires the caller's own token too, so a fresh one is returned, exactly as
+    change-password does.
+    """
+    identity = (
+        db.query(Identity)
+        .filter(Identity.user_id == user.id, Identity.provider == GOOGLE)
+        .first()
+    )
+    if identity is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No Google account is connected.")
+    if not user.has_usable_password:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Set a password first, or you would have no way to sign in. "
+            "Use the forgotten-password link to choose one.",
+        )
+
+    db.delete(identity)
+    user.token_version += 1
+    # No address in `detail`: delete_account scrubs the keys `email` and
+    # `target_email` specifically, so a new key carrying one would slip
+    # silently past an erasure request.
+    db.add(AuditLog(submission_id=None, user_id=user.id, action="google_unlinked", detail={}))
+    db.commit()
+    db.refresh(user)
+    return TokenResponse(access_token=create_access_token(str(user.id), user.token_version))
+
+
 def _google_failure(message: str) -> RedirectResponse:
     """Hand the browser back to the login page with a readable reason.
 
@@ -381,6 +447,65 @@ def _google_failure(message: str) -> RedirectResponse:
         f"{config.site_url.rstrip('/')}/login?{urlencode({'oauth_error': message})}",
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
     )
+
+
+def _google_link_callback(code: str, state: str, db: Session) -> RedirectResponse:
+    """The callback's other half: attach this Google account to a known user.
+
+    Email is deliberately not compared against the account's own address. The
+    person has already proved both sides -- a password session to mint the
+    state, and Google to get here -- so a mismatch means a work and a personal
+    account, not an impostor. Requiring a match would add a failure mode
+    without adding proof, and `users.email` is left alone: it is the address
+    we write to, and signing in with Google is not a request to change it.
+    """
+    base = config.site_url.rstrip("/")
+
+    def failure(message: str) -> RedirectResponse:
+        return RedirectResponse(
+            f"{base}/account?{urlencode({'google_error': message})}",
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+
+    try:
+        user_id = google_oauth.verify_link_state(state)
+        subject, _email = google_oauth.exchange_code_for_profile(code)
+    except google_oauth.GoogleAuthError as exc:
+        return failure(str(exc))
+
+    user = db.get(User, uuid.UUID(user_id)) if _is_uuid(user_id) else None
+    if user is None:
+        return failure("That account no longer exists.")
+
+    existing = (
+        db.query(Identity)
+        .filter(Identity.provider == GOOGLE, Identity.provider_user_id == subject)
+        .first()
+    )
+    if existing is not None:
+        if existing.user_id == user.id:
+            # Already done. Idempotent rather than an error: a double-submit
+            # or a back button should not read as a failure.
+            return RedirectResponse(
+                f"{base}/account?google_linked=1", status_code=status.HTTP_307_TEMPORARY_REDIRECT
+            )
+        return failure("That Google account is already connected to a different account.")
+
+    db.add(Identity(user_id=user.id, provider=GOOGLE, provider_user_id=subject))
+    # See google_unlink: no address in `detail`.
+    db.add(AuditLog(submission_id=None, user_id=user.id, action="google_linked", detail={}))
+    db.commit()
+    return RedirectResponse(
+        f"{base}/account?google_linked=1", status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 @router.get("/google/callback")
@@ -406,6 +531,12 @@ def google_callback(
         # The user pressed cancel on Google's consent screen, or the callback
         # was reached without a code.
         return _google_failure("Google sign-in was cancelled.")
+
+    # Both flows come back to this one URI, so dispatch on the state's own
+    # declared type -- verified, not merely read, so a forged state cannot
+    # choose which branch runs.
+    if google_oauth.state_type(state) == google_oauth.LINK_STATE_TYPE:
+        return _google_link_callback(code, state, db)
 
     try:
         next_path = google_oauth.verify_state(state)
