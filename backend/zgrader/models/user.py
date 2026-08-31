@@ -84,10 +84,18 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # delete-orphan so closing an account removes the person's submissions
     # rather than trying to orphan them -- Submission.user_id is NOT NULL, so
     # without this a deletion fails outright.
+    #
+    # passive_deletes because Submission.user_id is ON DELETE CASCADE, and the
+    # ORM must stand back and let Postgres do it. Without that the account
+    # delete is read-then-delete-then-delete-parent, which is the same window
+    # that made deleting a *submission* fail in production: the worker's poll
+    # loop and confirm-crop both write, nothing serialises them, and a row
+    # arriving mid-delete strands itself and fails the parent.
     submissions: Mapped[list["Submission"]] = relationship(  # noqa: F821
         back_populates="user",
         foreign_keys="Submission.user_id",
         cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     subscriptions: Mapped[list["Subscription"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"

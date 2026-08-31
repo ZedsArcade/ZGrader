@@ -7,6 +7,14 @@ descriptive *second opinion* only -- a VLM is not a calibrated grader, so the
 output is always presented as lower-confidence and never feeds the numeric
 score. The seam degrades to a no-op when unconfigured, and any error from the
 model is swallowed so analysis never fails because the AI is unavailable.
+
+Off by default is also what keeps the privacy policy true. This is the only
+path that sends a customer's card image anywhere off this machine, and the
+published policy says nobody but the operator sees those images and that they
+are not used to train anything without asking first. That holds while the
+endpoint is a model the operator hosts. Point it at a third-party API and the
+page is wrong and needs that supplier named on it -- so enabling this is a
+privacy decision, not just a configuration one.
 """
 
 import base64

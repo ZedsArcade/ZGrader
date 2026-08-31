@@ -376,10 +376,23 @@ does to itself. If `BACKUP_OFFSITE_REMOTE` is set and `BACKUP_AGE_RECIPIENT` is 
 **refuses**: what would leave otherwise is customer card photographs and a dump of email addresses
 and password hashes.
 
-**The 30-day offsite retention is a published promise, not just a setting.** Privacy policy §5 tells
-customers a deleted submission can persist in a backup for up to that long — corrected in the same
-change, because it previously claimed deletion was "permanently and immediately" while a 14-day
-local archive existed. Change `BACKUP_OFFSITE_RETENTION_DAYS` and that page has to change with it.
+**Every backup retention number is a published promise, not just a setting.** Privacy policy §5
+tells customers how long a deleted submission can persist in a backup, so
+`BACKUP_RETENTION_DAYS` (14, local) and `BACKUP_OFFSITE_RETENTION_DAYS` (30, offsite) both oblige
+that page to change with them.
+
+§5 now quotes the **local 14-day** figure as the operative one, and says in as many words that
+those copies are **not encrypted** and contain report PDFs carrying the account's email address.
+That is because no `BACKUP_OFFSITE_REMOTE` is configured, so `offsite.sh` does nothing and the only
+backups that exist are the local ones. The page previously described 30-day *encrypted* copies,
+which described a configuration that was not running — the same class of error as the free-allowance
+copy promising one check while the seed granted three. When offsite is switched on, §5 changes in
+the same commit.
+
+The same rule reaches one more setting. `ZGRADER_CONTACT_MESSAGE_RETENTION_DAYS` (365) is quoted on
+that page too, and `contact_messages` is the one table account deletion cannot reach — no FK to
+`users`, because the sender need not have an account — so the worker's retention sweep is the only
+thing that ever removes a name, an address, a message body and the IP stored beside them.
 
 **Every setting in `config.py` must be reachable through `docker-compose.yml`.** Compose only
 forwards variables named in a service's `environment:` block; anything else in `.env` is invisible

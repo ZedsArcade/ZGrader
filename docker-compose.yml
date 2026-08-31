@@ -60,6 +60,10 @@ services:
       ZGRADER_SMTP_FROM: ${ZGRADER_SMTP_FROM:-noreply@zgrader.local}
       ZGRADER_SMTP_USE_TLS: ${ZGRADER_SMTP_USE_TLS:-false}
       ZGRADER_SMTP_IMPLICIT_TLS: ${ZGRADER_SMTP_IMPLICIT_TLS:-false}
+      # How long contact-form enquiries are kept before the worker deletes
+      # them. The privacy policy quotes this figure, so changing it here means
+      # changing that page too. 0 keeps them indefinitely.
+      ZGRADER_CONTACT_MESSAGE_RETENTION_DAYS: ${ZGRADER_CONTACT_MESSAGE_RETENTION_DAYS:-365}
       # How many analyses may run inside API requests at once. confirm-crop
       # runs the OpenCV pipeline in the request, so without this a burst of
       # submissions saturates the API and everything sharing the box with it.

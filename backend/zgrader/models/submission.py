@@ -68,7 +68,7 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(20), unique=True, index=True, nullable=False
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     batch_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     status: Mapped[SubmissionStatus] = mapped_column(

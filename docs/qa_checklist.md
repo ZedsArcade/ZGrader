@@ -117,6 +117,14 @@ operator (or auto-publish) gets it in front of the client as a report.
 - [ ] `/account`: display name and marketing consent save; "Delete my account"
       asks for confirmation, then the account and its submissions are gone
       (the old password no longer logs in).
+- [ ] After that deletion, the submission's folders under the **scans and
+      reports directories are gone from disk too**. They are not in the
+      database, so only `purge_submission_files` removes them and a deletion
+      that skipped it leaves customer card photographs orphaned with nothing
+      pointing at them. The privacy policy promises this specifically.
+- [ ] In the admin audit log, the entries for that account survive but no
+      longer name anyone -- no email address in any entry's detail, including
+      a `user_quota_adjusted` entry if you adjusted their quota first.
 - [ ] Six wrong passwords in a row from the same address get a 429 with a
       `Retry-After`. Successful logins do **not** count towards that.
 - [ ] With `ZGRADER_ENV=production`: `curl -I http://localhost:3000/` shows
@@ -134,6 +142,18 @@ operator (or auto-publish) gets it in front of the client as a report.
       testing on localhost.
 - [ ] With `ZGRADER_ENV=production` and the shipped default
       `ZGRADER_SECRET_KEY`, the backend refuses to start and says why.
+
+## Legal pages
+
+- [ ] `/terms`, `/privacy` and `/refunds` all load, in **both languages**, and
+      the footer links to all three. The Spanish is read back **rendered in the
+      browser**, not just typechecked -- accented characters and em dashes have
+      been mangled by tooling more than once and `tsc` cannot see it.
+- [ ] The figures on those pages still match the system: the backup retention
+      in privacy section 5 against `BACKUP_RETENTION_DAYS`, the contact-message
+      window against `ZGRADER_CONTACT_MESSAGE_RETENTION_DAYS`, and the refund
+      window against what you actually offer. A page describing a configuration
+      that is not running is the failure this check exists to catch.
 
 ## Docker Compose deployment (homelab)
 

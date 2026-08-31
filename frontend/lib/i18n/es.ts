@@ -22,6 +22,7 @@ export const es: Dictionary = {
     contact: "Contacto",
     terms: "Términos",
     privacy: "Privacidad",
+    refunds: "Reembolsos",
   },
   status: {
     created: "Creado",
@@ -783,7 +784,7 @@ export const es: Dictionary = {
   terms: {
     title: "Términos y condiciones",
     updated: "Última actualización",
-    updatedValue: "Julio de 2026",
+    updatedValue: "Agosto de 2026",
     intro:
       "Estos términos regulan su uso de {businessName}. Al crear una cuenta o enviar una carta, los acepta. Lea en particular el aviso siguiente.",
     disclaimerTitle: "Aviso importante",
@@ -809,7 +810,7 @@ export const es: Dictionary = {
       "Cuando nos envíe una carta, la tratamos con cuidado y reducimos la manipulación al mínimo. No se hace nada a una carta física más allá de escanearla salvo que usted lo haya solicitado expresamente y lo hayamos acordado por escrito. El envío hasta nosotros y el seguro en tránsito por el valor que considere adecuado corren de su cuenta. Los trabajos de restauración, cuando se acuerden, conllevan un riesgo inherente de daño y una carta restaurada puede ser calificada como alterada o rechazada por una compañía de calificación; ese riesgo se explica y se acuerda antes de comenzar cualquier trabajo.",
     s7Title: "7. Tarifas",
     s7Body:
-      "El análisis básico de imagen es actualmente gratuito, sujeto a límites de uso razonable. Los servicios de pago se describen en la página de Servicios; cuando un servicio figura como próximamente o previsto, todavía no está disponible para su contratación. Las tarifas de cualquier servicio de pago se acuerdan con usted antes de iniciar el trabajo.",
+      "El análisis básico de imagen es actualmente gratuito, sujeto a límites de uso razonable. Los servicios de pago se describen en la página de Servicios; cuando un servicio figura como próximamente o previsto, todavía no está disponible para su contratación. Las tarifas de cualquier servicio de pago se acuerdan con usted antes de iniciar el trabajo. Nada se compra a través de este sitio web: cuando contrata un servicio, acordamos el pago con usted directamente. La cancelación y los reembolsos se rigen por la Política de reembolsos, que forma parte de estos términos.",
     s8Title: "8. Limitación de responsabilidad",
     s8Body:
       "En la medida en que lo permita la ley, no respondemos de las decisiones que tome a partir de un informe, de los resultados de calificación, del lucro cesante o el valor esperado, ni de la diferencia entre un informe y la decisión de una compañía de calificación. Nada en estos términos limita la responsabilidad por muerte o daños personales causados por negligencia, por fraude, ni por cualquier otro supuesto que no pueda limitarse legalmente. Cuando una carta se pierda o dañe bajo nuestra custodia, nuestra responsabilidad se limita a las condiciones de manipulación acordadas para esa carta.",
@@ -827,37 +828,73 @@ export const es: Dictionary = {
   privacy: {
     title: "Política de privacidad",
     updated: "Última actualización",
-    updatedValue: "Julio de 2026",
+    updatedValue: "Agosto de 2026",
     intro:
-      "Aquí se explica qué datos personales recoge {businessName}, por qué, y qué puede hacer al respecto. Recogemos lo mínimo que el servicio necesita para funcionar.",
+      "Aquí se explica qué datos personales recoge {businessName}, por qué y qué puede hacer al respecto. Recogemos lo mínimo que el servicio necesita para funcionar, y esta página describe lo que el software hace realmente, no lo que diría una plantilla.",
     s1Title: "1. Quién es responsable",
     s1Body:
-      "{businessName}, con sede en Gibraltar, es el responsable del tratamiento de los datos personales aquí descritos. Puede contactarnos a través de la página de contacto.",
+      "{businessName}, con sede en Gibraltar, es el responsable del tratamiento de los datos personales descritos aquí. El servicio lo gestiona un único operador. Puede contactarnos a través de la página de contacto.",
     s2Title: "2. Qué recogemos",
     s2Body:
-      "Su dirección de correo y una contraseña almacenada de forma cifrada, para que pueda iniciar sesión. Los datos de las cartas que envía: juego, nombre, edición y número. Las imágenes que sube o que generamos al escanear su carta, junto con el análisis derivado de ellas. Registros básicos de las acciones realizadas sobre sus envíos, para mantener una traza de auditoría. No recogemos datos de tarjetas de pago en este sitio, y no usamos cookies publicitarias ni de seguimiento.",
-    s3Title: "3. Para qué los usamos, y con qué base",
+      "Para gestionar su cuenta: su dirección de correo electrónico y, salvo que inicie sesión con Google, una contraseña almacenada de forma cifrada. Opcionalmente, un nombre para mostrar. También registramos cuándo aceptó los términos y qué versión, si dio su consentimiento para recibir comunicaciones comerciales y cuándo inició sesión por última vez. Si inicia sesión con Google, le pedimos a Google únicamente dos cosas — su dirección de correo verificada y el identificador de cuenta que nos permite reconocerle la próxima vez. Nunca recibimos su contraseña de Google. Sobre sus cartas: el juego, el nombre, la colección y el número que introduce, las imágenes que sube o que producimos al escanear una carta que nos envía, el análisis derivado de ellas y el informe. Si utiliza el formulario de contacto: su nombre, su correo electrónico, el asunto, el mensaje, el idioma en el que escribió y la dirección IP desde la que se envió, que conservamos para hacer frente al uso abusivo del formulario. También guardamos un registro de auditoría de las acciones realizadas sobre los envíos. Su navegador almacena su testigo de sesión y sus preferencias de idioma y marca en su propio dispositivo; no son cookies y no se usan para rastrearle. No usamos publicidad ni analítica de seguimiento, y nunca vemos los datos de su tarjeta de pago.",
+    s3Title: "3. Para qué lo usamos, y con qué base",
     s3Body:
-      "Usamos su correo para gestionar su cuenta, verificarla y enviarle avisos sobre sus propios envíos. Usamos los datos de sus cartas y sus imágenes para elaborar el análisis y el informe que solicitó. Ambos son necesarios para prestar el servicio que pidió. Conservamos registros de auditoría para proteger la integridad del servicio, lo que constituye nuestro interés legítimo como operador.",
-    s4Title: "4. Sus imágenes",
+      "Usamos su correo electrónico para gestionar su cuenta, confirmar que es suyo e informarle sobre sus propios envíos. Usamos los datos y las imágenes de sus cartas para elaborar el análisis y el informe que solicitó. Ambas cosas son necesarias para prestar el servicio que pidió. Conservamos los registros de auditoría, y la dirección IP asociada a un mensaje de contacto, para proteger el servicio frente a abusos y mantener un registro fiel de lo ocurrido — nuestro interés legítimo como operador. Las comunicaciones comerciales, si alguna vez enviamos alguna, se dirigen solo a quienes lo hayan aceptado, y puede retirar ese consentimiento desde su página de cuenta en cualquier momento.",
+    s4Title: "4. Sus imágenes de cartas",
     s4Body:
-      "Las imágenes que sube se usan para elaborar su informe y para nada más. No se venden, no se publican, y no se emplean para promocionar el servicio ni para entrenar nada sin pedírselo antes y por separado. Se almacenan para que su informe siga funcionando cuando lo abra más adelante.",
-    s5Title: "5. Cuánto tiempo los conservamos",
+      "Las imágenes que sube se utilizan para elaborar su informe y para nada más. No se venden, no se publican y no se usan para promocionar el servicio ni para entrenar nada sin pedirle permiso antes y por separado. Una fotografía tomada con un móvil suele llevar metadatos EXIF, que pueden incluir las coordenadas GPS del lugar donde se tomó — a menudo el domicilio de alguien. Cada imagen se descodifica y se vuelve a codificar en cuanto llega, lo que descarta esos metadatos antes de escribir nada en disco: conservamos la fotografía y no el lugar donde se tomó. La rotación registrada en esos metadatos se aplica primero a los píxeles, de modo que nada se almacena de lado. Aparte de eso, puede optar por publicar un informe terminado en un enlace privado. Mientras esa opción esté activada, cualquiera que tenga el enlace puede leer el informe y ver sus imágenes sin iniciar sesión. La página pide a los buscadores que no la indexen, pero un enlace que usted haya difundido escapa a nuestro control hasta que desactive la opción de compartir, lo que lo revoca de forma inmediata y definitiva.",
+    s5Title: "5. Cuánto tiempo lo conservamos",
     s5Body:
-      "Los envíos, escaneos, análisis e informes se conservan mientras su cuenta esté activa, para que pueda volver a ellos. Eliminar un envío borra sus escaneos, análisis e informe de forma permanente e inmediata. Si nos pide cerrar su cuenta, eliminaremos sus datos personales, conservando únicamente lo que estemos legalmente obligados a retener.",
-    s6Title: "6. Quién más los ve",
+      "Los envíos, escaneos, análisis e informes se conservan mientras su cuenta siga abierta, para que pueda volver a ellos; no hay caducidad automática, y puede eliminar cualquier envío concreto o su cuenta entera cuando quiera. Los mensajes del formulario de contacto se eliminan automáticamente doce meses después de enviarse. Las copias de seguridad son el único lugar donde el material eliminado permanece, y preferimos decirlo con claridad a insinuar lo contrario: se realiza una copia de la base de datos y de los archivos almacenados en el propio servidor, y se conserva 14 días antes de eliminarse. Esas copias locales no están cifradas, e incluyen los PDF de los informes, que llevan impresa la dirección de correo de la cuenta. Así que un envío o una cuenta que elimine hoy puede seguir existiendo en una copia de seguridad hasta 14 días después. Si alguna vez restauráramos desde una de ellas, volvemos a aplicar las eliminaciones realizadas desde que se tomó. Estamos trabajando en una copia cifrada y externa con 30 días de conservación; esta página cambiará el día en que eso empiece a funcionar, y todavía no funciona.",
+    s6Title: "6. Eliminar su cuenta y sus datos",
     s6Body:
-      "Nadie, salvo el operador del servicio. No vendemos datos personales y no los compartimos con compañías de calificación ni con ningún tercero, salvo cuando un proveedor sea estrictamente necesario para prestar el servicio (como el alojamiento o el envío de correo), o cuando estemos legalmente obligados a comunicarlos.",
-    s7Title: "7. Sus derechos",
+      "No necesita escribir a nadie. Eliminar un envío concreto desde su panel borra sus escaneos, su análisis, su informe y todas las imágenes derivadas de él, de la base de datos y del disco, de inmediato. Cerrar su cuenta desde la página de cuenta hace lo mismo con todos sus envíos y después elimina la cuenta en sí — su dirección de correo, su contraseña cifrada, su vínculo de acceso con Google si lo tiene y sus preferencias. Es una eliminación real, no una marca en una fila que se queda ahí. Conservamos el registro de auditoría de lo ocurrido, porque protege la integridad del servicio, pero se le retira la identidad: las entradas ya no le nombran, y a los dos tipos de entrada que registraban una dirección de correo en su contenido se les retira como parte de la misma operación. Nada de esto se puede deshacer, y la salvedad de las copias de seguridad de la sección anterior es la única excepción.",
+    s7Title: "7. Quién más lo ve",
     s7Body:
-      "Conforme a la normativa de protección de datos de Gibraltar puede solicitar una copia de sus datos, pedir que los corrijamos, pedir que los eliminemos, oponerse o solicitar la limitación de determinados tratamientos, y pedir sus datos en un formato portátil. Contáctenos y responderemos dentro del plazo legal. Si no está conforme con cómo gestionamos una solicitud, puede reclamar ante la Gibraltar Regulatory Authority.",
-    s8Title: "8. Seguridad",
+      "Nadie, salvo el operador del servicio. No vendemos datos personales ni los compartimos con compañías de calificación. El servicio funciona en equipos propiedad del operador y no en una empresa de alojamiento, de modo que sus imágenes no están en la nube de un tercero. Hay tres proveedores inevitablemente implicados, y se nombran aquí en lugar de ocultarse tras una cláusula genérica: Cloudflare transporta el tráfico entre su navegador y el servicio, y ve la conexión y su dirección IP; un proveedor de correo entrega los mensajes que le enviamos, y ve su dirección y el contenido de esos mensajes; y Google, solo si elige iniciar sesión con Google, lo que les indica que usa este servicio. Más allá de eso, solo revelamos datos personales cuando la ley nos obliga.",
+    s8Title: "8. Sus derechos",
     s8Body:
-      "Las contraseñas se almacenan cifradas, nunca en texto plano. El acceso a los envíos y las imágenes está restringido a la cuenta propietaria y al operador. Ningún sistema es perfectamente seguro, pero mantenemos el acceso restringido y los datos almacenados al mínimo.",
-    s9Title: "9. Cambios",
+      "Conforme a la legislación de protección de datos de Gibraltar, puede solicitar una copia de sus datos, pedir que los corrijamos, pedir que los eliminemos, oponerse a determinados tratamientos o pedir que los limitemos, y solicitar sus datos en un formato portátil. La eliminación puede hacerla usted mismo, de inmediato, tal como se describe arriba. Para una copia o una exportación, contáctenos — todavía no hay un botón de autoservicio para eso, así que la preparamos a mano, y responderemos dentro del plazo legal. Si no está conforme con cómo gestionamos una solicitud, puede reclamar ante la Gibraltar Regulatory Authority.",
+    s9Title: "9. Seguridad",
     s9Body:
-      "Si esta política cambia, la fecha del inicio de la página cambia con ella. Los cambios relevantes que afecten al uso de sus datos se le comunicarán.",
+      "Las contraseñas se almacenan cifradas, nunca en texto plano. Cambiar su contraseña, o restablecerla, cierra todas las demás sesiones abiertas a su nombre. El acceso a los envíos y a las imágenes está restringido a la cuenta propietaria y al operador, y un informe compartido por enlace solo es accesible mediante un testigo aleatorio largo que no revela nada sobre la cuenta que hay detrás. Dos cosas conviene saberlas en lugar de pasarlas por alto: su testigo de sesión se guarda en el almacenamiento de su navegador, al que podría llegar un fallo grave de tipo cross-site scripting, y las copias de seguridad en el servidor descritas en la sección 5 no están cifradas. Ningún sistema es perfectamente seguro, pero mantenemos el acceso restringido y los datos almacenados al mínimo.",
+    s10Title: "10. Cambios",
+    s10Body:
+      "Si esta política cambia, la fecha al inicio de esta página cambia con ella. Los cambios sustanciales que afecten al uso de sus datos se le comunicarán.",
     reviewNote:
-      "Esta política está redactada en lenguaje sencillo y no como texto jurídico estándar. No constituye asesoramiento legal; si necesita asesoramiento sobre su situación, consulte a un profesional cualificado.",
+      "Esta política está redactada en lenguaje sencillo y no en jerga jurídica, y describe el software tal y como se comporta actualmente. No constituye asesoramiento jurídico; si necesita asesoramiento sobre su situación, consulte a un profesional cualificado.",
+  },
+  refunds: {
+    title: "Política de reembolsos",
+    updated: "Última actualización",
+    updatedValue: "Agosto de 2026",
+    intro:
+      "Cuándo puede cancelar un servicio de pago de {businessName}, cuándo puede recuperar su dinero y a partir de qué momento ya no. Forma parte de nuestros Términos y condiciones.",
+    s1Title: "1. Qué cubre",
+    s1Body:
+      "Esta política cubre los servicios que usted paga. El análisis de imagen gratuito no cuesta nada y por tanto no hay nada que reembolsar — si está usando la cuota gratuita, nada de esto le afecta. Nada se compra a través de este sitio web: no hay pasarela de pago, así que cada servicio de pago se acuerda con usted directamente y el precio se fija antes de iniciar cualquier trabajo.",
+    s2Title: "2. Su derecho de desistimiento",
+    s2Body:
+      "Dispone de 14 días desde el día en que acordamos prestarle un servicio para cambiar de opinión y cancelarlo, sin necesidad de justificación. Avísenos a través de la página de contacto dentro de ese plazo y le reembolsaremos lo pagado, con las salvedades de las dos secciones siguientes.",
+    s3Title: "3. Si nos pide empezar de inmediato",
+    s3Body:
+      "La mayoría de la gente quiere su informe pronto, así que normalmente empezaremos en cuanto haya pagado. Si nos pide empezar dentro del plazo de 14 días, está aceptando que el trabajo pueda iniciarse de inmediato, y de ello se derivan dos cosas. Una vez el servicio se ha prestado por completo, el derecho de desistimiento se agota y no hay reembolso. Si cancela cuando solo está parcialmente hecho, le reembolsamos lo pagado menos un importe proporcional al trabajo ya realizado. Se lo indicaremos en el momento en que nos pida empezar, para que nunca sea una sorpresa.",
+    s4Title: "4. Análisis de imagen e informes",
+    s4Body:
+      "Un informe digital se considera prestado por completo en el momento en que se le entrega — no podemos recuperarlo, y usted ya ha recibido aquello por lo que pagó. Por eso un análisis de pago es reembolsable íntegramente hasta que empezamos a trabajar en él, y no después. Si cancela tras pagar pero antes de que empecemos, se le devuelve todo.",
+    s5Title: "5. Cartas físicas enviadas a nosotros",
+    s5Body:
+      "Cuando nos envía una carta por correo para que la tratemos, puede cancelar y recibir el reembolso íntegro de la tarifa del servicio en cualquier momento antes de que empecemos a escanearla, y le devolveremos la carta. Una vez iniciado el escaneo el servicio está en curso y se aplica la sección 3. Los gastos de envío hasta nosotros corren de su cuenta y no son reembolsables, puesto que ya se han gastado. Cuando devolvemos una carta porque usted canceló, asumimos los gastos de devolución; cuando una carta se devuelve por cualquier otro motivo, los gastos de devolución se acuerdan con usted de antemano.",
+    s6Title: "6. Restauración y otros trabajos irreversibles",
+    s6Body:
+      "La restauración no se puede deshacer, por lo que se trata de forma distinta y a propósito. Solo se lleva a cabo después de que hayamos expuesto lo que se propone y usted lo haya aceptado por escrito, y una vez iniciado ese trabajo no es reembolsable. Los riesgos — incluido que una carta restaurada pueda calificarse como alterada, o ser rechazada de plano por una compañía de calificación — se le explican antes de que acepte, no después.",
+    s7Title: "7. Si algo ha salido mal",
+    s7Body:
+      "Esto es independiente de cambiar de opinión y no está limitado por las secciones anteriores. Si un servicio no se prestó con la diligencia y competencia debidas, si no entregamos lo acordado o si cometimos un error, díganoslo y lo subsanaremos — rehaciendo el trabajo o reembolsándolo, según corresponda. Que un informe llegue a una conclusión con la que usted no esté de acuerdo no es por sí mismo un defecto: nuestros informes son estimaciones y los Términos explican qué son y qué no. Un informe elaborado a partir de la carta equivocada, o uno que nunca entregamos, evidentemente sí lo es. Nada de lo aquí dispuesto afecta a sus derechos legales.",
+    s8Title: "8. Cómo solicitarlo y cuánto tarda",
+    s8Body:
+      "Solicítelo a través de la página de contacto, indicando qué servicio pagó y, si dispone de él, el código de envío. Le confirmaremos si procede el reembolso en un plazo de cinco días hábiles. Los reembolsos aprobados se devuelven por el mismo medio con el que pagó, en un plazo de 14 días desde que los aceptamos. No cobramos ninguna comisión por tramitar un reembolso.",
+    reviewNote:
+      "Esta política está redactada en lenguaje sencillo y no en jerga jurídica. No constituye asesoramiento jurídico ni reduce ningún derecho que le corresponda conforme a la legislación de consumo de Gibraltar; si necesita asesoramiento sobre su situación, consulte a un profesional cualificado.",
   },
 };
