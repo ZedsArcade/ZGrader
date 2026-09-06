@@ -94,7 +94,12 @@ def rate_limit(name: str, limit: int, window_seconds: int):
     password-reset allowance.
     """
 
-    def dependency(request: Request) -> None:
+    # Named distinctly from user_rate_limit's inner closure below --
+    # tests/test_rate_limit_coverage.py identifies a route's limiter by this
+    # function's __name__, so a generic name here (e.g. the idiomatic
+    # "dependency") would let it collide with any future FastAPI dependency
+    # factory of the same shape and silently stop proving anything.
+    def _ip_rate_limit_dependency(request: Request) -> None:
         retry_after = _limiter.check(f"{name}:{client_ip(request)}", limit, window_seconds)
         if retry_after is not None:
             raise HTTPException(
@@ -103,7 +108,7 @@ def rate_limit(name: str, limit: int, window_seconds: int):
                 headers={"Retry-After": str(retry_after)},
             )
 
-    return dependency
+    return _ip_rate_limit_dependency
 
 
 def user_rate_limit(name: str, limit: int, window_seconds: int):
@@ -116,7 +121,10 @@ def user_rate_limit(name: str, limit: int, window_seconds: int):
     from zgrader.api.deps import get_current_user
     from zgrader.models import User
 
-    def dependency(user: "User" = Depends(get_current_user)) -> None:
+    # Named distinctly from rate_limit's inner closure above -- see the
+    # comment there. This is the name the coverage test looks for to confirm
+    # a route is keyed on the user rather than just "has some limiter".
+    def _user_rate_limit_dependency(user: "User" = Depends(get_current_user)) -> None:
         retry_after = _limiter.check(f"{name}:user:{user.id}", limit, window_seconds)
         if retry_after is not None:
             raise HTTPException(
@@ -125,7 +133,7 @@ def user_rate_limit(name: str, limit: int, window_seconds: int):
                 headers={"Retry-After": str(retry_after)},
             )
 
-    return dependency
+    return _user_rate_limit_dependency
 
 
 LOGIN_LIMIT = 5
