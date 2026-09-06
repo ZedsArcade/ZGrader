@@ -73,6 +73,18 @@ _confirm_crop_limit = rate_limit("confirm_crop", limit=30, window_seconds=3600)
 _crop_helper_limit = rate_limit("crop_helpers", limit=120, window_seconds=3600)
 _submission_read_limit = rate_limit("submission_read", limit=300, window_seconds=300)
 _submission_delete_limit = rate_limit("submission_delete", limit=30, window_seconds=3600)
+
+# The image/report/share/finding-adjustment/operator-publish surface: none of
+# these existed as guessing targets, so none of them had a limiter at all --
+# the gap an audit found alongside change-password's missing one. Grouped by
+# cost, same reasoning as the block above: image bytes served on every page
+# view get the loosest limit, a full PDF render the tightest, and the rest
+# sit in between.
+_submission_image_limit = rate_limit("submission_image", limit=120, window_seconds=60)
+_report_download_limit = rate_limit("report_download", limit=20, window_seconds=900)
+_share_manage_limit = rate_limit("share_manage", limit=30, window_seconds=900)
+_submission_adjust_limit = rate_limit("submission_adjust", limit=60, window_seconds=300)
+_operator_publish_limit = rate_limit("operator_publish", limit=60, window_seconds=300)
 _REGION_KEY_RE = re.compile(r"^(front|back):(centering|corners|edges|surface):[a-z0-9_]+$")
 _SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff", ".tif": "image/tiff"}
 
@@ -103,7 +115,7 @@ def _get_owned_submission(code: str, user: User, db: Session) -> Submission:
     return submission
 
 
-@router.get("/quota", response_model=QuotaOut)
+@router.get("/quota", response_model=QuotaOut, dependencies=[Depends(_submission_read_limit)])
 def get_quota(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> QuotaOut:
@@ -340,7 +352,7 @@ def _get_scan(submission: Submission, side: str) -> ScanImage:
     return scan
 
 
-@router.get("/{code}/scans/{side}/raw")
+@router.get("/{code}/scans/{side}/raw", dependencies=[Depends(_submission_image_limit)])
 def get_side_raw(
     code: str,
     side: Literal["front", "back"],
@@ -497,7 +509,11 @@ def confirm_crop(
     return submission
 
 
-@router.post("/{code}/regions/toggle", response_model=SubmissionDetail)
+@router.post(
+    "/{code}/regions/toggle",
+    response_model=SubmissionDetail,
+    dependencies=[Depends(_submission_adjust_limit)],
+)
 def toggle_region(
     code: str,
     payload: RegionToggleIn,
@@ -541,7 +557,7 @@ def toggle_region(
     return submission
 
 
-@router.get("/{code}/scans/{side}/photo")
+@router.get("/{code}/scans/{side}/photo", dependencies=[Depends(_submission_image_limit)])
 def get_side_photo(
     code: str,
     side: Literal["front", "back"],
@@ -560,7 +576,10 @@ def get_side_photo(
     return FileResponse(photo_path, media_type=artifacts.media_type(photo_path))
 
 
-@router.get("/{code}/scans/{side}/regions/{category}/{region_id}/crop")
+@router.get(
+    "/{code}/scans/{side}/regions/{category}/{region_id}/crop",
+    dependencies=[Depends(_submission_image_limit)],
+)
 def get_region_crop(
     code: str,
     side: Literal["front", "back"],
@@ -586,7 +605,7 @@ def get_region_crop(
     return FileResponse(crop_path, media_type=artifacts.media_type(crop_path))
 
 
-@router.get("/{code}/report")
+@router.get("/{code}/report", dependencies=[Depends(_report_download_limit)])
 def download_report(code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> FileResponse:
     submission = _get_owned_submission(code, user, db)
     reports = sorted(submission.reports, key=lambda r: r.version, reverse=True)
@@ -600,7 +619,9 @@ def download_report(code: str, user: User = Depends(get_current_user), db: Sessi
     return FileResponse(report.pdf_path, media_type="application/pdf", filename=f"{code}.pdf")
 
 
-@router.get("/{code}/share", response_model=ShareStateOut)
+@router.get(
+    "/{code}/share", response_model=ShareStateOut, dependencies=[Depends(_share_manage_limit)]
+)
 def get_share(
     code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> ShareStateOut:
@@ -617,7 +638,9 @@ def get_share(
     return sharing.share_state(_get_owned_submission(code, user, db))
 
 
-@router.post("/{code}/share", response_model=ShareStateOut)
+@router.post(
+    "/{code}/share", response_model=ShareStateOut, dependencies=[Depends(_share_manage_limit)]
+)
 def enable_share(
     code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> ShareStateOut:
@@ -658,7 +681,11 @@ def enable_share(
     return sharing.share_state(submission)
 
 
-@router.post("/{code}/share/rotate", response_model=ShareStateOut)
+@router.post(
+    "/{code}/share/rotate",
+    response_model=ShareStateOut,
+    dependencies=[Depends(_share_manage_limit)],
+)
 def rotate_share(
     code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> ShareStateOut:
@@ -685,7 +712,11 @@ def rotate_share(
     return sharing.share_state(submission)
 
 
-@router.delete("/{code}/share", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{code}/share",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_share_manage_limit)],
+)
 def disable_share(
     code: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> None:
@@ -707,7 +738,11 @@ def disable_share(
         db.commit()
 
 
-@router.post("/{code}/approve", response_model=SubmissionDetail)
+@router.post(
+    "/{code}/approve",
+    response_model=SubmissionDetail,
+    dependencies=[Depends(_operator_publish_limit)],
+)
 def approve_submission(
     code: str, operator: User = Depends(require_operator), db: Session = Depends(get_db)
 ) -> Submission:
@@ -750,7 +785,11 @@ def approve_submission(
     return submission
 
 
-@router.patch("/{code}/auto-publish", response_model=SubmissionDetail)
+@router.patch(
+    "/{code}/auto-publish",
+    response_model=SubmissionDetail,
+    dependencies=[Depends(_operator_publish_limit)],
+)
 def set_auto_publish_override(
     code: str,
     payload: AutoPublishUpdate,
@@ -774,7 +813,11 @@ def set_auto_publish_override(
     return submission
 
 
-@router.post("/{code}/centering-adjust", response_model=SubmissionDetail)
+@router.post(
+    "/{code}/centering-adjust",
+    response_model=SubmissionDetail,
+    dependencies=[Depends(_submission_adjust_limit)],
+)
 def adjust_centering(
     code: str,
     payload: CenteringAdjustIn,

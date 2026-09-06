@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from zgrader import images
+from zgrader.api.ratelimit import rate_limit
 from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.models import CardDimensionReference, PhysicalPriceTier, PlanEntitlement
@@ -19,8 +20,13 @@ from zgrader.schemas.catalog import BrandingOut, GameOut, PricingOut
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
+# Unauthenticated and cacheable-in-spirit, but still a fetch the box has to
+# serve, so one shared ceiling across the whole reference-data surface --
+# nothing here is a guessing target, so generous is fine.
+_catalog_limit = rate_limit("catalog", limit=120, window_seconds=60)
 
-@router.get("/games", response_model=list[GameOut])
+
+@router.get("/games", response_model=list[GameOut], dependencies=[Depends(_catalog_limit)])
 def list_games(db: Session = Depends(get_db)) -> list[CardDimensionReference]:
     return db.query(CardDimensionReference).order_by(CardDimensionReference.game).all()
 
@@ -41,7 +47,7 @@ def _active_grading_companies(db: Session) -> list[str]:
     return [company.value for company in GradingCompany if company in active]
 
 
-@router.get("/pricing", response_model=PricingOut)
+@router.get("/pricing", response_model=PricingOut, dependencies=[Depends(_catalog_limit)])
 def get_pricing(db: Session = Depends(get_db)) -> PricingOut:
     """Every published price, from the rows that define them.
 
@@ -71,7 +77,7 @@ def get_pricing(db: Session = Depends(get_db)) -> PricingOut:
     )
 
 
-@router.get("/branding", response_model=BrandingOut)
+@router.get("/branding", response_model=BrandingOut, dependencies=[Depends(_catalog_limit)])
 def get_branding(db: Session = Depends(get_db)) -> BrandingOut:
     # Built field by field rather than returned as the ORM row: the company
     # list comes from a different table, so from_attributes can't supply it.
@@ -86,7 +92,9 @@ def get_branding(db: Session = Depends(get_db)) -> BrandingOut:
     )
 
 
-@router.get("/service-images", response_model=dict[str, int])
+@router.get(
+    "/service-images", response_model=dict[str, int], dependencies=[Depends(_catalog_limit)]
+)
 def list_service_images() -> dict[str, int]:
     """Which service tiers have a banner, and a version for each.
 
@@ -102,7 +110,7 @@ def list_service_images() -> dict[str, int]:
     return versions
 
 
-@router.get("/service-images/{slug}")
+@router.get("/service-images/{slug}", dependencies=[Depends(_catalog_limit)])
 def get_service_image(slug: str) -> FileResponse:
     """Public: these are marketing images on a page anonymous visitors see.
 
@@ -123,7 +131,9 @@ def get_service_image(slug: str) -> FileResponse:
     )
 
 
-@router.get("/brand-logos", response_model=dict[str, int])
+@router.get(
+    "/brand-logos", response_model=dict[str, int], dependencies=[Depends(_catalog_limit)]
+)
 def list_brand_logos() -> dict[str, int]:
     """Which brands have a header logo, and a version for each.
 
@@ -139,7 +149,7 @@ def list_brand_logos() -> dict[str, int]:
     return versions
 
 
-@router.get("/brand-logos/{slug}")
+@router.get("/brand-logos/{slug}", dependencies=[Depends(_catalog_limit)])
 def get_brand_logo(slug: str) -> FileResponse:
     """Public: the logo sits in the header of every page, signed in or not."""
     if slug not in images.BRAND_LOGO_SLUGS:
