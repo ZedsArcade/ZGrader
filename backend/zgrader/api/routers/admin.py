@@ -45,15 +45,26 @@ from zgrader.schemas.admin import (
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+# The rest of this router had no limiter at all until this audit found it --
+# operator-only isn't the same as unlimited, and a stolen operator token
+# should not get a free pass to hammer the database or the filesystem any
+# more than /test-email's should get a free pass to spam a relay. Two shared
+# ceilings rather than one per route: reads are cheap and an operator
+# dashboard polls them, writes touch the database and are rarer.
+_admin_read_limit = rate_limit("admin_read", limit=300, window_seconds=300)
+_admin_write_limit = rate_limit("admin_write", limit=60, window_seconds=300)
 
-@router.get("/settings", response_model=SettingsOut)
+
+@router.get("/settings", response_model=SettingsOut, dependencies=[Depends(_admin_read_limit)])
 def get_settings(
     _operator: User = Depends(require_operator), db: Session = Depends(get_db)
 ) -> Settings:
     return get_or_create_settings(db)
 
 
-@router.patch("/settings", response_model=SettingsOut)
+@router.patch(
+    "/settings", response_model=SettingsOut, dependencies=[Depends(_admin_write_limit)]
+)
 def update_settings(
     payload: SettingsUpdate, _operator: User = Depends(require_operator), db: Session = Depends(get_db)
 ) -> Settings:
@@ -65,7 +76,7 @@ def update_settings(
     return settings
 
 
-@router.get("/stats", response_model=StatsOut)
+@router.get("/stats", response_model=StatsOut, dependencies=[Depends(_admin_read_limit)])
 def get_stats(_operator: User = Depends(require_operator), db: Session = Depends(get_db)) -> StatsOut:
     total = db.query(Submission).count()
     status_counts = dict(
@@ -79,7 +90,9 @@ def get_stats(_operator: User = Depends(require_operator), db: Session = Depends
     )
 
 
-@router.get("/audit-log", response_model=list[AuditLogOut])
+@router.get(
+    "/audit-log", response_model=list[AuditLogOut], dependencies=[Depends(_admin_read_limit)]
+)
 def list_audit_log(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -119,7 +132,11 @@ def _service_image_path(slug: str):
     return images.service_image_path(config.public_media_dir, slug)
 
 
-@router.put("/service-images/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+@router.put(
+    "/service-images/{slug}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_admin_write_limit)],
+)
 async def upload_service_image(
     slug: str,
     file: UploadFile = File(...),
@@ -146,7 +163,11 @@ async def upload_service_image(
         ) from None
 
 
-@router.delete("/service-images/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/service-images/{slug}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_admin_write_limit)],
+)
 def delete_service_image(slug: str, _operator: User = Depends(require_operator)) -> None:
     """Remove a tier's banner. The card then renders without one, as it did
     before any image was set."""
@@ -164,7 +185,11 @@ def _brand_logo_path(slug: str):
     return images.brand_logo_path(config.public_media_dir, slug)
 
 
-@router.put("/brand-logos/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+@router.put(
+    "/brand-logos/{slug}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_admin_write_limit)],
+)
 async def upload_brand_logo(
     slug: str,
     file: UploadFile = File(...),
@@ -189,7 +214,11 @@ async def upload_brand_logo(
         ) from None
 
 
-@router.delete("/brand-logos/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/brand-logos/{slug}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_admin_write_limit)],
+)
 def delete_brand_logo(slug: str, _operator: User = Depends(require_operator)) -> None:
     """Remove a brand's logo. The header then shows just the section switch,
     which is how it looks before any logo is set."""
@@ -210,7 +239,11 @@ def _quota_out(db: Session, user: User) -> UserQuotaOut:
     )
 
 
-@router.get("/users/quota", response_model=list[UserQuotaOut])
+@router.get(
+    "/users/quota",
+    response_model=list[UserQuotaOut],
+    dependencies=[Depends(_admin_read_limit)],
+)
 def list_user_quotas(
     email: str = Query(min_length=2, description="Case-insensitive substring of the address"),
     _operator: User = Depends(require_operator),
@@ -236,7 +269,11 @@ def list_user_quotas(
     return result
 
 
-@router.patch("/users/{user_id}/quota", response_model=UserQuotaOut)
+@router.patch(
+    "/users/{user_id}/quota",
+    response_model=UserQuotaOut,
+    dependencies=[Depends(_admin_write_limit)],
+)
 def update_user_quota(
     user_id: uuid.UUID,
     payload: UserQuotaUpdate,
@@ -299,7 +336,9 @@ def update_user_quota(
     return _quota_out(db, user)
 
 
-@router.get("/plans", response_model=list[PlanEntitlementOut])
+@router.get(
+    "/plans", response_model=list[PlanEntitlementOut], dependencies=[Depends(_admin_read_limit)]
+)
 def list_plans(
     _operator: User = Depends(require_operator), db: Session = Depends(get_db)
 ) -> list[PlanEntitlement]:
@@ -307,7 +346,9 @@ def list_plans(
     return db.query(PlanEntitlement).order_by(PlanEntitlement.plan).all()
 
 
-@router.patch("/plans/{plan}", response_model=PlanEntitlementOut)
+@router.patch(
+    "/plans/{plan}", response_model=PlanEntitlementOut, dependencies=[Depends(_admin_write_limit)]
+)
 def update_plan(
     plan: str,
     payload: PlanEntitlementUpdate,
@@ -345,7 +386,11 @@ def update_plan(
     return row
 
 
-@router.get("/physical-tiers", response_model=list[PhysicalPriceTierOut])
+@router.get(
+    "/physical-tiers",
+    response_model=list[PhysicalPriceTierOut],
+    dependencies=[Depends(_admin_read_limit)],
+)
 def list_physical_tiers(
     _operator: User = Depends(require_operator), db: Session = Depends(get_db)
 ) -> list[PhysicalPriceTier]:
@@ -353,7 +398,11 @@ def list_physical_tiers(
     return db.query(PhysicalPriceTier).order_by(PhysicalPriceTier.min_qty).all()
 
 
-@router.patch("/physical-tiers/{min_qty}", response_model=PhysicalPriceTierOut)
+@router.patch(
+    "/physical-tiers/{min_qty}",
+    response_model=PhysicalPriceTierOut,
+    dependencies=[Depends(_admin_write_limit)],
+)
 def update_physical_tier(
     min_qty: int,
     payload: PhysicalPriceTierUpdate,
@@ -392,7 +441,11 @@ def update_physical_tier(
     return row
 
 
-@router.get("/grading-companies", response_model=list[GradingCompanyOut])
+@router.get(
+    "/grading-companies",
+    response_model=list[GradingCompanyOut],
+    dependencies=[Depends(_admin_read_limit)],
+)
 def list_grading_companies(
     _operator: User = Depends(require_operator), db: Session = Depends(get_db)
 ) -> list[GradingCompanyOut]:
@@ -413,7 +466,11 @@ def list_grading_companies(
     ]
 
 
-@router.patch("/grading-companies/{company}", response_model=GradingCompanyOut)
+@router.patch(
+    "/grading-companies/{company}",
+    response_model=GradingCompanyOut,
+    dependencies=[Depends(_admin_write_limit)],
+)
 def set_grading_company_active(
     company: str,
     payload: GradingCompanyUpdate,
@@ -459,7 +516,11 @@ def set_grading_company_active(
     return GradingCompanyOut(company=target.value, active=payload.active, rule_count=len(rules))
 
 
-@router.get("/contact-messages", response_model=list[ContactMessageOut])
+@router.get(
+    "/contact-messages",
+    response_model=list[ContactMessageOut],
+    dependencies=[Depends(_admin_read_limit)],
+)
 def list_contact_messages(
     unhandled_only: bool = Query(default=False),
     limit: int = Query(default=50, ge=1, le=200),
@@ -481,7 +542,11 @@ def list_contact_messages(
     )
 
 
-@router.patch("/contact-messages/{message_id}", response_model=ContactMessageOut)
+@router.patch(
+    "/contact-messages/{message_id}",
+    response_model=ContactMessageOut,
+    dependencies=[Depends(_admin_write_limit)],
+)
 def update_contact_message(
     message_id: uuid.UUID,
     payload: ContactMessageUpdate,

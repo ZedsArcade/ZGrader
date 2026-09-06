@@ -9,12 +9,14 @@ import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 const PAGE_SIZE = 50;
 
 function AuditLogList() {
   const { token } = useAuth();
+  const { locale } = useLocale();
   const [entries, setEntries] = useState<api.AuditLogEntry[] | null>(null);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +115,7 @@ function AuditLogList() {
                       {visibleEntries.map((entry) => (
                         <Table.Row key={entry.id} id={entry.id}>
                           <Table.Cell className="whitespace-nowrap">
-                            {new Date(entry.created_at).toLocaleString()}
+                            {new Date(entry.created_at).toLocaleString(locale)}
                           </Table.Cell>
                           <Table.Cell>{entry.action}</Table.Cell>
                           <Table.Cell>{entry.submission_code ?? "—"}</Table.Cell>

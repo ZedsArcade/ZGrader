@@ -6,15 +6,40 @@ compare -> PDF) against local sample images, without the watcher/API/portal.
 """
 
 import argparse
+import secrets
 import sys
 from pathlib import Path
 
 from zgrader.analysis import pipeline
+from zgrader.auth.security import hash_password
+from zgrader.config import config
 from zgrader.db import SessionLocal
 from zgrader.models import Card, ScanImage, ScanSide, Submission, SubmissionStatus, User, UserRole
 from zgrader.reports import builder
 from zgrader.scan_ingest import read_scan_metadata, sha256_file
 from zgrader.seed import seed_all
+
+_SAFE_DATABASE_SUFFIXES = ("_test", "_dev", "_local")
+
+
+def refuse_unsafe_database(url: str) -> None:
+    """Refuse to run against anything that isn't obviously a scratch database.
+
+    This entrypoint creates users and runs the pipeline against whatever
+    ZGRADER_DATABASE_URL names. On the development machine 127.0.0.1:5432 is an
+    SSH tunnel to production, which looks identical to a local server, so the
+    name is checked rather than the host.
+    """
+    from urllib.parse import urlsplit
+
+    name = urlsplit(url).path.lstrip("/")
+    if not name.endswith(_SAFE_DATABASE_SUFFIXES):
+        raise RuntimeError(
+            f"dev_trigger is refusing to run against database {name!r}. "
+            f"Its name must end in one of {_SAFE_DATABASE_SUFFIXES}. This script creates "
+            "users and runs the full pipeline, and 127.0.0.1:5432 on a development "
+            "machine is often an SSH tunnel to production."
+        )
 
 
 def _get_or_create_user(db, email: str) -> User:
@@ -22,7 +47,7 @@ def _get_or_create_user(db, email: str) -> User:
     if user is None:
         user = User(
             email=email,
-            hashed_password="dev-trigger-no-auth",
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
             is_verified=True,
             role=UserRole.client,
         )
@@ -104,6 +129,8 @@ def run_dev_trigger(
 
 
 def main(argv: list[str] | None = None) -> int:
+    refuse_unsafe_database(config.database_url)
+
     parser = argparse.ArgumentParser(
         description="Run the ZGrader analysis pipeline against local sample scans"
     )

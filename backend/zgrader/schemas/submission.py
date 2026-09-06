@@ -30,10 +30,14 @@ class QuotaOut(BaseModel):
 
 
 class SubmissionCreate(BaseModel):
-    game: str
-    card_name: str
-    set_name: str | None = None
-    card_number: str | None = None
+    # Widths mirror models/card.py exactly. Without them an overlong value
+    # reaches Postgres and raises StringDataRightTruncation, which surfaces as
+    # a 500 where a 422 belongs -- and these strings also reach the report PDF,
+    # the link-preview image and the public share page.
+    game: str = Field(min_length=1, max_length=100)
+    card_name: str = Field(min_length=1, max_length=200)
+    set_name: str | None = Field(default=None, max_length=200)
+    card_number: str | None = Field(default=None, max_length=50)
     foil: bool = False
     language: SubmissionLanguage = SubmissionLanguage.en
 

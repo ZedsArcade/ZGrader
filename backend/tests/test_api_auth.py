@@ -92,3 +92,31 @@ def test_email_verification_flow(db_session):
 
     resp = client.post("/auth/verify/not-a-real-token")
     assert resp.status_code == 404
+
+
+def test_a_token_without_a_version_claim_is_rejected(db_session):
+    """`ver` is the revocation mechanism. Accepting a token that lacks it
+    treats an unrevokable credential as version 1 forever -- a compatibility
+    shim for tokens that expired long ago."""
+    import jwt
+    from tests.conftest import register_and_verify
+    from zgrader.config import config
+    from zgrader.db import SessionLocal
+    from zgrader.models import User
+
+    register_and_verify(client, "nover@example.com")
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.email == "nover@example.com").one()
+        user_id = str(user.id)
+
+    import datetime
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    legacy = jwt.encode(
+        {"sub": user_id, "iat": now, "exp": now + datetime.timedelta(hours=1)},
+        config.secret_key,
+        algorithm="HS256",
+    )
+
+    resp = client.get("/auth/me", headers={"Authorization": f"Bearer {legacy}"})
+    assert resp.status_code == 401

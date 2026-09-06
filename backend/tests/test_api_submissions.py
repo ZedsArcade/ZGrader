@@ -906,3 +906,17 @@ def test_delete_submission_404_for_missing(db_session):
     token = _register_and_login("delmissing@example.com")
     resp = client.delete("/submissions/SUB-99999", headers=_auth_headers(token))
     assert resp.status_code == 404
+
+
+def test_oversized_card_name_is_refused_not_a_500(db_session):
+    """cards.card_name is String(200); without a schema cap the overflow
+    reaches Postgres and surfaces as a 500 where a 422 belongs."""
+    from tests.conftest import register_and_verify
+
+    token = register_and_verify(client, "longname@example.com")
+    resp = client.post(
+        "/submissions",
+        json={"game": "Pokemon", "card_name": "x" * 300},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422, f"expected validation error, got {resp.status_code}"

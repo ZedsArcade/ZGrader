@@ -78,7 +78,7 @@ function DashboardList() {
                         <Table.Cell>
                           <StatusBadge status={s.status} locale={locale} />
                         </Table.Cell>
-                        <Table.Cell>{new Date(s.created_at).toLocaleDateString()}</Table.Cell>
+                        <Table.Cell>{new Date(s.created_at).toLocaleDateString(locale)}</Table.Cell>
                         <Table.Cell>
                           {/* `min-h-11`: the word alone was a 30x19 target,
                               in a table row where the rows above and below are

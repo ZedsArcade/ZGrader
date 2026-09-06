@@ -13,7 +13,7 @@ import threading
 import time
 from collections import defaultdict
 
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 
 from zgrader.config import config
 
@@ -94,7 +94,12 @@ def rate_limit(name: str, limit: int, window_seconds: int):
     password-reset allowance.
     """
 
-    def dependency(request: Request) -> None:
+    # Named distinctly from user_rate_limit's inner closure below --
+    # tests/test_rate_limit_coverage.py identifies a route's limiter by this
+    # function's __name__, so a generic name here (e.g. the idiomatic
+    # "dependency") would let it collide with any future FastAPI dependency
+    # factory of the same shape and silently stop proving anything.
+    def _ip_rate_limit_dependency(request: Request) -> None:
         retry_after = _limiter.check(f"{name}:{client_ip(request)}", limit, window_seconds)
         if retry_after is not None:
             raise HTTPException(
@@ -103,7 +108,32 @@ def rate_limit(name: str, limit: int, window_seconds: int):
                 headers={"Retry-After": str(retry_after)},
             )
 
-    return dependency
+    return _ip_rate_limit_dependency
+
+
+def user_rate_limit(name: str, limit: int, window_seconds: int):
+    """Like rate_limit, but keyed on the authenticated user rather than the IP.
+
+    For endpoints where the attacker already holds a valid token: IP-keying
+    lets them rotate addresses to refill the bucket, and the account is the
+    thing being attacked, not the address.
+    """
+    from zgrader.api.deps import get_current_user
+    from zgrader.models import User
+
+    # Named distinctly from rate_limit's inner closure above -- see the
+    # comment there. This is the name the coverage test looks for to confirm
+    # a route is keyed on the user rather than just "has some limiter".
+    def _user_rate_limit_dependency(user: "User" = Depends(get_current_user)) -> None:
+        retry_after = _limiter.check(f"{name}:user:{user.id}", limit, window_seconds)
+        if retry_after is not None:
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                "Too many attempts. Please wait and try again.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+    return _user_rate_limit_dependency
 
 
 LOGIN_LIMIT = 5

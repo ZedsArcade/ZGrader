@@ -15,7 +15,9 @@ from zgrader.api.ratelimit import (
     login_rate_limit,
     note_failed_login,
     password_reset_rate_limit,
+    rate_limit,
     register_rate_limit,
+    user_rate_limit,
     verification_resend_rate_limit,
 )
 from zgrader.auth.security import (
@@ -57,6 +59,32 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Bumped whenever the terms change, and recorded against each acceptance so
 # you can show which version someone agreed to.
 CURRENT_TERMS_VERSION = "2026-08"
+
+# change-password is user-keyed, not IP-keyed: the attacker worth defending
+# against here already holds a valid token and can rotate addresses at will,
+# so an IP bucket buys nothing and the account is what's actually under
+# attack. Tight, because it's a password oracle -- verify_password against a
+# stolen token is exactly the guess a brute-forcer wants to make for free.
+_change_password_limit = user_rate_limit("change_password", limit=5, window_seconds=900)
+
+# The rest of this file is IP-keyed, same as login: these redeem a token
+# rather than a credential, but a redeemable token is still worth throttling
+# guesses against.
+_reset_password_redeem_limit = rate_limit("reset_password_redeem", limit=10, window_seconds=3600)
+_verify_redeem_limit = rate_limit("verify_redeem", limit=10, window_seconds=3600)
+_google_start_limit = rate_limit("google_start", limit=20, window_seconds=900)
+_google_callback_limit = rate_limit("google_callback", limit=20, window_seconds=900)
+
+# Ordinary authenticated account actions -- not guessing targets, so
+# generous, but not unlimited: a runaway client or a credentialled scraper
+# should meet a wall before the box does, same reasoning as submissions.py's
+# per-IP ceilings.
+_profile_read_limit = rate_limit("profile_read", limit=300, window_seconds=300)
+_profile_update_limit = rate_limit("profile_update", limit=30, window_seconds=900)
+# Destructive and irreversible, so tighter than an ordinary write.
+_account_delete_limit = rate_limit("account_delete", limit=10, window_seconds=3600)
+_google_status_limit = rate_limit("google_status", limit=120, window_seconds=60)
+_google_unlink_limit = rate_limit("google_unlink", limit=10, window_seconds=900)
 
 
 def _find_by_email(db: Session, email: str) -> User | None:
@@ -147,7 +175,11 @@ def resend_verification(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/verify/{token}", response_model=UserOut)
+@router.post(
+    "/verify/{token}",
+    response_model=UserOut,
+    dependencies=[Depends(_verify_redeem_limit)],
+)
 def verify_email(token: str, db: Session = Depends(get_db)) -> User:
     user = db.query(User).filter(User.verification_token == token).first()
     if user is None:
@@ -211,7 +243,11 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_reset_password_redeem_limit)],
+)
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> Response:
     user = db.query(User).filter(User.password_reset_token == payload.token).first()
     expires_at = user.password_reset_expires_at if user else None
@@ -233,7 +269,11 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/change-password", response_model=TokenResponse)
+@router.post(
+    "/change-password",
+    response_model=TokenResponse,
+    dependencies=[Depends(_change_password_limit)],
+)
 def change_password(
     payload: ChangePasswordRequest,
     user: User = Depends(get_current_user),
@@ -262,12 +302,12 @@ def change_password(
     return TokenResponse(access_token=create_access_token(str(user.id), user.token_version))
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me", response_model=UserOut, dependencies=[Depends(_profile_read_limit)])
 def me(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-@router.patch("/me", response_model=UserOut)
+@router.patch("/me", response_model=UserOut, dependencies=[Depends(_profile_update_limit)])
 def update_profile(
     payload: UpdateProfileRequest,
     user: User = Depends(get_current_user),
@@ -284,7 +324,11 @@ def update_profile(
     return user
 
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_account_delete_limit)],
+)
 def delete_account(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> Response:
@@ -351,7 +395,11 @@ def delete_account(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/google/status", response_model=GoogleStatusOut)
+@router.get(
+    "/google/status",
+    response_model=GoogleStatusOut,
+    dependencies=[Depends(_google_status_limit)],
+)
 def google_status() -> GoogleStatusOut:
     """Whether this deployment offers Google sign-in.
 
@@ -362,7 +410,7 @@ def google_status() -> GoogleStatusOut:
     return GoogleStatusOut(enabled=config.google_enabled)
 
 
-@router.get("/google/start")
+@router.get("/google/start", dependencies=[Depends(_google_start_limit)])
 def google_start(next: str = "/dashboard") -> RedirectResponse:
     """Send the browser to Google's account chooser."""
     if not config.google_enabled:
@@ -394,7 +442,11 @@ def google_link_start(
     )
 
 
-@router.delete("/google/link", response_model=TokenResponse)
+@router.delete(
+    "/google/link",
+    response_model=TokenResponse,
+    dependencies=[Depends(_google_unlink_limit)],
+)
 def google_unlink(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> TokenResponse:
@@ -508,7 +560,7 @@ def _is_uuid(value: str) -> bool:
     return True
 
 
-@router.get("/google/callback")
+@router.get("/google/callback", dependencies=[Depends(_google_callback_limit)])
 def google_callback(
     request: Request,
     code: str | None = None,

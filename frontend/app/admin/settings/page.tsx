@@ -7,6 +7,7 @@ import RequireAuth from "@/components/RequireAuth";
 import Skeleton from "@/components/Skeleton";
 import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/context";
 import { useBranding } from "@/lib/branding-context";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { useServiceImages } from "@/lib/use-service-images";
@@ -290,6 +291,7 @@ function SectionHeading({ title, hint }: { title: string; hint: string }) {
  * are audited server-side.
  */
 function UserQuotaLookup({ token }: { token: string }) {
+  const { locale } = useLocale();
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<api.UserQuota[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -359,7 +361,7 @@ function UserQuotaLookup({ token }: { token: string }) {
               {row.unlimited
                 ? `${row.plan} — unlimited`
                 : `${row.plan} — ${row.remaining} of ${row.limit} left` +
-                  (row.resets_at ? `, resets ${new Date(row.resets_at).toLocaleString()}` : ", not started")}
+                  (row.resets_at ? `, resets ${new Date(row.resets_at).toLocaleString(locale)}` : ", not started")}
             </div>
           </div>
 

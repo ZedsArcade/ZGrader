@@ -9,6 +9,7 @@ import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 /**
@@ -21,6 +22,7 @@ import * as api from "@/lib/api";
  */
 function ContactInbox() {
   const { token } = useAuth();
+  const { locale } = useLocale();
   const [messages, setMessages] = useState<api.ContactMessage[] | null>(null);
   const [unhandledOnly, setUnhandledOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +108,7 @@ function ContactInbox() {
                 <Card.Title>{message.subject}</Card.Title>
                 <Card.Description>
                   {message.name} &lt;{message.email}&gt; &middot;{" "}
-                  {new Date(message.created_at).toLocaleString()}
+                  {new Date(message.created_at).toLocaleString(locale)}
                 </Card.Description>
               </Card.Header>
               <Card.Content className="flex flex-col gap-3">
