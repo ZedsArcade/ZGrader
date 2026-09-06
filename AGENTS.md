@@ -312,7 +312,7 @@ longer exists. `tests/test_methodology_figures.py` fails if the filter stops rej
 **Rate limiting already exists, and it is in-process on purpose.** `api/ratelimit.py` is a
 fixed-window limiter, keyed per-IP by default and reading `CF-Connecting-IP` in production.
 Coverage is now comprehensive rather than a list of routes someone remembered to protect: every
-route across the auth, submissions, admin, catalog and public-report routers carries a limiter, and
+route across the auth, submissions, admin, catalog, contact and public-report routers carries a limiter, and
 `tests/test_rate_limit_coverage.py` walks the whole route table and fails the moment a new one
 appears without one. Do not add a second limiter — a request to "add rate limiting" is a request to
 extend `rate_limit(name, limit, window)` (or, for an endpoint that needs to survive the caller
