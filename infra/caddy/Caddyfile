@@ -26,8 +26,14 @@
 # it: TLS terminates at Cloudflare and the origin is never directly
 # reachable. That last part is load-bearing -- the backend trusts
 # CF-Connecting-IP for rate limiting, which is only safe while nothing can
-# reach the origin without going through the tunnel. Do not also publish
-# this port to the internet. See docs/deployment.md.
+# reach the origin without going through the tunnel.
+#
+# docker-compose.yml now publishes Caddy on 127.0.0.1 only, so that holds by
+# construction rather than by convention, and
+# backend/tests/test_compose_port_bindings.py fails if it reverts. It was
+# "8080:80" -- reachable from the whole LAN -- for as long as this warning
+# sat here unread, because the compose service overrode the command and this
+# file was never loaded at all. See docs/deployment.md.
 :80 {
 	# Comfortably above the largest scan the API accepts and well below
 	# anything that would tie up a worker. Oversized requests are rejected

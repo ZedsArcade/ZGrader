@@ -86,8 +86,41 @@ outside the stack.
 - HSTS is served with a two-year max-age and `preload`. That is correct behind
   Cloudflare's TLS; it would lock browsers out of a plain-HTTP origin.
 
-So: don't port-forward 8080, and if you expose it on the LAN, keep that to the
-LAN.
+So Caddy publishes on **loopback only** (`127.0.0.1:8080:80`). `cloudflared`
+runs in this stack and dials `caddy:80` over the compose network, so nothing
+needs the host publish; binding it to loopback makes the rule above true by
+construction rather than by everyone remembering it.
+`backend/tests/test_compose_port_bindings.py` fails if that reverts.
+
+To reach the origin yourself, forward the port instead of publishing it:
+
+```
+ssh -N -L 8080:127.0.0.1:8080 <this-host>
+```
+
+**If you ever move `cloudflared` out of the stack**, it can no longer reach
+`caddy:80` and will need a routable address again — at which point the trust
+placed in `CF-Connecting-IP` has to be re-examined, not just the binding.
+
+## The Caddyfile has to be mounted *and* used
+
+`infra/caddy/Caddyfile` sets slow-client timeouts and a 25MB request-body cap,
+both of which matter in front of a single uvicorn worker. For a long time it
+did neither: the compose service overrode the command with
+`caddy reverse-proxy --from :80 --to frontend:3000`, which ignores
+`/etc/caddy/Caddyfile` entirely. The file sat in the repository describing
+behaviour nothing exhibited — including the warning not to publish this port.
+
+The image's default entrypoint already runs the Caddyfile, so the service now
+mounts it and sets no `command:`. Mounting it while keeping the override would
+have changed nothing, which is why the test asserts both halves.
+
+**Validate it before deploying a change to it.** A malformed Caddyfile stops
+the proxy, and the proxy is the only way in:
+
+```
+docker run --rm -v /mnt/user/appdata/zgrader/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro   caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+```
 
 ## Capacity on a shared box
 

@@ -422,6 +422,23 @@ Two structural rules that keep being re-learned: a category that cannot measure 
 off that being `None` so an unscored category draws no overlay and emits no findings — every region
 severity is a claim, and `ok` asserts that part of the card was checked and is clean.
 
+**The origin is reachable only through the tunnel, and that is now enforced rather than intended.**
+`cloudflared` dials `caddy:80` across the compose network, so Caddy publishes on `127.0.0.1:8080:80`
+and nothing needs a host port at all. Two controls rest on this and neither fails loudly: the backend
+trusts `CF-Connecting-IP` whenever `ZGRADER_ENV=production`, so anything that can reach the origin
+directly sets that header itself and takes a fresh rate-limit bucket per request — defeating every
+limiter at once, the login throttle and `change-password`'s user-keyed one included — and HSTS is
+served with a two-year `max-age` and `preload`, right behind Cloudflare's TLS and wrong on a
+plain-HTTP origin.
+
+It was `"8080:80"` — the whole LAN — while `infra/caddy/Caddyfile` carried a comment saying not to do
+exactly that. The comment was unread because **the file was never loaded**: the compose service
+overrode the command with `caddy reverse-proxy`, which ignores `/etc/caddy/Caddyfile`, so its
+slow-client timeouts and 25MB body cap did nothing either. Mounting the file without dropping the
+override would have changed nothing, so `tests/test_compose_port_bindings.py` asserts the binding,
+the mount and the absence of the override together. A warning in a config file that is not loaded is
+not a control.
+
 ## Two traps that have already cost real time
 
 **`localhost` lies about browser security behaviour.** It's a "potentially trustworthy" origin and
