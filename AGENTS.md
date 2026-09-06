@@ -310,15 +310,20 @@ pipeline. After changing anything in `analysis/`, run
 longer exists. `tests/test_methodology_figures.py` fails if the filter stops rejecting text.
 
 **Rate limiting already exists, and it is in-process on purpose.** `api/ratelimit.py` is a
-fixed-window per-IP limiter that reads `CF-Connecting-IP` in production, and it is already applied
-to login, register, password reset, verification resend, contact, the admin test-email action, the
-public report routes and the authenticated submission endpoints. Do not add a second limiter — a
-request to "add rate limiting" is a request to extend `rate_limit(name, limit, window)` onto more
-routes.
+fixed-window limiter, keyed per-IP by default and reading `CF-Connecting-IP` in production.
+Coverage is now comprehensive rather than a list of routes someone remembered to protect: every
+route across the auth, submissions, admin, catalog and public-report routers carries a limiter, and
+`tests/test_rate_limit_coverage.py` walks the whole route table and fails the moment a new one
+appears without one. Do not add a second limiter — a request to "add rate limiting" is a request to
+extend `rate_limit(name, limit, window)` (or, for an endpoint that needs to survive the caller
+rotating IPs, `user_rate_limit`) onto more routes.
 
 Login counts **failed** attempts only, deliberately. Counting successes would lock out an office, a
 household, or anyone behind carrier-grade NAT, and it slows a password guesser down not at all,
-since a guesser has no successful attempts to spend.
+since a guesser has no successful attempts to spend. `/auth/change-password` is keyed by user id
+instead of by address, because the threat there already holds a valid token and can rotate
+addresses at will — an IP bucket would buy nothing, so the bucket has to follow the account being
+attacked rather than the socket the request arrived on.
 
 In-process because the deployment is one uvicorn worker on one box. That is correct today and
 **silently wrong the moment `--workers` is added**: each worker keeps its own counters and every

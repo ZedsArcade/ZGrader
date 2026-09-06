@@ -140,3 +140,40 @@ def test_change_password_limit_is_keyed_by_user_not_ip(db_session):
         "limiter is keyed by address instead of by user, which is exactly "
         "the bypass user_rate_limit exists to close"
     )
+
+
+def test_change_password_succeeds_within_the_limit(db_session):
+    """A real password change must still go through.
+
+    The two tests above only ever send wrong passwords, so neither would
+    notice a limit set so tight -- or a counter charged so eagerly -- that a
+    legitimate user could never get a correct change through. A few wrong
+    guesses (well under the limit of 5 per 900s) followed by the right one
+    must still succeed, and since a successful change bumps
+    `token_version` and retires the caller's old token, the replacement
+    handed back has to actually work.
+    """
+    from fastapi.testclient import TestClient
+    from zgrader.api.main import app
+    from tests.conftest import register_and_verify
+
+    client = TestClient(app)
+    token = register_and_verify(client, "throttled-success@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    wrong_body = {"current_password": "wrong-password", "new_password": "brandnewpass"}
+    for _ in range(3):
+        resp = client.post("/auth/change-password", json=wrong_body, headers=headers)
+        assert resp.status_code != 429, "legitimate attempts were throttled before the real one"
+
+    correct_body = {"current_password": "hunter2pass", "new_password": "brandnewpass"}
+    response = client.post("/auth/change-password", json=correct_body, headers=headers)
+    assert response.status_code == 200, f"correct password change was rejected: {response.text}"
+
+    new_token = response.json()["access_token"]
+    assert new_token and new_token != token, "no fresh access_token returned after the change"
+
+    # The old token was retired by the token_version bump; the replacement
+    # must actually work, proving the change really took effect.
+    me_response = client.get("/auth/me", headers={"Authorization": f"Bearer {new_token}"})
+    assert me_response.status_code == 200, f"fresh access_token did not work: {me_response.text}"
