@@ -12,7 +12,7 @@ import ErrorState from "@/components/ErrorState";
 import ProcessingState from "@/components/ProcessingState";
 import { useAuth } from "@/lib/auth-context";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { useTranslations } from "@/lib/i18n/context";
+import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 const PENDING_STATUSES = new Set(["created", "awaiting_scans", "processing"]);
@@ -36,6 +36,7 @@ function optionToAutoPublish(option: string): boolean | null {
 
 function AdminDetail({ code }: { code: string }) {
   const { token } = useAuth();
+  const { locale } = useLocale();
   const t = useTranslations();
   const router = useRouter();
   const [submission, setSubmission] = useState<api.SubmissionDetail | null>(null);
@@ -127,7 +128,7 @@ function AdminDetail({ code }: { code: string }) {
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{submission.submission_code}</h1>
-          <p className="text-sm text-muted">Created {new Date(submission.created_at).toLocaleString()}</p>
+          <p className="text-sm text-muted">Created {new Date(submission.created_at).toLocaleString(locale)}</p>
         </div>
         <Button variant="outline" onPress={() => setConfirmDelete(true)}>
           {t.submissionDetail.deleteButton}

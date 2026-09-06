@@ -112,7 +112,7 @@ function Detail({ code }: { code: string }) {
         <div>
           <h1 className="text-2xl font-bold text-foreground">{submission.submission_code}</h1>
           <p className="text-sm text-muted">
-            {t.submissionDetail.createdOn} {new Date(submission.created_at).toLocaleString()}
+            {t.submissionDetail.createdOn} {new Date(submission.created_at).toLocaleString(locale)}
           </p>
         </div>
         <div className="flex items-center gap-2">

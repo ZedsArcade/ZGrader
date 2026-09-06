@@ -734,7 +734,16 @@ export async function fetchAuthedImage(
 ): Promise<Blob> {
   const res = await fetch(url, { headers: authHeaders(token) });
   if (!res.ok) {
-    throw new ApiError(res.status, notFoundMessage);
+    // Same extraction request() uses, so an image failure explains itself
+    // rather than always reporting the caller's generic default.
+    let message = notFoundMessage;
+    try {
+      const body = await res.json();
+      message = describeDetail(body.detail) ?? notFoundMessage;
+    } catch {
+      // not JSON -- keep the caller's default
+    }
+    throw new ApiError(res.status, message);
   }
   return res.blob();
 }

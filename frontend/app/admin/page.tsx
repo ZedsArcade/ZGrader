@@ -10,10 +10,12 @@ import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 function AdminOverview() {
   const { token } = useAuth();
+  const { locale } = useLocale();
   const [submissions, setSubmissions] = useState<api.SubmissionSummary[] | null>(null);
   const [stats, setStats] = useState<api.Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +147,7 @@ function AdminOverview() {
                           <Table.Cell>
                             <StatusBadge status={s.status} />
                           </Table.Cell>
-                          <Table.Cell>{new Date(s.created_at).toLocaleDateString()}</Table.Cell>
+                          <Table.Cell>{new Date(s.created_at).toLocaleDateString(locale)}</Table.Cell>
                           <Table.Cell>
                             {/* Same 43x19 problem as View on the client
                                 dashboard, and the same consequence: the rows
