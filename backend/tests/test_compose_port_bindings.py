@@ -42,26 +42,30 @@ PUBLISHED_ON_ALL_INTERFACES_BY_DESIGN = {
 }
 
 
-def _published_ports(service: dict) -> list[str]:
-    """Long- and short-form port entries, as strings."""
-    entries = service.get("ports") or []
-    out = []
-    for entry in entries:
-        if isinstance(entry, dict):
-            # Long form: a host_ip key is what makes it interface-specific.
-            out.append(f"{entry.get('host_ip', '')}:{entry.get('published', '')}")
-        else:
-            out.append(str(entry))
-    return out
+def _published_bindings(service: dict) -> list[tuple[str, bool]]:
+    """(how to describe it, whether it names a host interface) per published port.
 
-
-def _is_interface_bound(entry: str) -> bool:
-    """True when the mapping names a host interface rather than all of them.
-
-    "8080:80" binds 0.0.0.0; "127.0.0.1:8080:80" binds loopback only. The
-    difference is one field and no error message.
+    Boundness is decided here, where the entry's structure is still known,
+    rather than by inspecting a flattened string afterwards. The two compose
+    forms carry the same fact in different shapes, and the first version of
+    this file rendered long form down to "127.0.0.1:8080" and then counted
+    colons -- which reports a correctly bound long-form entry as an offender,
+    because the short form it was modelled on has three fields and that has
+    two. A check that fails on compliant config is worse than none: it trains
+    whoever hits it to weaken the check.
     """
-    return entry.count(":") >= 2 and not entry.startswith(":")
+    out: list[tuple[str, bool]] = []
+    for entry in service.get("ports") or []:
+        if isinstance(entry, dict):
+            # Long form. A host_ip, whatever it is, names an interface.
+            host_ip = str(entry.get("host_ip") or "")
+            display = f"{host_ip or '<all interfaces>'}:{entry.get('published', '')}"
+            out.append((display, bool(host_ip)))
+        else:
+            # Short form: "[host_ip:]host_port:container_port".
+            text = str(entry)
+            out.append((text, text.count(":") >= 2 and not text.startswith(":")))
+    return out
 
 
 def test_no_service_publishes_on_all_interfaces():
@@ -71,9 +75,9 @@ def test_no_service_publishes_on_all_interfaces():
     for name, service in (compose.get("services") or {}).items():
         if name in PUBLISHED_ON_ALL_INTERFACES_BY_DESIGN:
             continue
-        for entry in _published_ports(service or {}):
-            if not _is_interface_bound(entry):
-                offenders.append(f"{name}: {entry}")
+        for display, interface_bound in _published_bindings(service or {}):
+            if not interface_bound:
+                offenders.append(f"{name}: {display}")
 
     assert not offenders, (
         "these services publish a port on every interface, so the origin is "
@@ -121,3 +125,27 @@ def test_caddy_loads_the_caddyfile_rather_than_adapter_mode():
         "ignores the mounted Caddyfile. Remove the override -- the image's default "
         "entrypoint already runs /etc/caddy/Caddyfile."
     )
+
+
+def test_both_compose_port_forms_are_classified_correctly():
+    """The parser has to understand both shapes, not just the one in use today.
+
+    docker-compose.yml uses short-form strings throughout, so a bug in the
+    long-form branch would sit undetected until somebody switched syntax --
+    and would then fail against a *correctly* bound port, which is the failure
+    that gets a security check deleted rather than fixed.
+    """
+    short_bound = _published_bindings({"ports": ["127.0.0.1:8080:80"]})
+    short_open = _published_bindings({"ports": ["8080:80"]})
+    long_bound = _published_bindings(
+        {"ports": [{"target": 80, "published": 8080, "host_ip": "127.0.0.1"}]}
+    )
+    long_open = _published_bindings({"ports": [{"target": 80, "published": 8080}]})
+
+    assert short_bound[0][1] is True, "loopback short form read as unbound"
+    assert short_open[0][1] is False, "all-interfaces short form read as bound"
+    assert long_bound[0][1] is True, "loopback long form read as unbound"
+    assert long_open[0][1] is False, "all-interfaces long form read as bound"
+
+    # The offender message has to name the interface, or it says nothing useful.
+    assert "<all interfaces>" in long_open[0][0]

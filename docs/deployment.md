@@ -72,9 +72,15 @@ The reference setup does not forward any port from the router. `cloudflared`
 runs alongside the stack and dials out to Cloudflare; Cloudflare terminates TLS
 and forwards to Caddy on port 80 inside the Docker network.
 
-Point the tunnel's public hostname at `http://caddy:80` (put `cloudflared` on
-the same compose network), or at `http://<unraid-ip>:8080` if you run it
-outside the stack.
+Point the tunnel's public hostname at `http://caddy:80`, with `cloudflared` on
+the same compose network — which is how this stack runs it.
+
+Running `cloudflared` *outside* the stack used to be the alternative, pointing
+it at `http://<unraid-ip>:8080`. That no longer works and should not be made to
+work casually: Caddy publishes on loopback only (see below), so the host's LAN
+address does not answer on 8080. Rebinding it to reach that way reopens the
+header-spoofing hole described in the next section, so treat it as a change to
+the trust model rather than a port edit.
 
 **The origin must not also be reachable directly.** Two controls depend on it:
 
