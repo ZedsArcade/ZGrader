@@ -66,9 +66,14 @@ def decode_access_token(token: str) -> tuple[str, int] | None:
     user_id = payload.get("sub")
     if not user_id:
         return None
-    # Tokens minted before `ver` existed are treated as version 1, matching
-    # the column default, so this release doesn't log everyone out.
-    return user_id, int(payload.get("ver", 1))
+    # `ver` is the revocation mechanism, so a token without it cannot be
+    # revoked. The compatibility default that accepted pre-`ver` tokens as
+    # version 1 has outlived its purpose: any such token expired long ago,
+    # since access tokens live 24 hours.
+    version = payload.get("ver")
+    if version is None:
+        return None
+    return user_id, int(version)
 
 
 def generate_verification_token() -> str:
