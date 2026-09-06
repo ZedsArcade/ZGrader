@@ -1,0 +1,6 @@
+# The remediation backlog names findings that are not fixed yet, and this
+# repository is public -- publishing a live weakness alongside its mechanism
+# helps an attacker more than it helps a reader. It is committed once the
+# items it describes are closed. Until then it lives only on the operator's
+# machine.
+2026-09-06-remediation-backlog.md
