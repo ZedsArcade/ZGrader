@@ -242,7 +242,16 @@ services:
       - caddy
 
   caddy:
-    image: caddy:2-alpine
+    # Built rather than pulled, so the Caddyfile comes from this repository by
+    # construction. It was a bind mount, which forced CADDYFILE_PATH pointing
+    # at a hand-copied file on the host -- a second source of truth nothing
+    # noticed drifting. A build context is read by the Docker client, which
+    # has the checkout, unlike a bind mount which the daemon resolves against
+    # the host; that is why `build:` works here where the mount did not.
+    #
+    # The image also runs `caddy validate` at build time, so a malformed
+    # Caddyfile fails the build instead of taking the proxy down at start.
+    build: ./infra/caddy
     restart: unless-stopped
     # Loopback, not 0.0.0.0. docs/deployment.md states the invariant: the
     # origin must not be reachable except through the tunnel. Two controls
@@ -262,19 +271,9 @@ services:
     # No `command:` override on purpose. `caddy reverse-proxy` ignores
     # /etc/caddy/Caddyfile, which is how that file's timeouts and 25MB body
     # cap sat inert for months while the file documented them. The image's
-    # default entrypoint runs the Caddyfile, so mounting it is enough --
-    # and mounting it without removing the override would change nothing.
-    #
-    # CADDYFILE_PATH is a variable rather than a plain relative path because a
-    # relative bind mount resolves against the *compose file's* directory, and
-    # under Portainer that is a folder inside Portainer's own volume with no
-    # checkout in it. Docker does not error on a missing bind source -- it
-    # creates it as a directory, and then Caddy fails to start because a
-    # directory cannot be mounted onto a file. The default keeps `docker
-    # compose up` working from a git checkout; a Portainer or Compose-Manager
-    # deployment sets the absolute path to a copy on the host.
+    # default entrypoint runs the Caddyfile it was built with, so baking the
+    # file in is enough -- but only while nothing overrides the command again.
     volumes:
-      - ${CADDYFILE_PATH:-./infra/caddy/Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
