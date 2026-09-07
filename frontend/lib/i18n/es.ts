@@ -23,6 +23,7 @@ export const es: Dictionary = {
     terms: "Términos",
     privacy: "Privacidad",
     refunds: "Reembolsos",
+    signedOutEverywhere: "Sesión cerrada en todos sus dispositivos.",
   },
   status: {
     created: "Creado",

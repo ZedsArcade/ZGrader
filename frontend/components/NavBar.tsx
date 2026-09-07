@@ -6,6 +6,7 @@ import Button from "@/components/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding-context";
 import { useTranslations } from "@/lib/i18n/context";
+import { toastSuccess } from "@/lib/toast";
 import { CARE_PREFIX } from "@/lib/brand";
 import { useBrand } from "@/lib/use-brand";
 import BrandLogo from "@/components/BrandLogo";
@@ -31,8 +32,11 @@ export default function NavBar() {
   const router = useRouter();
   const brand = useBrand();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
+    // Said out loud because revocation is global: signing out on a phone also
+    // signs out the laptop, and a silent surprise is worse than a sentence.
+    toastSuccess(t.nav.signedOutEverywhere);
     router.push("/");
   }
 

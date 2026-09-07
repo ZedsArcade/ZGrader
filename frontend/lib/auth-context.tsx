@@ -14,7 +14,7 @@ interface AuthContextValue {
     acceptTerms: boolean,
     marketingConsent?: boolean
   ) => Promise<api.User>;
-  logout: () => void;
+  logout: (options?: { revokeOnServer?: boolean }) => Promise<void>;
   /** Swap in a token issued by the server mid-session (after a password
    *  change, which retires the previous one). */
   adoptToken: (token: string) => Promise<void>;
@@ -81,11 +81,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.getMe(token));
   }, [token]);
 
-  const logout = useCallback(() => {
-    window.localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
-  }, []);
+  /** Sign out here, and on the server.
+   *
+   *  Clearing localStorage alone left the token valid for the rest of its
+   *  24-hour life, so anyone holding a copy kept the session the user thought
+   *  they had ended. The server call retires it for real.
+   *
+   *  Order is deliberate: the request is best-effort and the local clear is
+   *  not. Bailing out when the network is down would leave someone signed in
+   *  behind a button that appears to do nothing, which is worse than a session
+   *  that outlives the click.
+   *
+   *  `revokeOnServer: false` is for the case where there is no longer an
+   *  account to revoke against -- closing it already invalidated everything. */
+  const logout = useCallback(
+    async ({ revokeOnServer = true }: { revokeOnServer?: boolean } = {}) => {
+      const current = window.localStorage.getItem(TOKEN_KEY);
+      if (revokeOnServer && current) {
+        try {
+          await api.logoutSession(current);
+        } catch {
+          // Already expired, or unreachable. Sign out locally regardless.
+        }
+      }
+      window.localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUser(null);
+    },
+    []
+  );
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, register, logout, adoptToken, refreshUser }}>
