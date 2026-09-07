@@ -113,6 +113,11 @@ def test_caddy_loads_the_caddyfile_rather_than_adapter_mode():
     compose = yaml.safe_load(COMPOSE_FILE.read_text(encoding="utf-8"))
     caddy = (compose.get("services") or {}).get("caddy") or {}
 
+    # Matches "Caddyfile" anywhere in the entry, so the variable form
+    # (${CADDYFILE_PATH:-./infra/caddy/Caddyfile}) counts. The path is a
+    # variable because a relative bind mount resolves against the compose
+    # file's directory, which under Portainer holds no checkout -- see the
+    # comment on the service.
     mounted = [v for v in (caddy.get("volumes") or []) if "Caddyfile" in str(v)]
     assert mounted, (
         "docker-compose.yml does not mount infra/caddy/Caddyfile into the caddy "

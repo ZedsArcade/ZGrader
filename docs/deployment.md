@@ -121,6 +121,33 @@ The image's default entrypoint already runs the Caddyfile, so the service now
 mounts it and sets no `command:`. Mounting it while keeping the override would
 have changed nothing, which is why the test asserts both halves.
 
+**Where the file has to live depends on how you deploy.** The mount is
+`${CADDYFILE_PATH:-./infra/caddy/Caddyfile}`. Running `docker compose up` from a
+checkout, the default is right. Deploying through **Portainer** or Unraid's
+Compose Manager, it is not: those keep the compose file in their own storage, a
+relative bind mount resolves against *that* directory, and there is no checkout
+in it. Docker does not call a missing bind source an error — it creates the path
+as a directory, and Caddy then fails to start because a directory cannot be
+mounted onto a file. The site goes down and the message talks about mounts, not
+about a file nobody copied.
+
+So on those setups, copy the file onto the host and point the variable at it:
+
+```
+mkdir -p /mnt/user/appdata/zgrader/caddy
+cp infra/caddy/Caddyfile /mnt/user/appdata/zgrader/caddy/Caddyfile
+```
+
+then set this in the stack's environment:
+
+```
+CADDYFILE_PATH=/mnt/user/appdata/zgrader/caddy/Caddyfile
+```
+
+**That copy becomes a second source of truth** and will drift from the
+repository the first time somebody edits one and not the other. Re-copy it
+whenever `infra/caddy/Caddyfile` changes.
+
 **Validate it before deploying a change to it.** A malformed Caddyfile stops
 the proxy, and the proxy is the only way in:
 

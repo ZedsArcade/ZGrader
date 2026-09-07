@@ -264,8 +264,17 @@ services:
     # cap sat inert for months while the file documented them. The image's
     # default entrypoint runs the Caddyfile, so mounting it is enough --
     # and mounting it without removing the override would change nothing.
+    #
+    # CADDYFILE_PATH is a variable rather than a plain relative path because a
+    # relative bind mount resolves against the *compose file's* directory, and
+    # under Portainer that is a folder inside Portainer's own volume with no
+    # checkout in it. Docker does not error on a missing bind source -- it
+    # creates it as a directory, and then Caddy fails to start because a
+    # directory cannot be mounted onto a file. The default keeps `docker
+    # compose up` working from a git checkout; a Portainer or Compose-Manager
+    # deployment sets the absolute path to a copy on the host.
     volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CADDYFILE_PATH:-./infra/caddy/Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
