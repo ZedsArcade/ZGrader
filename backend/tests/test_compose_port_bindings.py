@@ -98,37 +98,44 @@ def test_the_exception_list_names_real_services():
     )
 
 
-def test_caddy_loads_the_caddyfile_rather_than_adapter_mode():
-    """The Caddyfile has to be both mounted *and* used.
+def test_caddy_builds_its_config_in_rather_than_mounting_or_ignoring_it():
+    """The Caddyfile has to reach the container *and* be used.
 
-    `caddy reverse-proxy --from :80 --to frontend:3000` ignores
-    /etc/caddy/Caddyfile entirely, so for months the file's slow-client
-    timeouts and 25MB body cap were inert while the file sat in the repo
-    documenting behaviour nothing exhibited -- including the warning about
-    not publishing this port, which is what this module exists to enforce.
+    Two ways this has actually been broken. First the service overrode the
+    command with `caddy reverse-proxy --from :80 --to frontend:3000`, which
+    ignores /etc/caddy/Caddyfile entirely -- so the file's slow-client
+    timeouts and 25MB body cap sat inert for months while the file sat in the
+    repo documenting them, including the warning about not publishing this
+    port that this module exists to enforce. Then it was a bind mount, whose
+    relative source the daemon resolves against a directory that holds no
+    checkout under Portainer, so it silently became an empty directory and
+    Caddy would not start.
 
-    Mounting it without dropping the command override changes nothing, which
-    is why this asserts both halves.
+    It is now built into the image from infra/caddy/, which is read by the
+    Docker client rather than resolved by the daemon -- the same reason
+    `build: ./backend` has always worked where the mount did not.
     """
     compose = yaml.safe_load(COMPOSE_FILE.read_text(encoding="utf-8"))
     caddy = (compose.get("services") or {}).get("caddy") or {}
 
-    # Matches "Caddyfile" anywhere in the entry, so the variable form
-    # (${CADDYFILE_PATH:-./infra/caddy/Caddyfile}) counts. The path is a
-    # variable because a relative bind mount resolves against the compose
-    # file's directory, which under Portainer holds no checkout -- see the
-    # comment on the service.
-    mounted = [v for v in (caddy.get("volumes") or []) if "Caddyfile" in str(v)]
-    assert mounted, (
-        "docker-compose.yml does not mount infra/caddy/Caddyfile into the caddy "
-        "service, so its timeouts and request-size cap do nothing."
+    build = caddy.get("build")
+    context = build.get("context") if isinstance(build, dict) else build
+    assert context and "infra/caddy" in str(context), (
+        "the caddy service does not build from infra/caddy, so the Caddyfile in "
+        "this repository is not what runs. Mounting it instead reintroduces a "
+        "second source of truth on the host -- see infra/caddy/Dockerfile."
+    )
+
+    assert not [v for v in (caddy.get("volumes") or []) if "Caddyfile" in str(v)], (
+        "the Caddyfile is mounted as well as built in. Whichever wins, one of the "
+        "two is a copy nothing keeps in step."
     )
 
     command = caddy.get("command")
     assert command is None or "reverse-proxy" not in str(command), (
         "the caddy service overrides its command with `caddy reverse-proxy`, which "
-        "ignores the mounted Caddyfile. Remove the override -- the image's default "
-        "entrypoint already runs /etc/caddy/Caddyfile."
+        "ignores /etc/caddy/Caddyfile however it got there. Remove the override -- "
+        "the image's default entrypoint already runs it."
     )
 
 

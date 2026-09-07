@@ -468,10 +468,21 @@ plain-HTTP origin.
 It was `"8080:80"` — the whole LAN — while `infra/caddy/Caddyfile` carried a comment saying not to do
 exactly that. The comment was unread because **the file was never loaded**: the compose service
 overrode the command with `caddy reverse-proxy`, which ignores `/etc/caddy/Caddyfile`, so its
-slow-client timeouts and 25MB body cap did nothing either. Mounting the file without dropping the
-override would have changed nothing, so `tests/test_compose_port_bindings.py` asserts the binding,
-the mount and the absence of the override together. A warning in a config file that is not loaded is
-not a control.
+slow-client timeouts and 25MB body cap did nothing either. A warning in a config file that is not
+loaded is not a control.
+
+**The Caddyfile is built into the image, not mounted, and that distinction is the interesting part.**
+Mounting it failed here: a relative bind mount's source is resolved by the Docker *daemon* against
+the host, and under Portainer the compose file lives in Portainer's own storage with no checkout
+beside it — so the path did not exist, Docker created it as a directory, and Caddy refused to start.
+The stopgap was `CADDYFILE_PATH` pointing at a hand-copied file on the host, which made the config a
+second source of truth nothing kept in step. A **build context** is read by the Docker *client*,
+which does have the repository, which is why `build: ./backend` always worked in the same deployment
+where the mount did not. `infra/caddy/Dockerfile` also runs `caddy validate`, so a malformed config
+fails the build rather than taking down the only route into the service.
+`tests/test_compose_port_bindings.py` asserts the binding, the build context, the *absence* of a
+competing mount, and the absence of the command override together — each of those has been the
+broken one at some point.
 
 ## Two traps that have already cost real time
 

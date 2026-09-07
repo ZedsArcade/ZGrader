@@ -121,39 +121,41 @@ The image's default entrypoint already runs the Caddyfile, so the service now
 mounts it and sets no `command:`. Mounting it while keeping the override would
 have changed nothing, which is why the test asserts both halves.
 
-**Where the file has to live depends on how you deploy.** The mount is
-`${CADDYFILE_PATH:-./infra/caddy/Caddyfile}`. Running `docker compose up` from a
-checkout, the default is right. Deploying through **Portainer** or Unraid's
-Compose Manager, it is not: those keep the compose file in their own storage, a
-relative bind mount resolves against *that* directory, and there is no checkout
-in it. Docker does not call a missing bind source an error — it creates the path
-as a directory, and Caddy then fails to start because a directory cannot be
-mounted onto a file. The site goes down and the message talks about mounts, not
-about a file nobody copied.
+**The Caddyfile ships inside the image.** `infra/caddy/Dockerfile` copies it in
+and runs `caddy validate` as a build step, so it comes from this repository by
+construction and a malformed config fails the *build* rather than taking the
+proxy down at container start — which matters, because the proxy is the only
+way in.
 
-So on those setups, copy the file onto the host and point the variable at it:
+It used to be a bind mount. That does not work in every deployment: a relative
+mount source is resolved by the Docker **daemon** against the host, and under
+Portainer or Unraid's Compose Manager the compose file lives in their own
+storage with no checkout beside it. Docker does not call the missing path an
+error — it creates it as a directory, and Caddy then refuses to start because a
+directory cannot be mounted onto a file. The workaround was `CADDYFILE_PATH`
+pointing at a hand-copied file on the host, which made the config a second
+source of truth that nothing noticed drifting.
 
-```
-mkdir -p /mnt/user/appdata/zgrader/caddy
-cp infra/caddy/Caddyfile /mnt/user/appdata/zgrader/caddy/Caddyfile
-```
+A build context has no such problem: it is read by the Docker **client**, which
+does have the repository. That asymmetry is why `build: ./backend` always
+worked in the same deployment where the mount did not.
 
-then set this in the stack's environment:
-
-```
-CADDYFILE_PATH=/mnt/user/appdata/zgrader/caddy/Caddyfile
-```
-
-**That copy becomes a second source of truth** and will drift from the
-repository the first time somebody edits one and not the other. Re-copy it
-whenever `infra/caddy/Caddyfile` changes.
-
-**Validate it before deploying a change to it.** A malformed Caddyfile stops
-the proxy, and the proxy is the only way in:
+If you previously set `CADDYFILE_PATH` and copied the file to the host, both are
+now dead and can be removed:
 
 ```
-docker run --rm -v /mnt/user/appdata/zgrader/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro   caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+# in the stack's environment: delete CADDYFILE_PATH
+rm -rf /mnt/user/appdata/zgrader/caddy
 ```
+
+**Validation happens at build time**, so there is nothing to remember. If you
+want to check a change before deploying it, the build does exactly this:
+
+```
+docker build ./infra/caddy
+```
+
+A syntax error fails there, with the stack still running the previous image.
 
 ## Capacity on a shared box
 
