@@ -273,6 +273,14 @@ docker build --build-arg APP_UID=1000 --build-arg APP_GID=1000 ./backend
 Symptom of getting this wrong: the API returns 500 on scan upload and the log
 shows `PermissionError` on `/data/scans`.
 
+**This now applies to operator drops too.** The worker re-encodes every file it
+picks up out of the scans directory, to strip EXIF — so a file you copy in by
+hand is rewritten in place and ends up owned by the *worker's* user rather than
+whoever copied it. That is usually what you want, and it means a drop made as
+root no longer leaves a root-owned file behind. If the worker cannot write to
+the directory, the file is left untouched and the submission gets a note saying
+the image could not be read, rather than the worker stopping.
+
 Changing `APP_UID` after scans exist leaves the older directories owned by the
 previous UID. Writing new submissions still works, but *deleting* an old one
 fails — removing a file needs write permission on its directory, not the file —

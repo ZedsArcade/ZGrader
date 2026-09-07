@@ -26,6 +26,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from zgrader import images
 from zgrader.analysis import pipeline, preprocessing
 from zgrader.email.notifications import send_report_published
 from zgrader.models import (
@@ -67,6 +68,33 @@ def _classify_side(filename: str) -> ScanSide | None:
     return None
 
 
+def _strip_metadata_in_place(path: Path) -> None:
+    """Re-encode a dropped scan so it carries no embedded metadata.
+
+    The privacy policy tells customers every image is decoded and re-encoded
+    on arrival, discarding EXIF before anything is written to disk. That was
+    true of the upload endpoint and false here, because `strip_metadata` had
+    one call site and this was not it -- so the guarantee depended on which
+    door the file came through.
+
+    It is not academic. This path exists for cards customers post in, and an
+    operator photographing one with a phone writes their own GPS into the
+    file; `GET /submissions/{code}/scans/{side}/raw` then serves those exact
+    bytes to the account that owns the submission. A flatbed carries no GPS,
+    which is why nobody noticed: the common case is clean.
+
+    Raises whatever Pillow raises on an unreadable file. The caller turns that
+    into a warning rather than letting one bad drop stop the worker's loop.
+    """
+    # strip_metadata switches on the suffix and treats anything that is not
+    # .jpg or .png as TIFF -- so ".jpeg", which the watcher accepts, would be
+    # re-encoded as a TIFF still named .jpeg.
+    suffix = path.suffix.lower()
+    if suffix == ".jpeg":
+        suffix = ".jpg"
+    path.write_bytes(images.strip_metadata(path.read_bytes(), suffix))
+
+
 def _register_new_scans(db: Session, submission: Submission, folder: Path) -> list[str]:
     """Create ScanImage rows for new, classifiable image files in `folder`.
     Returns warning strings for files that couldn't be classified."""
@@ -89,6 +117,18 @@ def _register_new_scans(db: Session, submission: Submission, folder: Path) -> li
             continue
         if side in existing_sides:
             continue  # don't duplicate a side already registered
+
+        # Before anything measures the file. Dimensions, crop points and the
+        # checksum are all recorded below, and re-encoding after taking them
+        # would leave every one of them describing bytes that no longer exist.
+        try:
+            _strip_metadata_in_place(path)
+        except Exception:
+            logger.warning("Could not re-encode %s -- not registered", path, exc_info=True)
+            warnings.append(
+                f"Could not read '{path.name}' as an image -- ignored."
+            )
+            continue
 
         width, height, dpi = read_scan_metadata(path)
         # Operator flatbed-drop scans are trusted, controlled input (unlike
