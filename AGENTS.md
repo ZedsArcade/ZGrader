@@ -722,9 +722,11 @@ Listed so a review reports something new rather than re-deriving these:
   re-logins, and a refresh token kept in `localStorage` alongside it would buy little against the
   threat that motivates the entry. What *has* changed is that logging out now revokes server-side
   rather than only clearing the browser.
-- **A failed `getMe` on load clears the stored token**, so a transient backend outage signs every
-  user out and they must log in again. The `.catch()` in `auth-context.tsx` does not distinguish a
-  401 from a network error. Harmless when the backend is up, irritating when it blips.
+- Fixed since: **a failed `getMe` on load used to clear the stored token**, so any backend blip
+  signed every user out — including switching the maintenance Worker on, which answers 503. The
+  `.catch()` now clears only on a 401. A network error or a 5xx keeps the token, so one reload once
+  the backend is reachable restores the session rather than a password. The user still *appears*
+  signed out while it is down, because `RequireAuth` gates on `user` and there is none to fetch.
 - **HeroUI's drawer renders a 1×1 "Dismiss" button**, under any target-size floor. It is library
   internals rather than our markup, so closing it means overriding a third-party component or
   patching it; the drawer is also dismissable by tapping the overlay and by Escape, so nobody is
