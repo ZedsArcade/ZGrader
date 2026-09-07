@@ -30,8 +30,9 @@ chosen px/mm from the known millimetre dimensions, so the scale is definitional 
 measured back off the image. `analysis/scale.py`'s `px_per_mm` is the older measured form, still
 correct but no longer on the analysis path.
 
-**An upload is decoded upright before its metadata is thrown away.** Every store path in
-`images.py` goes through `open_upright`, which applies the EXIF orientation to the pixels first. A
+**An image is decoded upright before its metadata is thrown away, whichever door it came in.**
+Every store path in `images.py` goes through `open_upright`, which applies the EXIF orientation to
+the pixels first. A
 phone does not rotate its sensor: it writes the frame the way the sensor read it and records how the
 handset was held as EXIF Orientation, leaving every viewer to rotate on the way to the screen. These
 paths re-encode to strip EXIF on purpose — the same block carries GPS — so dropping the tag without
@@ -42,6 +43,26 @@ phone to photograph a card, so the *common* case was the broken one. The synthet
 EXIF and never could have caught it; `tests/test_upload_orientation.py` builds a file the way a
 handset actually writes one, across all eight orientation values. `CropAdjustStep`'s manual rotate
 buttons predate this and now exist for genuinely rotated scans rather than as a workaround.
+
+**The watcher was the other door, and for a long time nothing stripped it at all.** `strip_metadata`
+had exactly one call site — the upload endpoint — so anything dropped into the scans directory was
+stored byte-for-byte, while the privacy policy told customers *every* image is re-encoded on arrival.
+That mattered more than it sounds: this path exists for cards customers post in, an operator
+photographing one with a phone writes their own GPS into the file, and
+`GET /submissions/{code}/scans/{side}/raw` serves those exact bytes back to the account that owns the
+submission. A flatbed carries no GPS, which is why it went unnoticed — the common case is clean and
+the uncommon one leaks.
+
+`_register_new_scans` now re-encodes in place **before** `read_scan_metadata`, `detect_boundary` and
+`sha256_file`, because those three are what the row records about the file; strip afterwards and every
+one of them describes bytes that no longer exist, the checksum included.
+`tests/test_operator_ingest_strips_metadata.py` pins the stripping and that ordering separately — the
+ordering test passes vacuously against *no* strip, so it is written to fail against a
+strip-after-measure implementation, which is the version somebody would actually write.
+
+One trap in that code: `strip_metadata` switches on the suffix and treats anything that is not `.jpg`
+or `.png` as TIFF, so `.jpeg` — which the watcher accepts — would be re-encoded as a TIFF still named
+`.jpeg`. It is normalised to `.jpg` first.
 
 **Measurement geometry comes from fitted card edges, never from the customer's crop.**
 `analysis/geometry.py` fits a RANSAC line to each side — excluding a margin at both ends, so
