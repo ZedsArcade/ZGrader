@@ -425,6 +425,13 @@ export async function updateProfile(
   });
 }
 
+/** End the session on the server. Revocation is global -- it bumps
+ *  token_version, which retires every session this account has open, not just
+ *  this browser's. */
+export async function logoutSession(token: string): Promise<void> {
+  return request("/auth/logout", { method: "POST", headers: authHeaders(token) });
+}
+
 export async function deleteAccount(token: string): Promise<void> {
   return request("/auth/me", { method: "DELETE", headers: authHeaders(token) });
 }

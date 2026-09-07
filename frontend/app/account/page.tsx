@@ -146,7 +146,9 @@ function AccountInner() {
     setDeleting(true);
     try {
       await api.deleteAccount(token!);
-      logout();
+      // The account is gone, so there is no session left to revoke -- calling
+      // the endpoint would only 401 against a user that no longer exists.
+      await logout({ revokeOnServer: false });
       router.push("/");
     } catch (err) {
       toastError(err instanceof Error ? err.message : t.account.deleteFailed);

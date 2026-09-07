@@ -21,6 +21,7 @@ export const en = {
     terms: "Terms",
     privacy: "Privacy",
     refunds: "Refunds",
+    signedOutEverywhere: "Signed out on all your devices.",
   },
   status: {
     created: "Created",

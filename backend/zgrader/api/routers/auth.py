@@ -83,6 +83,7 @@ _profile_read_limit = rate_limit("profile_read", limit=300, window_seconds=300)
 _profile_update_limit = rate_limit("profile_update", limit=30, window_seconds=900)
 # Destructive and irreversible, so tighter than an ordinary write.
 _account_delete_limit = rate_limit("account_delete", limit=10, window_seconds=3600)
+_logout_limit = rate_limit("logout", limit=30, window_seconds=900)
 _google_status_limit = rate_limit("google_status", limit=120, window_seconds=60)
 _google_unlink_limit = rate_limit("google_unlink", limit=10, window_seconds=900)
 
@@ -300,6 +301,32 @@ def change_password(
     # Every existing token is now stale, including the caller's, so hand back
     # a fresh one rather than signing them out of the tab they're using.
     return TokenResponse(access_token=create_access_token(str(user.id), user.token_version))
+
+
+@router.post(
+    "/logout", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(_logout_limit)]
+)
+def logout(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
+    """End the session on the server, not only in the browser.
+
+    The frontend used to "log out" by dropping the token from localStorage and
+    telling the server nothing, which left it valid for the rest of its 24-hour
+    life. Anyone holding a copy -- a shared machine, a synced profile, an
+    extension -- kept the session the user believed they had just ended.
+
+    Revocation is **global**, because token_version is one integer on the user
+    rather than one per session. Logging out anywhere ends every session
+    everywhere. That is deliberate: it makes "sign out on the device I left at
+    the office" work from the device in your hand, which is the case worth
+    covering, at the cost of also signing out your own second browser. The
+    frontend says so when it happens rather than leaving it a surprise.
+
+    Not audited. Logging out is routine, and a row per logout would bury the
+    entries in the audit trail that are worth reading.
+    """
+    user.token_version += 1
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me", response_model=UserOut, dependencies=[Depends(_profile_read_limit)])

@@ -168,7 +168,20 @@ insert it fell through to violated that index and startup swallows seeding error
 
 **`token_version` is the only session-revocation mechanism.** It is a JWT claim compared against the
 row on every request. Bump it anywhere a credential changes — password reset, password change, admin
-password reset — or a stolen token outlives the change meant to kill it.
+password reset, Google unlink — or a stolen token outlives the change meant to kill it.
+
+Revocation is the *other* reason to bump it, and for a long time nothing did. `POST /auth/logout`
+now does: the frontend used to "log out" by dropping the token from `localStorage` and telling the
+server nothing, so the discarded token stayed valid for the rest of its 24 hours and anyone holding
+a copy kept the session the user believed they had ended. The sole way to kill a live session was to
+change your password.
+
+Because `token_version` is one integer on the user and not one per session, **revocation is
+all-or-nothing**: logging out anywhere ends every session everywhere. That is deliberate — it makes
+"sign out on the device I left at the office" work from the device in your hand, which is the case
+worth covering — and the frontend says so in the toast rather than leaving it a surprise. Giving
+logout per-device granularity means a session identifier in the token and a column to match, which
+is a different feature, not a refinement of this one.
 
 **Deleting a submission cascades in the database, and it has to.** Every foreign key pointing at
 `submissions` is `ON DELETE CASCADE` (`audit_logs.submission_id` is `SET NULL` — the history is
@@ -701,8 +714,17 @@ Listed so a review reports something new rather than re-deriving these:
   offers "get in touch" rather than a purchase button — a checkout would be a dead end. Selling
   works today by hand: take payment however, then top the account up with
   `PATCH /users/{user_id}/quota`, which is a complete manual fulfilment path needing no code.
-- **The session token lives in `localStorage`**, so an XSS could steal it. Moving it to an
-  `httpOnly` cookie means adding CSRF protection and reworking every authenticated image fetch.
+- **The session token lives in `localStorage`**, so an XSS could steal it, and it is valid for
+  **24 hours** (`_ACCESS_TOKEN_EXPIRE_MINUTES`) with no refresh flow and no idle timeout. The TTL is
+  what sets the blast radius, so it belongs in this entry rather than only in the constant. Moving
+  the token to an `httpOnly` cookie means adding CSRF protection and reworking every authenticated
+  image fetch, and remains the honest fix — shortening the TTL mostly taxes active users with
+  re-logins, and a refresh token kept in `localStorage` alongside it would buy little against the
+  threat that motivates the entry. What *has* changed is that logging out now revokes server-side
+  rather than only clearing the browser.
+- **A failed `getMe` on load clears the stored token**, so a transient backend outage signs every
+  user out and they must log in again. The `.catch()` in `auth-context.tsx` does not distinguish a
+  401 from a network error. Harmless when the backend is up, irritating when it blips.
 - **HeroUI's drawer renders a 1×1 "Dismiss" button**, under any target-size floor. It is library
   internals rather than our markup, so closing it means overriding a third-party component or
   patching it; the drawer is also dismissable by tapping the overlay and by Escape, so nobody is
