@@ -72,9 +72,15 @@ The reference setup does not forward any port from the router. `cloudflared`
 runs alongside the stack and dials out to Cloudflare; Cloudflare terminates TLS
 and forwards to Caddy on port 80 inside the Docker network.
 
-Point the tunnel's public hostname at `http://caddy:80` (put `cloudflared` on
-the same compose network), or at `http://<unraid-ip>:8080` if you run it
-outside the stack.
+Point the tunnel's public hostname at `http://caddy:80`, with `cloudflared` on
+the same compose network — which is how this stack runs it.
+
+Running `cloudflared` *outside* the stack used to be the alternative, pointing
+it at `http://<unraid-ip>:8080`. That no longer works and should not be made to
+work casually: Caddy publishes on loopback only (see below), so the host's LAN
+address does not answer on 8080. Rebinding it to reach that way reopens the
+header-spoofing hole described in the next section, so treat it as a change to
+the trust model rather than a port edit.
 
 **The origin must not also be reachable directly.** Two controls depend on it:
 
@@ -86,8 +92,68 @@ outside the stack.
 - HSTS is served with a two-year max-age and `preload`. That is correct behind
   Cloudflare's TLS; it would lock browsers out of a plain-HTTP origin.
 
-So: don't port-forward 8080, and if you expose it on the LAN, keep that to the
-LAN.
+So Caddy publishes on **loopback only** (`127.0.0.1:8080:80`). `cloudflared`
+runs in this stack and dials `caddy:80` over the compose network, so nothing
+needs the host publish; binding it to loopback makes the rule above true by
+construction rather than by everyone remembering it.
+`backend/tests/test_compose_port_bindings.py` fails if that reverts.
+
+To reach the origin yourself, forward the port instead of publishing it:
+
+```
+ssh -N -L 8080:127.0.0.1:8080 <this-host>
+```
+
+**If you ever move `cloudflared` out of the stack**, it can no longer reach
+`caddy:80` and will need a routable address again — at which point the trust
+placed in `CF-Connecting-IP` has to be re-examined, not just the binding.
+
+## The Caddyfile has to be mounted *and* used
+
+`infra/caddy/Caddyfile` sets slow-client timeouts and a 25MB request-body cap,
+both of which matter in front of a single uvicorn worker. For a long time it
+did neither: the compose service overrode the command with
+`caddy reverse-proxy --from :80 --to frontend:3000`, which ignores
+`/etc/caddy/Caddyfile` entirely. The file sat in the repository describing
+behaviour nothing exhibited — including the warning not to publish this port.
+
+The image's default entrypoint already runs the Caddyfile, so the service now
+mounts it and sets no `command:`. Mounting it while keeping the override would
+have changed nothing, which is why the test asserts both halves.
+
+**Where the file has to live depends on how you deploy.** The mount is
+`${CADDYFILE_PATH:-./infra/caddy/Caddyfile}`. Running `docker compose up` from a
+checkout, the default is right. Deploying through **Portainer** or Unraid's
+Compose Manager, it is not: those keep the compose file in their own storage, a
+relative bind mount resolves against *that* directory, and there is no checkout
+in it. Docker does not call a missing bind source an error — it creates the path
+as a directory, and Caddy then fails to start because a directory cannot be
+mounted onto a file. The site goes down and the message talks about mounts, not
+about a file nobody copied.
+
+So on those setups, copy the file onto the host and point the variable at it:
+
+```
+mkdir -p /mnt/user/appdata/zgrader/caddy
+cp infra/caddy/Caddyfile /mnt/user/appdata/zgrader/caddy/Caddyfile
+```
+
+then set this in the stack's environment:
+
+```
+CADDYFILE_PATH=/mnt/user/appdata/zgrader/caddy/Caddyfile
+```
+
+**That copy becomes a second source of truth** and will drift from the
+repository the first time somebody edits one and not the other. Re-copy it
+whenever `infra/caddy/Caddyfile` changes.
+
+**Validate it before deploying a change to it.** A malformed Caddyfile stops
+the proxy, and the proxy is the only way in:
+
+```
+docker run --rm -v /mnt/user/appdata/zgrader/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro   caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+```
 
 ## Capacity on a shared box
 

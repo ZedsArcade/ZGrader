@@ -244,14 +244,39 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    # Loopback, not 0.0.0.0. docs/deployment.md states the invariant: the
+    # origin must not be reachable except through the tunnel. Two controls
+    # rest on it and both fail silently -- the backend trusts
+    # CF-Connecting-IP in production, so anything reaching the origin
+    # directly can spoof it and refill every rate-limit bucket at will; and
+    # HSTS is served with a two-year max-age and preload, which is right
+    # behind Cloudflare's TLS and wrong on a plain-HTTP origin.
+    #
+    # cloudflared is a service in this stack and dials caddy:80 over the
+    # compose network, so nothing needs the host publish. Reach it yourself
+    # with:  ssh -N -L 8080:127.0.0.1:8080 <this-host>
+    #
+    # tests/test_compose_port_bindings.py fails if this reverts.
     ports:
-      - "8080:80"
-    command: caddy reverse-proxy --from :80 --to frontend:3000
-      #- "443:443"
-    #volumes:
-     # - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-     # - caddy_data:/data
-     # - caddy_config:/config
+      - "127.0.0.1:8080:80"
+    # No `command:` override on purpose. `caddy reverse-proxy` ignores
+    # /etc/caddy/Caddyfile, which is how that file's timeouts and 25MB body
+    # cap sat inert for months while the file documented them. The image's
+    # default entrypoint runs the Caddyfile, so mounting it is enough --
+    # and mounting it without removing the override would change nothing.
+    #
+    # CADDYFILE_PATH is a variable rather than a plain relative path because a
+    # relative bind mount resolves against the *compose file's* directory, and
+    # under Portainer that is a folder inside Portainer's own volume with no
+    # checkout in it. Docker does not error on a missing bind source -- it
+    # creates it as a directory, and then Caddy fails to start because a
+    # directory cannot be mounted onto a file. The default keeps `docker
+    # compose up` working from a git checkout; a Portainer or Compose-Manager
+    # deployment sets the absolute path to a copy on the host.
+    volumes:
+      - ${CADDYFILE_PATH:-./infra/caddy/Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - frontend
       - backend
