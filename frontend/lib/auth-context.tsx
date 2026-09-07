@@ -43,8 +43,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(stored);
         setUser(me);
       })
-      .catch(() => {
-        window.localStorage.removeItem(TOKEN_KEY);
+      .catch((error: unknown) => {
+        // Only a 401 means the token is actually dead. This used to discard it
+        // on *any* failure, which reads as obviously correct and is how the bug
+        // survived: a network error, a 500, or the 503 the maintenance Worker
+        // serves would each sign every user out and make them log in again.
+        // On a server that is powered down between sessions that is the normal
+        // case rather than an edge one.
+        //
+        // Keeping the token does not sign them back in here -- RequireAuth
+        // gates on `user`, and we have none -- but it means one reload once the
+        // backend is reachable restores the session instead of a password.
+        if (error instanceof api.ApiError && error.status === 401) {
+          window.localStorage.removeItem(TOKEN_KEY);
+        }
       })
       .finally(() => setLoading(false));
   }, []);
