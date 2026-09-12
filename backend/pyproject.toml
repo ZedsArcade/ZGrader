@@ -31,6 +31,9 @@ dependencies = [
     # ZGRADER_AI_ENABLED is set -- the shipped image installs this list only
     # (see backend/Dockerfile), not the dev extra.
     "httpx>=0.27",
+    # Billing (zgrader.billing_stripe is the only importer). Checkout and the
+    # Customer Portal are Stripe-hosted, so no card data reaches this server.
+    "stripe>=12",
 ]
 
 [project.optional-dependencies]

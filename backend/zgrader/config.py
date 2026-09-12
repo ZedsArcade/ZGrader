@@ -81,6 +81,19 @@ class ZGraderConfig(BaseSettings):
     def google_enabled(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret)
 
+    # Stripe billing. Off unless both are set, exactly like Google sign-in: a
+    # deployment with no Stripe account keeps "Get in touch" on /pricing
+    # rather than offering a checkout that cannot work, and every /billing
+    # route answers 404. The webhook secret is the endpoint's signing secret
+    # (whsec_...), not the API key -- the two come from different pages of the
+    # Stripe Dashboard and swapping them fails every signature check.
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+
+    @property
+    def billing_enabled(self) -> bool:
+        return bool(self.stripe_secret_key and self.stripe_webhook_secret)
+
     # Optional external vision-model hook for extra "AI-assisted" analysis
     # observations. Off by default; when disabled the pipeline is unchanged.
     ai_enabled: bool = False
@@ -239,6 +252,18 @@ class ZGraderConfig(BaseSettings):
 
         for problem in problems:
             logger.warning("SMTP configuration problem: %s", problem)
+        return self
+
+    @model_validator(mode="after")
+    def _warn_about_test_mode_stripe(self) -> "ZGraderConfig":
+        """A test key in production is allowed -- it is how a trial run
+        works -- but it must never be a surprise: every checkout would take
+        test cards and no money would move."""
+        if self.env == "production" and (self.stripe_secret_key or "").startswith("sk_test_"):
+            logger.warning(
+                "ZGRADER_STRIPE_SECRET_KEY is a test-mode key in production: checkouts "
+                "accept test cards and no real payment is taken."
+            )
         return self
 
     @model_validator(mode="after")
