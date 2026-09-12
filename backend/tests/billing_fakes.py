@@ -85,10 +85,13 @@ class FakeStripe:
         # Names of adapter functions that should raise on their next call.
         self.fail: set[str] = set()
 
-    def _record(self, name: str, **kw) -> None:
-        self.calls.append((name, kw))
-        if name in self.fail:
-            raise RuntimeError(f"fake Stripe failure in {name}")
+    def _record(self, call_name: str, **kw) -> None:
+        # Positional, not `name=`: create_product's own `name` kwarg would
+        # otherwise collide with this parameter (TypeError: multiple values
+        # for argument 'name').
+        self.calls.append((call_name, kw))
+        if call_name in self.fail:
+            raise RuntimeError(f"fake Stripe failure in {call_name}")
 
     def called(self, name: str) -> list[dict]:
         return [kw for n, kw in self.calls if n == name]

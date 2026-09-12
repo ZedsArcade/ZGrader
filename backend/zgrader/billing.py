@@ -16,9 +16,10 @@ import uuid
 from sqlalchemy.orm import Session
 
 from zgrader import billing_stripe
-from zgrader.models import AuditLog, User
-from zgrader.models.checkout_attempt import ATTEMPT_COMPLETED, ATTEMPT_OPEN, CheckoutAttempt
-from zgrader.models.subscription import LIVE_STATUSES, Subscription
+from zgrader.config import config
+from zgrader.models import AuditLog, PlanEntitlement, Settings, User
+from zgrader.models.checkout_attempt import ATTEMPT_ABANDONED, ATTEMPT_COMPLETED, ATTEMPT_OPEN, CheckoutAttempt
+from zgrader.models.subscription import LIVE_STATUSES, NEVER_PAID_STATUSES, Subscription
 
 logger = logging.getLogger(__name__)
 
@@ -210,3 +211,176 @@ def apply_subscription(db: Session, obj: dict, *, source: str = "webhook") -> bo
             logger.warning("reconcile corrected subscription %s (%s)", obj["id"], action)
     db.flush()
     return changed
+
+
+#: Stripe's Checkout session floor is 30 minutes; one more keeps clock skew
+#: from turning a valid request into a rejected one.
+SESSION_LIFETIME = datetime.timedelta(minutes=31)
+#: A founder hold must outlive the session it holds a seat for.
+HOLD_LIFETIME = datetime.timedelta(minutes=33)
+_RECURRING = ("month", "year")
+
+
+def founder_seats_taken(db: Session, now: datetime.datetime) -> int:
+    """Founder subscriptions that ever paid, plus holds still open. A seat is
+    never returned when a founder cancels: "the first N" means exactly that."""
+    subscribed = (
+        db.query(Subscription)
+        .filter(Subscription.founder.is_(True), Subscription.status.notin_(NEVER_PAID_STATUSES))
+        .count()
+    )
+    held = (
+        db.query(CheckoutAttempt)
+        .filter(
+            CheckoutAttempt.founder.is_(True),
+            CheckoutAttempt.state == ATTEMPT_OPEN,
+            CheckoutAttempt.expires_at > now,
+        )
+        .count()
+    )
+    return subscribed + held
+
+
+def founder_seats_remaining(db: Session, settings: Settings, now: datetime.datetime | None = None) -> int | None:
+    """None when the offer is off, which is a different claim from zero."""
+    if settings.founder_price_pence is None or settings.founder_seats is None:
+        return None
+    return max(0, settings.founder_seats - founder_seats_taken(db, now or _now()))
+
+
+def _decide_and_insert(
+    db: Session, user: User, plan: PlanEntitlement, *, terms_version: str, now: datetime.datetime
+) -> CheckoutAttempt:
+    """Decide founder-or-not and record the attempt, under the Settings row lock.
+
+    Counting and inserting under one lock is what makes the last seat safe:
+    a second checkout waits here until the first commits, then counts it.
+    Does not commit -- reserve_attempt does, and the race test needs the gap.
+    """
+    settings = db.query(Settings).with_for_update().first()
+    offer = (
+        plan.billing_period == "year"
+        and settings is not None
+        and settings.founder_price_pence is not None
+        and settings.founder_seats is not None
+    )
+    founder = bool(offer and founder_seats_taken(db, now) < settings.founder_seats)
+    attempt = CheckoutAttempt(
+        user_id=user.id,
+        plan=plan.plan,
+        amount_pence=settings.founder_price_pence if founder else plan.price_pence,
+        founder=founder,
+        terms_version=terms_version,
+        consented_at=now,
+        expires_at=now + HOLD_LIFETIME,
+        state=ATTEMPT_OPEN,
+    )
+    db.add(attempt)
+    db.flush()
+    return attempt
+
+
+def reserve_attempt(
+    db: Session, user: User, plan: PlanEntitlement, *, terms_version: str, now: datetime.datetime
+) -> CheckoutAttempt:
+    attempt = _decide_and_insert(db, user, plan, terms_version=terms_version, now=now)
+    db.commit()
+    return attempt
+
+
+def _ensure_customer(db: Session, user: User) -> str:
+    if not user.stripe_customer_id:
+        user.stripe_customer_id = billing_stripe.create_customer(user_id=str(user.id), email=user.email)["id"]
+        db.commit()
+    return user.stripe_customer_id
+
+
+def _ensure_product(db: Session, plan: PlanEntitlement, business_name: str) -> str:
+    if not plan.stripe_product_id:
+        name = f"{business_name} — {plan.plan.capitalize()}"
+        plan.stripe_product_id = billing_stripe.create_product(plan=plan.plan, name=name)["id"]
+        db.commit()
+    return plan.stripe_product_id
+
+
+def _has_live(db: Session, user: User) -> bool:
+    return (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user.id, Subscription.status.in_(LIVE_STATUSES))
+        .first()
+        is not None
+    )
+
+
+def create_checkout(db: Session, user: User, *, plan_name: str, terms_version: str) -> str:
+    """A Checkout session URL for this user and plan. The caller has already
+    checked billing is on and that the Terms version and consent are current."""
+    plan = db.query(PlanEntitlement).filter(PlanEntitlement.plan == plan_name).first()
+    if plan is None or plan.price_pence is None or plan.billing_period not in _RECURRING:
+        raise BillingRefused(422, "That plan can't be bought here.")
+    if _has_live(db, user):
+        raise BillingRefused(409, "You already have a subscription — manage it from your account page.")
+
+    now = _now()
+    open_attempt = (
+        db.query(CheckoutAttempt)
+        .filter(
+            CheckoutAttempt.user_id == user.id,
+            CheckoutAttempt.state == ATTEMPT_OPEN,
+            CheckoutAttempt.expires_at > now,
+            CheckoutAttempt.stripe_session_url.isnot(None),
+        )
+        .order_by(CheckoutAttempt.created_at.desc())
+        .first()
+    )
+    if open_attempt is not None:
+        # Two tabs must be one checkout, not two subscriptions.
+        return open_attempt.stripe_session_url
+
+    try:
+        customer = _ensure_customer(db, user)
+        product = _ensure_product(db, plan, db.query(Settings).one().business_name)
+    except Exception as exc:  # noqa: BLE001 -- any Stripe failure is a 503 to the customer
+        logger.exception("could not prepare Stripe customer/product for checkout")
+        raise BillingRefused(503, "Payments are unavailable right now. Please try again shortly.") from exc
+
+    attempt = reserve_attempt(db, user, plan, terms_version=terms_version, now=now)
+    try:
+        session = billing_stripe.create_checkout_session(
+            mode="subscription",
+            customer=customer,
+            client_reference_id=str(user.id),
+            line_items=[
+                {
+                    "quantity": 1,
+                    "price_data": {
+                        "currency": "gbp",
+                        "product": product,
+                        "unit_amount": attempt.amount_pence,
+                        "recurring": {"interval": plan.billing_period},
+                    },
+                }
+            ],
+            subscription_data={
+                "metadata": {
+                    "user_id": str(user.id),
+                    "plan": plan.plan,
+                    "founder": "true" if attempt.founder else "false",
+                    "checkout_attempt_id": str(attempt.id),
+                }
+            },
+            metadata={"checkout_attempt_id": str(attempt.id)},
+            expires_at=int((now + SESSION_LIFETIME).timestamp()),
+            success_url=f"{config.site_url}/account?billing=success",
+            cancel_url=f"{config.site_url}/pricing",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Stripe refused to create a checkout session")
+        attempt.state = ATTEMPT_ABANDONED
+        db.commit()
+        raise BillingRefused(503, "Payments are unavailable right now. Please try again shortly.") from exc
+
+    attempt.stripe_session_id = session["id"]
+    attempt.stripe_session_url = session["url"]
+    db.commit()
+    return session["url"]

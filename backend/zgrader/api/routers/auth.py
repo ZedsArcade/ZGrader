@@ -58,7 +58,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Bumped whenever the terms change, and recorded against each acceptance so
 # you can show which version someone agreed to.
-CURRENT_TERMS_VERSION = "2026-08"
+CURRENT_TERMS_VERSION = "2026-09"
 
 # change-password is user-keyed, not IP-keyed: the attacker worth defending
 # against here already holds a valid token and can rotate addresses at will,
