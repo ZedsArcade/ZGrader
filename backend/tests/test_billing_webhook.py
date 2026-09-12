@@ -60,6 +60,25 @@ def test_the_signature_covers_the_raw_bytes_not_the_parsed_json(db_session, fake
     assert resp.status_code == 400
 
 
+def test_a_non_canonical_body_signed_as_sent_is_accepted(db_session, fake, customer):
+    """The negative test above proves a mismatched body is refused, but on
+    its own it cannot tell "verifies the literal raw bytes" apart from
+    "verifies some canonical re-dump of the bytes" -- a compact re-dump of a
+    compact body reproduces the same bytes either way. This is the other
+    half: Stripe's own webhook deliveries are indent=2 formatted, not
+    compact, so a verifier that only accepts a canonical (e.g. compact)
+    re-dump would reject every genuine delivery. Signing exactly the bytes
+    sent -- whatever their formatting -- and having the check accept them is
+    what raw-body verification actually means."""
+    fake.subscriptions["sub_1"] = subscription_obj(user_id=customer.id)
+    event = _event({"id": "sub_1"})
+    payload = json.dumps(event, indent=2).encode()
+    resp = _post(raw=payload, sig=sign(payload))
+    assert resp.status_code == 200
+    db_session.expire_all()
+    assert db_session.query(Subscription).one().status == "active"
+
+
 def test_a_valid_event_mirrors_what_stripe_says_now(db_session, fake, customer):
     fake.subscriptions["sub_1"] = subscription_obj(user_id=customer.id)
     assert _post(_event({"id": "sub_1"})).status_code == 200
@@ -122,9 +141,15 @@ def test_an_expired_session_releases_its_attempt(db_session, fake, customer):
     assert db_session.get(CheckoutAttempt, attempt.id).state == ATTEMPT_EXPIRED
 
 
-def test_valid_deliveries_are_never_throttled_but_forgeries_are(db_session, fake, customer):
+def test_forged_deliveries_cannot_lock_out_genuine_ones(db_session, fake, customer):
+    """No address-keyed limiter guards this route: Stripe sends every
+    account's webhooks from one shared set of addresses, so anyone with a
+    free test-mode account can point their own endpoint at ours and relay
+    forgeries that fail our verification but arrive from a genuine Stripe
+    address. A limiter keyed on that address would eventually 429 our own
+    real deliveries. Forged signatures must always 400, never 429, and a
+    correctly signed delivery must still go through afterwards."""
     fake.subscriptions["sub_1"] = subscription_obj(user_id=customer.id)
-    for n in range(50):
-        assert _post(_event({"id": "sub_1"}, event_id=f"evt_{n}")).status_code == 200
     statuses = [_post(_event({"id": "sub_1"}), sig="t=1,v1=bad").status_code for _ in range(25)]
-    assert 429 in statuses
+    assert all(status == 400 for status in statuses), statuses
+    assert _post(_event({"id": "sub_1"})).status_code == 200

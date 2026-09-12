@@ -12,6 +12,7 @@ from zgrader.api.main import app
 #: Routes that deliberately carry no limiter, with the reason.
 UNLIMITED_BY_DESIGN = {
     "/health",  # liveness probe; must answer under load, carries nothing
+    "/billing/webhook",  # authenticated per request by its HMAC signature; Stripe sends every account's webhooks from one shared set of addresses, so any address-keyed limit can be exhausted by other Stripe accounts relaying forgeries -- refusing genuine deliveries
 }
 
 
