@@ -28,9 +28,13 @@ from sqlalchemy.orm import Session
 
 from zgrader.models import User
 from zgrader.models.plan_entitlement import FREE_PLAN, PlanEntitlement
-from zgrader.models.subscription import Subscription, SubscriptionStatus
+from zgrader.models.subscription import LIVE_STATUSES, Subscription, SubscriptionStatus
 
-_ENTITLED_STATUSES = (SubscriptionStatus.active, SubscriptionStatus.trialing)
+#: How long a failed renewal keeps paid access while Stripe retries. Bounded
+#: here rather than trusted to the Dashboard: Stripe's "when retries run out"
+#: is a setting, and left at "leave it past due" an unbounded rule would grant
+#: access forever. The go-live checklist still sets it to cancel.
+PAST_DUE_GRACE = datetime.timedelta(days=21)
 
 # Used only when the plan_entitlements row is missing entirely (an unseeded or
 # partially-migrated database). Chosen to fail closed-but-usable: a small free
@@ -69,16 +73,37 @@ def _now() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc)
 
 
-def active_plan(db: Session, user: User) -> str:
-    """The plan this account is on -- its active subscription, or free."""
-    subscription = (
+def _aware(value: datetime.datetime) -> datetime.datetime:
+    return value if value.tzinfo else value.replace(tzinfo=datetime.timezone.utc)
+
+
+def is_entitled(sub: Subscription, now: datetime.datetime) -> bool:
+    """Whether this subscription grants its plan right now.
+
+    past_due counts from current_period_start -- the renewal that failed. By
+    the time a renewal fails Stripe has already advanced the subscription into
+    the new period, so current_period_end is a whole period away.
+    """
+    if sub.status in (SubscriptionStatus.active.value, SubscriptionStatus.trialing.value):
+        return True
+    if sub.status == SubscriptionStatus.past_due.value and sub.current_period_start is not None:
+        return now < _aware(sub.current_period_start) + PAST_DUE_GRACE
+    return False
+
+
+def entitled_subscription(db: Session, user: User, now: datetime.datetime | None = None) -> Subscription | None:
+    now = now or _now()
+    live = (
         db.query(Subscription)
-        .filter(
-            Subscription.user_id == user.id,
-            Subscription.status.in_(_ENTITLED_STATUSES),
-        )
-        .first()
+        .filter(Subscription.user_id == user.id, Subscription.status.in_(LIVE_STATUSES))
+        .all()
     )
+    return next((sub for sub in live if is_entitled(sub, now)), None)
+
+
+def active_plan(db: Session, user: User) -> str:
+    """The plan this account is on -- its entitled subscription, or free."""
+    subscription = entitled_subscription(db, user)
     return subscription.plan if subscription else FREE_PLAN
 
 
@@ -120,6 +145,21 @@ def _roll_period_forward(user: User, period: datetime.timedelta, now: datetime.d
     user.quota_used = 0
 
 
+def _reset_if_plan_changed(user: User, plan: str) -> None:
+    """A window belongs to the plan it was counted under.
+
+    Derived on read rather than performed by whatever changed the plan, so
+    every route is covered -- a webhook, reconcile, an operator, or a grace
+    period simply running out with nobody writing anything. Mutates `user`;
+    the caller owns the flush, same as the rollover below.
+    """
+    if (user.quota_plan or FREE_PLAN) == plan:
+        return
+    user.quota_used = 0
+    user.quota_period_started_at = None
+    user.quota_plan = plan
+
+
 def get_quota(db: Session, user: User) -> Quota:
     """The user's current quota, rolling the window forward if it has lapsed.
 
@@ -127,6 +167,7 @@ def get_quota(db: Session, user: User) -> Quota:
     happens on next contact rather than needing a scheduled job.
     """
     plan = active_plan(db, user)
+    _reset_if_plan_changed(user, plan)
     limit, period_days = _plan_rules(db, plan)
 
     if limit is None:
