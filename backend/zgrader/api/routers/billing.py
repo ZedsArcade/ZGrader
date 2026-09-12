@@ -5,14 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-from zgrader import billing, billing_stripe
-from zgrader.api.deps import require_verified_user
-from zgrader.api.ratelimit import user_rate_limit
+from zgrader import billing, billing_stripe, entitlements
+from zgrader.api.deps import get_current_user, require_verified_user
+from zgrader.api.ratelimit import rate_limit, user_rate_limit
 from zgrader.api.routers.auth import CURRENT_TERMS_VERSION
 from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.models import User
-from zgrader.schemas.billing import CheckoutIn, CheckoutOut
+from zgrader.schemas.billing import CheckoutIn, CheckoutOut, PortalOut, SubscriptionOut
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -70,3 +70,37 @@ async def webhook(request: Request, db: Session = Depends(get_db)) -> dict:
         db.rollback()
         raise
     return {"received": True}
+
+
+_portal_limit = user_rate_limit("billing_portal", limit=20, window_seconds=3600)
+# Polled every 2s by /account?billing=success for up to 30s, so generous.
+_subscription_read_limit = rate_limit("billing_read", limit=120, window_seconds=60)
+
+
+@router.post("/portal", response_model=PortalOut, dependencies=[Depends(_portal_limit)])
+def portal(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PortalOut:
+    _require_billing()
+    try:
+        return PortalOut(url=billing.portal_url(db, user))
+    except billing.BillingRefused as exc:
+        raise HTTPException(exc.status_code, exc.message) from exc
+
+
+@router.get(
+    "/subscription", response_model=SubscriptionOut | None, dependencies=[Depends(_subscription_read_limit)]
+)
+def subscription(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> SubscriptionOut | None:
+    _require_billing()
+    row = billing.current_subscription(db, user)
+    if row is None:
+        return None
+    return SubscriptionOut(
+        plan=row.plan,
+        status=row.status,
+        entitled=entitlements.is_entitled(row, billing._now()),
+        founder=row.founder,
+        amount_pence=row.amount_pence,
+        current_period_start=row.current_period_start,
+        current_period_end=row.current_period_end,
+        cancel_at=row.cancel_at,
+    )

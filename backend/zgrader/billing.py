@@ -471,3 +471,36 @@ def handle_event(db: Session, event: dict) -> None:
     elif kind.startswith("customer.subscription."):
         _apply_current(db, obj["id"], obj)
     db.commit()
+
+
+def current_subscription(db: Session, user: User) -> Subscription | None:
+    """The subscription an account page should show: the live one if there is
+    one (even past its grace -- that is exactly when the customer needs to
+    see it), otherwise the most recently changed."""
+    live = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user.id, Subscription.status.in_(LIVE_STATUSES))
+        .order_by(Subscription.updated_at.desc())
+        .first()
+    )
+    if live is not None:
+        return live
+    return (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user.id)
+        .order_by(Subscription.updated_at.desc())
+        .first()
+    )
+
+
+def portal_url(db: Session, user: User) -> str:
+    if not user.stripe_customer_id:
+        raise BillingRefused(409, "There is no billing account to manage yet.")
+    try:
+        session = billing_stripe.create_portal_session(
+            customer=user.stripe_customer_id, return_url=f"{config.site_url}/account"
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("could not open a Stripe portal session")
+        raise BillingRefused(503, "Billing is unavailable right now. Please try again shortly.") from exc
+    return session["url"]
