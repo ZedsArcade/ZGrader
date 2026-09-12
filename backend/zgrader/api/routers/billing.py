@@ -2,8 +2,8 @@
 deployment with no Stripe account exposes nothing that half-works."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 from zgrader import billing, billing_stripe
 from zgrader.api.deps import require_verified_user
