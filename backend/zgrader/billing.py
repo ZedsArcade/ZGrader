@@ -18,7 +18,13 @@ from sqlalchemy.orm import Session
 from zgrader import billing_stripe
 from zgrader.config import config
 from zgrader.models import AuditLog, PlanEntitlement, Settings, User
-from zgrader.models.checkout_attempt import ATTEMPT_ABANDONED, ATTEMPT_COMPLETED, ATTEMPT_OPEN, CheckoutAttempt
+from zgrader.models.checkout_attempt import (
+    ATTEMPT_ABANDONED,
+    ATTEMPT_COMPLETED,
+    ATTEMPT_EXPIRED,
+    ATTEMPT_OPEN,
+    CheckoutAttempt,
+)
 from zgrader.models.subscription import LIVE_STATUSES, NEVER_PAID_STATUSES, Subscription
 
 logger = logging.getLogger(__name__)
@@ -322,20 +328,36 @@ def create_checkout(db: Session, user: User, *, plan_name: str, terms_version: s
         raise BillingRefused(409, "You already have a subscription — manage it from your account page.")
 
     now = _now()
+    # Alive means the *Stripe session* has not expired, not just the hold:
+    # the hold outlives the session by (HOLD_LIFETIME - SESSION_LIFETIME) so a
+    # founder seat is never released early, but that gap is exactly the
+    # window in which reusing the row would hand back an already-dead URL.
     open_attempt = (
         db.query(CheckoutAttempt)
         .filter(
             CheckoutAttempt.user_id == user.id,
             CheckoutAttempt.state == ATTEMPT_OPEN,
-            CheckoutAttempt.expires_at > now,
+            CheckoutAttempt.expires_at > now + (HOLD_LIFETIME - SESSION_LIFETIME),
             CheckoutAttempt.stripe_session_url.isnot(None),
         )
         .order_by(CheckoutAttempt.created_at.desc())
         .first()
     )
     if open_attempt is not None:
-        # Two tabs must be one checkout, not two subscriptions.
-        return open_attempt.stripe_session_url
+        if open_attempt.plan == plan.plan:
+            # Two tabs on the same plan must be one checkout, not two.
+            return open_attempt.stripe_session_url
+        # Changed their mind about the plan: the old session must never stay
+        # payable alongside the new one, or the customer could complete both.
+        try:
+            outcome = billing_stripe.expire_checkout_session(open_attempt.stripe_session_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("could not retire the superseded checkout session")
+            raise BillingRefused(503, "Payments are unavailable right now. Please try again shortly.") from exc
+        if outcome == "complete":
+            raise BillingRefused(409, "A checkout you started has just completed — see your account page.")
+        open_attempt.state = ATTEMPT_EXPIRED
+        db.commit()
 
     try:
         customer = _ensure_customer(db, user)

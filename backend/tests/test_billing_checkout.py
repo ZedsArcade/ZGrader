@@ -13,7 +13,7 @@ from zgrader.api.main import app
 from zgrader.api.routers.auth import CURRENT_TERMS_VERSION
 from zgrader.db import SessionLocal
 from zgrader.models import PlanEntitlement, Settings, Subscription, User
-from zgrader.models.checkout_attempt import ATTEMPT_ABANDONED, CheckoutAttempt
+from zgrader.models.checkout_attempt import ATTEMPT_ABANDONED, ATTEMPT_EXPIRED, CheckoutAttempt
 
 client = TestClient(app)
 NOW = datetime.datetime.now(datetime.timezone.utc)
@@ -130,6 +130,62 @@ def test_a_stripe_failure_releases_the_seat(db_session, fake):
     db_session.expire_all()
     assert db_session.query(CheckoutAttempt).one().state == ATTEMPT_ABANDONED
     assert billing.founder_seats_remaining(db_session, db_session.query(Settings).one()) == before
+
+
+def test_changing_plan_retires_the_first_checkout(db_session, fake):
+    """Back out of monthly, pick annual: the first session must never stay
+    payable alongside the second, or the customer could complete both."""
+    headers = _auth()
+    first = client.post("/billing/checkout", json=_body("monthly"), headers=headers).json()["url"]
+    resp = client.post("/billing/checkout", json=_body("annual"), headers=headers)
+    assert resp.status_code == 200, resp.text
+    second = resp.json()["url"]
+    assert second != first
+
+    first_attempt = db_session.query(CheckoutAttempt).filter_by(plan="monthly").one()
+    assert first_attempt.state == ATTEMPT_EXPIRED
+    assert fake.called("expire_checkout_session") == [{"session_id": first_attempt.stripe_session_id}]
+
+    calls = fake.called("create_checkout_session")
+    assert len(calls) == 2
+    settings = db_session.query(Settings).one()
+    assert calls[1]["line_items"][0]["price_data"]["unit_amount"] == settings.founder_price_pence
+
+
+def test_a_checkout_that_already_completed_is_409(db_session, fake):
+    headers = _auth()
+    client.post("/billing/checkout", json=_body("monthly"), headers=headers)
+    attempt = db_session.query(CheckoutAttempt).filter_by(plan="monthly").one()
+    fake.session_status[attempt.stripe_session_id] = "complete"
+
+    resp = client.post("/billing/checkout", json=_body("annual"), headers=headers)
+    assert resp.status_code == 409
+    assert len(fake.called("create_checkout_session")) == 1
+
+
+def test_a_dead_session_is_not_handed_back(db_session, fake):
+    """The hold outlives the Stripe session by design (HOLD_LIFETIME >
+    SESSION_LIFETIME), so a still-open attempt can point at a session Stripe
+    has already let expire. Reusing it would hand back a dead URL."""
+    headers = _auth()
+    first = client.post("/billing/checkout", json=_body("monthly"), headers=headers).json()["url"]
+    attempt = db_session.query(CheckoutAttempt).filter_by(plan="monthly").one()
+    attempt.expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=1)
+    db_session.commit()
+
+    resp = client.post("/billing/checkout", json=_body("monthly"), headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["url"] != first
+
+
+def test_a_stripe_failure_retiring_the_old_checkout_creates_nothing(db_session, fake):
+    headers = _auth()
+    client.post("/billing/checkout", json=_body("monthly"), headers=headers)
+    fake.fail.add("expire_checkout_session")
+
+    resp = client.post("/billing/checkout", json=_body("annual"), headers=headers)
+    assert resp.status_code == 503
+    assert len(fake.called("create_checkout_session")) == 1
 
 
 def test_the_last_seat_cannot_be_taken_twice(db_session, fake):

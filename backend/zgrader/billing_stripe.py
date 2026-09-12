@@ -80,6 +80,19 @@ def create_checkout_session(**params) -> dict:
     return _plain(stripe.checkout.Session.create(**params))
 
 
+def expire_checkout_session(session_id: str) -> str:
+    """Retire a superseded checkout so a customer who changes plan never ends
+    up with two payable sessions. Returns the session's resulting status
+    ("expired" or "complete") rather than raising on an already-settled one --
+    the caller decides what each status means."""
+    _ready()
+    session = stripe.checkout.Session.retrieve(session_id)
+    if session["status"] == "open":
+        session = stripe.checkout.Session.expire(session_id)
+        return "expired"
+    return session["status"]
+
+
 def create_portal_session(*, customer: str, return_url: str) -> dict:
     _ready()
     return _plain(stripe.billing_portal.Session.create(customer=customer, return_url=return_url))

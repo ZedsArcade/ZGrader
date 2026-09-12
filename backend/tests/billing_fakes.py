@@ -84,6 +84,9 @@ class FakeStripe:
         self.calls: list[tuple[str, dict]] = []
         # Names of adapter functions that should raise on their next call.
         self.fail: set[str] = set()
+        # Status expire_checkout_session should report for a given session id;
+        # defaults to "expired", which is the ordinary supersede-and-retire case.
+        self.session_status: dict[str, str] = {}
 
     def _record(self, call_name: str, **kw) -> None:
         # Positional, not `name=`: create_product's own `name` kwarg would
@@ -99,8 +102,8 @@ class FakeStripe:
     def install(self, monkeypatch) -> "FakeStripe":
         for name in (
             "create_customer", "create_product", "create_checkout_session",
-            "create_portal_session", "retrieve_subscription", "list_subscriptions",
-            "delete_customer", "cancel_and_refund",
+            "expire_checkout_session", "create_portal_session", "retrieve_subscription",
+            "list_subscriptions", "delete_customer", "cancel_and_refund",
         ):
             monkeypatch.setattr(billing_stripe, name, getattr(self, name))
         return self
@@ -117,6 +120,10 @@ class FakeStripe:
         self._record("create_checkout_session", **params)
         n = next(_counter)
         return {"id": f"cs_test_{n}", "url": f"https://checkout.stripe.test/c/{n}"}
+
+    def expire_checkout_session(self, session_id):
+        self._record("expire_checkout_session", session_id=session_id)
+        return self.session_status.get(session_id, "expired")
 
     def create_portal_session(self, *, customer, return_url):
         self._record("create_portal_session", customer=customer, return_url=return_url)
