@@ -41,6 +41,7 @@ def subscription_obj(
     period_end: datetime.datetime | None = None,
     cancel_at: datetime.datetime | None = None,
     cancel_at_period_end: bool = False,
+    created: int | None = None,
 ) -> dict:
     now = datetime.datetime.now(datetime.timezone.utc)
     start = period_start or now
@@ -54,6 +55,7 @@ def subscription_obj(
         "customer": customer,
         "status": status,
         "metadata": metadata,
+        "created": created if created is not None else _epoch(now),
         "cancel_at": _epoch(cancel_at) if cancel_at else None,
         "cancel_at_period_end": cancel_at_period_end,
         "latest_invoice": "in_1",

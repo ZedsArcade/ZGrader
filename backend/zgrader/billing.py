@@ -123,9 +123,49 @@ def apply_subscription(db: Session, obj: dict, *, source: str = "webhook") -> bo
 
     # Before any write: the partial unique index would otherwise reject the
     # upsert and the event would 500 on every retry for days.
-    if obj["status"] in LIVE_STATUSES and _other_live(db, user.id, obj["id"]) is not None:
-        obj = billing_stripe.cancel_and_refund(obj["id"])
-        _audit(db, user.id, "subscription_duplicate_refunded", {"stripe_subscription_id": obj["id"]})
+    if obj["status"] in LIVE_STATUSES:
+        other = _other_live(db, user.id, obj["id"])
+        if other is not None:
+            # Stripe doesn't guarantee event order, so the "other" row found
+            # here might not actually be live any more -- re-read it rather
+            # than trust what we last wrote.
+            other_obj = billing_stripe.retrieve_subscription(other.stripe_subscription_id)
+            if other_obj is None or other_obj["status"] not in LIVE_STATUSES:
+                # The other row is stale, not a duplicate: end it in place,
+                # no cancel and no refund.
+                previous_status = other.status
+                other.status = other_obj["status"] if other_obj is not None else "canceled"
+                _audit(
+                    db, user.id, "subscription_ended",
+                    {
+                        "stripe_subscription_id": other.stripe_subscription_id,
+                        "plan": other.plan,
+                        "founder": other.founder,
+                        "status_before": previous_status,
+                        "status_after": other.status,
+                        "source": source,
+                    },
+                )
+                db.flush()
+            else:
+                # Both are genuinely live: keep whichever is older by
+                # Stripe's own created timestamp, not by arrival order. A
+                # tie (should not happen; two subscriptions cannot share a
+                # created second) resolves against the incoming one.
+                if obj["created"] >= other_obj["created"]:
+                    loser_id = obj["id"]
+                else:
+                    loser_id = other.stripe_subscription_id
+                cancelled = billing_stripe.cancel_and_refund(loser_id)
+                _audit(db, user.id, "subscription_duplicate_refunded", {"stripe_subscription_id": loser_id})
+                if loser_id == obj["id"]:
+                    obj = cancelled
+                else:
+                    # The loser is the row already in our database, not the
+                    # one just read from Stripe -- mirror its new (cancelled)
+                    # state now. Its status is no longer live, so this
+                    # recursive call cannot re-enter this branch.
+                    apply_subscription(db, cancelled, source=source)
 
     metadata = obj.get("metadata") or {}
     item = _first_item(obj)

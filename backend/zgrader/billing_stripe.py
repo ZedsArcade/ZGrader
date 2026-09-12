@@ -113,23 +113,42 @@ def delete_customer(customer_id: str) -> None:
 
 
 def cancel_and_refund(subscription_id: str) -> dict:
-    """Cancel now and refund the first paid invoice payment in full.
+    """Refund the latest invoice's paid payment in full, then cancel.
 
-    Only for the duplicate-subscription guard (spec §6.4). Invoices no longer
-    carry their PaymentIntent directly; it is on the invoice's payments.
+    Only for the duplicate-subscription guard (spec §6.4) -- for a newly
+    created duplicate, latest_invoice is its first (and only) invoice, so
+    this refunds that one payment. Invoices no longer carry their
+    PaymentIntent directly; it is on the invoice's payments.
+
+    Refund runs *before* cancel, deliberately the reverse of the obvious
+    order. The idempotency key makes a repeat refund safe, and the
+    subscription stays live until cancel succeeds -- so if this raises
+    between the two calls (a network error, say), the subscription is still
+    live, the caller's transaction rolls back, and a retry re-reads it as
+    live and re-enters the duplicate guard. Cancelling first would let a
+    retry see the subscription already cancelled, skip the guard entirely,
+    and leave the duplicate charge unrefunded forever.
     """
     _ready()
-    sub = stripe.Subscription.cancel(subscription_id)
+    sub = stripe.Subscription.retrieve(subscription_id)
     invoice_id = sub["latest_invoice"]
     if invoice_id:
         payments = stripe.InvoicePayment.list(invoice=invoice_id, status="paid", limit=10)
         for payment in payments.auto_paging_iter():
             intent = (payment["payment"] or {}).get("payment_intent")
             if intent:
-                stripe.Refund.create(
-                    payment_intent=intent, idempotency_key=f"duplicate-refund-{subscription_id}"
-                )
+                try:
+                    stripe.Refund.create(
+                        payment_intent=intent, idempotency_key=f"duplicate-refund-{subscription_id}"
+                    )
+                except stripe.InvalidRequestError as exc:
+                    # A retry outside the idempotency key's 24h window hits
+                    # an already-refunded charge; that is the outcome this
+                    # call wants, not a fresh failure.
+                    if getattr(exc, "code", None) != "charge_already_refunded":
+                        raise
                 break
+    sub = stripe.Subscription.cancel(subscription_id)
     return _plain(sub)
 
 

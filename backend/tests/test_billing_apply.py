@@ -83,8 +83,11 @@ def test_ending_is_audited_without_an_email_address(db_session, fake):
 
 def test_a_second_live_subscription_is_cancelled_and_refunded(db_session, fake):
     user = _customer(db_session)
-    billing.apply_subscription(db_session, subscription_obj(user_id=user.id, sub_id="sub_old"))
-    fake.subscriptions["sub_new"] = subscription_obj(user_id=user.id, sub_id="sub_new")
+    old_created = int(NOW.timestamp()) - 100
+    new_created = int(NOW.timestamp())
+    fake.subscriptions["sub_old"] = subscription_obj(user_id=user.id, sub_id="sub_old", created=old_created)
+    billing.apply_subscription(db_session, fake.subscriptions["sub_old"])
+    fake.subscriptions["sub_new"] = subscription_obj(user_id=user.id, sub_id="sub_new", created=new_created)
 
     billing.apply_subscription(db_session, fake.subscriptions["sub_new"])
     db_session.flush()  # the partial unique index must not fire
@@ -93,6 +96,37 @@ def test_a_second_live_subscription_is_cancelled_and_refunded(db_session, fake):
     statuses = {r.stripe_subscription_id: r.status for r in db_session.query(Subscription)}
     assert statuses == {"sub_old": "active", "sub_new": "canceled"}
     assert len(_audits(db_session, "subscription_duplicate_refunded")) == 1
+
+
+def test_an_older_subscription_arriving_second_is_the_one_kept(db_session, fake):
+    user = _customer(db_session)
+    older_created = int(NOW.timestamp()) - 100
+    newer_created = int(NOW.timestamp())
+    fake.subscriptions["sub_newer"] = subscription_obj(user_id=user.id, sub_id="sub_newer", created=newer_created)
+    fake.subscriptions["sub_older"] = subscription_obj(user_id=user.id, sub_id="sub_older", created=older_created)
+
+    billing.apply_subscription(db_session, fake.subscriptions["sub_newer"])
+    billing.apply_subscription(db_session, fake.subscriptions["sub_older"])
+    db_session.flush()  # the partial unique index must not fire
+
+    assert [c["subscription_id"] for c in fake.called("cancel_and_refund")] == ["sub_newer"]
+    statuses = {r.stripe_subscription_id: r.status for r in db_session.query(Subscription)}
+    assert statuses == {"sub_newer": "canceled", "sub_older": "active"}
+    assert len(_audits(db_session, "subscription_duplicate_refunded")) == 1
+
+
+def test_an_existing_row_stripe_no_longer_has_is_ended_not_refunded(db_session, fake):
+    user = _customer(db_session)
+    billing.apply_subscription(db_session, subscription_obj(user_id=user.id, sub_id="sub_a"))
+    # sub_a is deliberately left out of fake.subscriptions, so the guard's
+    # re-read via retrieve_subscription returns None for it.
+
+    billing.apply_subscription(db_session, subscription_obj(user_id=user.id, sub_id="sub_b"))
+
+    assert fake.called("cancel_and_refund") == []
+    statuses = {r.stripe_subscription_id: r.status for r in db_session.query(Subscription)}
+    assert statuses == {"sub_a": "canceled", "sub_b": "active"}
+    assert len(_audits(db_session, "subscription_ended")) == 1
 
 
 def test_the_checkout_attempt_carries_its_consent_onto_the_subscription(db_session, fake):
