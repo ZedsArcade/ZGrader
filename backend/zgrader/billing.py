@@ -13,11 +13,12 @@ import datetime
 import logging
 import uuid
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from zgrader import billing_stripe
 from zgrader.config import config
-from zgrader.models import AuditLog, PlanEntitlement, Settings, User
+from zgrader.models import AuditLog, PlanEntitlement, Settings, StripeEvent, User
 from zgrader.models.checkout_attempt import (
     ATTEMPT_ABANDONED,
     ATTEMPT_COMPLETED,
@@ -406,3 +407,67 @@ def create_checkout(db: Session, user: User, *, plan_name: str, terms_version: s
     attempt.stripe_session_url = session["url"]
     db.commit()
     return session["url"]
+
+
+HANDLED_EVENTS = frozenset(
+    {
+        "checkout.session.completed",
+        "checkout.session.expired",
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+    }
+)
+
+
+def _close_attempt(db: Session, session_obj: dict, state: str) -> None:
+    attempt = None
+    raw = (session_obj.get("metadata") or {}).get("checkout_attempt_id")
+    if raw:
+        try:
+            attempt = db.get(CheckoutAttempt, uuid.UUID(raw))
+        except ValueError:
+            attempt = None
+    if attempt is None and session_obj.get("id"):
+        attempt = db.query(CheckoutAttempt).filter(CheckoutAttempt.stripe_session_id == session_obj["id"]).first()
+    if attempt is not None and attempt.state == ATTEMPT_OPEN:
+        attempt.state = state
+
+
+def _apply_current(db: Session, subscription_id: str, fallback: dict) -> None:
+    """Re-read the subscription rather than trusting the event: deliveries
+    arrive out of order, and the newest truth is Stripe's, not the payload's.
+    Only a subscription Stripe no longer has falls back to the payload -- and
+    then only to record that it ended."""
+    current = billing_stripe.retrieve_subscription(subscription_id)
+    apply_subscription(db, current if current is not None else {**fallback, "status": "canceled"})
+
+
+def handle_event(db: Session, event: dict) -> None:
+    """Act on one verified event, exactly once. Commits.
+
+    The ledger row goes in the same transaction as the effect: a duplicate
+    hits the primary key and does nothing; a failure rolls both back so
+    Stripe's retry does the work.
+    """
+    inserted = db.execute(
+        pg_insert(StripeEvent)
+        .values(event_id=event["id"], type=event["type"], processed_at=_now())
+        .on_conflict_do_nothing(index_elements=["event_id"])
+        .returning(StripeEvent.event_id)
+    ).first()
+    if inserted is None:
+        db.rollback()
+        return
+
+    kind = event["type"]
+    obj = event["data"]["object"]
+    if kind == "checkout.session.completed":
+        if obj.get("subscription"):
+            _apply_current(db, obj["subscription"], {"id": obj["subscription"]})
+        _close_attempt(db, obj, ATTEMPT_COMPLETED)
+    elif kind == "checkout.session.expired":
+        _close_attempt(db, obj, ATTEMPT_EXPIRED)
+    elif kind.startswith("customer.subscription."):
+        _apply_current(db, obj["id"], obj)
+    db.commit()

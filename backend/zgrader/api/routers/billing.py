@@ -1,12 +1,13 @@
 """Stripe billing. Every route answers 404 while billing is off, so a
 deployment with no Stripe account exposes nothing that half-works."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
-from zgrader import billing
+from zgrader import billing, billing_stripe
 from zgrader.api.deps import require_verified_user
-from zgrader.api.ratelimit import user_rate_limit
+from zgrader.api.ratelimit import note_failed_webhook, stripe_webhook_rate_limit, user_rate_limit
 from zgrader.api.routers.auth import CURRENT_TERMS_VERSION
 from zgrader.config import config
 from zgrader.db import get_db
@@ -40,3 +41,27 @@ def checkout(
     except billing.BillingRefused as exc:
         raise HTTPException(exc.status_code, exc.message) from exc
     return CheckoutOut(url=url)
+
+
+@router.post("/webhook", dependencies=[Depends(stripe_webhook_rate_limit)])
+async def webhook(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Stripe's event callback. Public path /api/billing/webhook -- listed in
+    the maintenance Worker's BYPASS_PREFIXES, which must never lose it.
+
+    Async only so the raw body can be read before anything parses it: the
+    signature covers those exact bytes. The database work runs in the
+    threadpool because the session is synchronous.
+    """
+    _require_billing()
+    payload = await request.body()
+    try:
+        event = billing_stripe.construct_event(payload, request.headers.get("stripe-signature", ""))
+    except ValueError:
+        note_failed_webhook(request)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid signature")
+    try:
+        await run_in_threadpool(billing.handle_event, db, event)
+    except Exception:
+        db.rollback()
+        raise
+    return {"received": True}

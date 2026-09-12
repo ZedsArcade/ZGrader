@@ -178,3 +178,35 @@ verification_resend_rate_limit = rate_limit("verify_resend", limit=3, window_sec
 # account chooser is ordinary rather than suspicious. It exists so minting
 # signed link states is not an unbounded operation.
 google_link_rate_limit = rate_limit("google_link", limit=10, window_seconds=900)
+
+
+STRIPE_WEBHOOK_FAILURE_LIMIT = 20
+STRIPE_WEBHOOK_FAILURE_WINDOW_SECONDS = 900
+
+
+def _stripe_webhook_key(request: Request) -> str:
+    return f"stripe_webhook:{client_ip(request)}"
+
+
+def stripe_webhook_rate_limit(request: Request) -> None:
+    """Throttle only addresses whose signatures keep failing.
+
+    Same shape as login: valid deliveries never count, so Stripe -- which
+    sends bursts from a handful of addresses -- can never be refused, while
+    anyone forging signatures runs out of attempts quickly. A throttled real
+    delivery would only be retried, but a limiter that can refuse the thing it
+    protects is a limiter someone eventually loosens to nothing.
+    """
+    retry_after = _limiter.peek(
+        _stripe_webhook_key(request), STRIPE_WEBHOOK_FAILURE_LIMIT, STRIPE_WEBHOOK_FAILURE_WINDOW_SECONDS
+    )
+    if retry_after is not None:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many invalid requests.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def note_failed_webhook(request: Request) -> None:
+    _limiter.record(_stripe_webhook_key(request), STRIPE_WEBHOOK_FAILURE_WINDOW_SECONDS)
