@@ -77,6 +77,13 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Integer, default=0, nullable=False, server_default="0"
     )
 
+    # The plan the current window was counted under. entitlements.get_quota
+    # resets the window when the account's plan no longer matches it, so a
+    # window is never counted under two plans -- whichever route changed the
+    # plan (webhook, reconcile, a grace period simply running out). NULL reads
+    # as the free plan, which is what every row written before this was.
+    quota_plan: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     # Set when the user first checks out. Card details never reach this
     # server -- this is only Stripe's handle for them.
     stripe_customer_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)

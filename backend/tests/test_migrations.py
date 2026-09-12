@@ -162,3 +162,17 @@ def test_the_migrated_schema_has_the_tables_the_models_declare(scratch_database)
 
     missing = sorted(set(Base.metadata.tables) - migrated)
     assert not missing, f"models declare tables no migration creates: {missing}"
+
+
+def test_the_billing_migration_leaves_the_constraints_billing_relies_on(scratch_database):
+    """The partial index is what stops two live subscriptions for one person,
+    and the enum must be gone or a Stripe status it lacks fails the webhook."""
+    _alembic(scratch_database, "upgrade", "head")
+
+    assert _query(
+        scratch_database,
+        "SELECT 1 FROM pg_indexes WHERE indexname = 'uq_subscriptions_one_live_per_user'",
+    ), "no one-live-subscription-per-user index"
+    assert not _query(
+        scratch_database, "SELECT 1 FROM pg_type WHERE typname = 'subscription_status'"
+    ), "the subscription_status enum survived the migration"

@@ -53,6 +53,11 @@ class PlanEntitlement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # branch anywhere in the code, and pricing shapes are still moving.
     billing_period: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
+    # Stripe's Product for this plan, created the first time the plan is sold.
+    # A Product carries a name and no amount, so the price still lives only in
+    # price_pence -- checkout sends it inline every time.
+    stripe_product_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+
     __table_args__ = (
         CheckConstraint("submission_limit IS NULL OR submission_limit >= 0", name="ck_plan_limit_non_negative"),
         CheckConstraint("period_days >= 1", name="ck_plan_period_at_least_one_day"),
