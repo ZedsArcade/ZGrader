@@ -144,4 +144,4 @@ class FakeStripe:
         self._record("cancel_and_refund", subscription_id=subscription_id)
         sub = dict(self.subscriptions[subscription_id], status="canceled")
         self.subscriptions[subscription_id] = sub
-        return sub
+        return sub, "pi_fake"

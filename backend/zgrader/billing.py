@@ -165,8 +165,11 @@ def apply_subscription(db: Session, obj: dict, *, source: str = "webhook") -> bo
                     loser_id = obj["id"]
                 else:
                     loser_id = other.stripe_subscription_id
-                cancelled = billing_stripe.cancel_and_refund(loser_id)
-                _audit(db, user.id, "subscription_duplicate_refunded", {"stripe_subscription_id": loser_id})
+                cancelled, refunded_intent = billing_stripe.cancel_and_refund(loser_id)
+                _audit(
+                    db, user.id, "subscription_duplicate_refunded",
+                    {"stripe_subscription_id": loser_id, "refunded": refunded_intent is not None},
+                )
                 if loser_id == obj["id"]:
                     obj = cancelled
                 else:

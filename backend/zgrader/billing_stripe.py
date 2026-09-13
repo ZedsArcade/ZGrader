@@ -9,11 +9,15 @@ file to read when it moves again.
 
 Every function returns plain dicts. How dict-like the SDK's StripeObject is
 has changed across major versions; converting at the boundary means the rest
-of the code indexes dicts and never has to care.
+of the code indexes dicts and never has to care. Never call a dict method
+(`.get`, `.items`, ...) on a StripeObject itself -- convert with `_plain`
+first. Stripe 15's objects are not dict subclasses, so `.get` raises
+AttributeError; subscripting (`obj["x"]`) still works and is not a
+substitute for the rest of dict's interface.
 """
 
 import json
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 import stripe
 
@@ -86,9 +90,9 @@ def expire_checkout_session(session_id: str) -> str:
     ("expired" or "complete") rather than raising on an already-settled one --
     the caller decides what each status means."""
     _ready()
-    session = stripe.checkout.Session.retrieve(session_id)
+    session = _plain(stripe.checkout.Session.retrieve(session_id))
     if session["status"] == "open":
-        session = stripe.checkout.Session.expire(session_id)
+        session = _plain(stripe.checkout.Session.expire(session_id))
         return "expired"
     return session["status"]
 
@@ -125,8 +129,26 @@ def delete_customer(customer_id: str) -> None:
             raise
 
 
-def cancel_and_refund(subscription_id: str) -> dict:
+def _paid_payment_intent(payments: Iterable[dict]) -> str | None:
+    """The first payment_intent id among already-plain invoice-payment dicts,
+    or None if none carries one (or the iterable is empty).
+
+    Callers must convert every StripeObject with `_plain` before handing it
+    here -- a raw StripeObject has no `.get`, which is exactly the bug this
+    helper exists to make impossible to reintroduce."""
+    for payment in payments:
+        intent = (payment.get("payment") or {}).get("payment_intent")
+        if intent:
+            return intent
+    return None
+
+
+def cancel_and_refund(subscription_id: str) -> tuple[dict, str | None]:
     """Refund the latest invoice's paid payment in full, then cancel.
+
+    Returns the cancelled subscription as a plain dict, and the refunded
+    PaymentIntent id -- or None when nothing was refunded (no invoice, no
+    paid payment on it, or a paid payment carrying no payment_intent).
 
     Only for the duplicate-subscription guard (spec §6.4) -- for a newly
     created duplicate, latest_invoice is its first (and only) invoice, so
@@ -145,24 +167,27 @@ def cancel_and_refund(subscription_id: str) -> dict:
     _ready()
     sub = stripe.Subscription.retrieve(subscription_id)
     invoice_id = sub["latest_invoice"]
+    refunded: str | None = None
     if invoice_id:
         payments = stripe.InvoicePayment.list(invoice=invoice_id, status="paid", limit=10)
-        for payment in payments.auto_paging_iter():
-            intent = (payment["payment"] or {}).get("payment_intent")
-            if intent:
-                try:
-                    stripe.Refund.create(
-                        payment_intent=intent, idempotency_key=f"duplicate-refund-{subscription_id}"
-                    )
-                except stripe.InvalidRequestError as exc:
-                    # A retry outside the idempotency key's 24h window hits
-                    # an already-refunded charge; that is the outcome this
-                    # call wants, not a fresh failure.
-                    if getattr(exc, "code", None) != "charge_already_refunded":
-                        raise
-                break
+        # Convert every listed payment before it ever meets a dict method --
+        # see _paid_payment_intent and the module docstring.
+        intent = _paid_payment_intent(_plain(payment) for payment in payments.auto_paging_iter())
+        if intent:
+            try:
+                stripe.Refund.create(
+                    payment_intent=intent, idempotency_key=f"duplicate-refund-{subscription_id}"
+                )
+            except stripe.InvalidRequestError as exc:
+                # A retry outside the idempotency key's 24h window hits
+                # an already-refunded charge; that is the outcome this
+                # call wants, not a fresh failure. Either way the charge is
+                # now refunded, so the caller may report it as such.
+                if getattr(exc, "code", None) != "charge_already_refunded":
+                    raise
+            refunded = intent
     sub = stripe.Subscription.cancel(subscription_id)
-    return _plain(sub)
+    return _plain(sub), refunded
 
 
 def construct_event(payload: bytes, sig_header: str) -> dict:

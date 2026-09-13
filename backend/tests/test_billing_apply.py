@@ -95,7 +95,12 @@ def test_a_second_live_subscription_is_cancelled_and_refunded(db_session, fake):
     assert [c["subscription_id"] for c in fake.called("cancel_and_refund")] == ["sub_new"]
     statuses = {r.stripe_subscription_id: r.status for r in db_session.query(Subscription)}
     assert statuses == {"sub_old": "active", "sub_new": "canceled"}
-    assert len(_audits(db_session, "subscription_duplicate_refunded")) == 1
+    refunded_audits = _audits(db_session, "subscription_duplicate_refunded")
+    assert len(refunded_audits) == 1
+    # The tuple FakeStripe.cancel_and_refund returns carries a real intent id,
+    # so the audit must say a refund actually happened -- never claim one that
+    # didn't (see billing_stripe.cancel_and_refund's None case).
+    assert refunded_audits[0].detail["refunded"] is True
 
 
 def test_an_older_subscription_arriving_second_is_the_one_kept(db_session, fake):
