@@ -196,14 +196,22 @@ same lines.
 
 ### 5.5 A synthetic fixture that exercises the gate
 
-`make_card_scan` gains `backing_color` below its divider, defaulting to black, so no existing fixture moves.
-It flows to the canvas and to `_round_corners`' backing. A new fixture, `capture_pale_backdrop`, puts a
-pale-bordered card on a light backdrop with glare over one corner, **tuned until the shipped gate produces
-more than 1mm² of invented loss at an intact corner**. That is the regression test the drift baseline
-otherwise cannot provide.
+`make_card_scan` gains `shadow_bottom_left_corner` below its divider, defaulting off, so no existing fixture
+moves. It darkens an intact corner with a radial shadow (radius 4.5mm, floor 0.15), so the border there
+falls below the threshold that separates card from backing. That is the mechanism behind 13_FrontSideAngle:
+border indistinguishable from backdrop at one corner. A new fixture, `capture_shadowed_corner`, uses it.
 
-If no synthetic reproduces it, the plan records why and relies on the hand-built mask tests below. Either
-way the fixture must not be the only guard.
+Settled during planning (a scratch probe, not a guess):
+
+- The shipped global gate passes it (0.36% missing).
+- It invents about 10.8mm² of loss at the corner.
+- C′ declines it.
+- Every neighbouring setting (radius 4.0–5.0, floor 0.1–0.2) is also declined, so it is not tuned to an
+  edge.
+
+A `backing_color` keyword was the first idea and was dropped. It changes more of the generator and
+reproduces nothing the shadow does not. The fixture is not the only guard: the hand-built mask tests below
+exist regardless.
 
 ### 5.6 The harness measures what ships
 
@@ -328,5 +336,9 @@ recorded in §7 rather than tuned away.
   Dragonite), so the rate on a broader set is unknown. Measure it again when new photographs arrive.
 - **A small evidence base.** The gate's failures were characterised on 6 clear examples. The plateau makes
   it robust to the exact thresholds, but not to cases the set does not contain.
-- **The fixture may not reproduce the failure** (§5.5). If it does not, the hand-built mask tests are the
-  guard, and AGENTS.md says so, so the drift baseline is not mistaken for coverage.
+- **A compact, rounded artefact is indistinguishable from a real chip, and C′ passes it.** Found while
+  settling the fixture: a shadow 2–3mm in radius over an intact corner invents 1.6–5.3mm² of loss that C′
+  reads as damage. A small rounded bite is exactly the shape of genuine wear, so no mask-shape test can
+  tell them apart. C′ catches artefacts that run along the straight edge, which is what every failure in
+  the real set did. It is not a general guarantee. AGENTS.md records this beside the gate, so nobody reads
+  "gated" as "correct".
