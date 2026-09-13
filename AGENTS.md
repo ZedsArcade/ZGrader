@@ -250,6 +250,13 @@ When a second live subscription appears for one account, the one Stripe created 
 kept and the later one is refunded **before** it is cancelled — refund-after-cancel loses the
 refund for good if the refund call fails, because the retry reads the subscription as ended.
 
+A `StripeObject` is not a dict in the pinned SDK — subscripting it works but calling a dict method
+(`.get`, `.items`, ...) on one raises `AttributeError`, so anything read off one must be converted
+with `_plain` first. The duplicate-refund path shipped broken on exactly this: `cancel_and_refund`
+called `.get` on a nested StripeObject and crashed on every real call, because the adapter's own
+body was never executed by a test — every test replaced `billing_stripe.cancel_and_refund` itself
+rather than calling the real one against an SDK-constructed object.
+
 Prices stay single-sourced: checkout sends `plan_entitlements.price_pence` (or the founder price)
 inline, so no Stripe Price is ever authored and the admin panel remains the only place a price
 changes. The browser names a plan and nothing else — `CheckoutIn` forbids extra fields. Founder

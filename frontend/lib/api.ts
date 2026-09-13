@@ -588,6 +588,13 @@ export async function getBillingSubscription(token: string): Promise<BillingSubs
   return request("/billing/subscription", { headers: authHeaders(token) });
 }
 
+/** Compares every mirrored subscription with Stripe right now, rather than
+ *  waiting for the worker's daily pass. Rejects with ApiError(404) when
+ *  billing is off. */
+export async function reconcileBilling(token: string): Promise<{ checked: number; corrected: number }> {
+  return request("/admin/billing/reconcile", { method: "POST", headers: authHeaders(token) });
+}
+
 // --- sharing -----------------------------------------------------------
 //
 // Enable is idempotent and rotate is not, deliberately: pressing "share" twice

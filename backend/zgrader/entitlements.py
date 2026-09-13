@@ -37,6 +37,8 @@ from zgrader.models.subscription import LIVE_STATUSES, Subscription, Subscriptio
 #:
 #: A published promise: Refund Policy §9 quotes this number in both languages,
 #: and tests/test_billing_published_promises.py fails if they disagree.
+#: Stripe's Smart Retries duration, set in the Dashboard at go-live, must not
+#: exceed this -- see docs/deployment.md's "Taking payments" step 4.
 PAST_DUE_GRACE = datetime.timedelta(days=21)
 
 # Used only when the plan_entitlements row is missing entirely (an unseeded or

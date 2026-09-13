@@ -183,9 +183,11 @@ body-buffering limit in the Next.js docs does not apply; the plan's end-to-end c
 survives by forwarding the Stripe CLI to the **frontend** port rather than the backend.
 
 1. An `async` endpoint reads the raw body with `await request.body()` **before any parsing**, and verifies
-   `Stripe-Signature` against `stripe_webhook_secret`. A missing or bad signature is **400** and costs the
-   caller a rate-limit unit. Valid requests cost nothing, so Stripe can never be throttled — the same
-   counts-only-failures rule as login, built on `api/ratelimit.py` rather than a second limiter.
+   `Stripe-Signature` against `stripe_webhook_secret`. It carries no address-keyed rate limit at all —
+   Stripe sends every account's webhooks from one shared set of addresses, so any such limit could be
+   exhausted by other Stripe accounts relaying forgeries, refusing genuine deliveries along with them.
+   Cloudflare's edge rules are the flood control for this path instead; see `UNLIMITED_BY_DESIGN` in
+   `tests/test_rate_limit_coverage.py`.
 2. The verified event is handled in the threadpool (`run_in_threadpool`), since the database session is
    synchronous.
 3. `INSERT INTO stripe_events … ON CONFLICT DO NOTHING`. Already there → 200, nothing else.
@@ -342,12 +344,12 @@ an address under any new key would survive an erasure. A test asserts that no bi
 | `POST /billing/checkout` | signed in | `user_rate_limit`, tight | §6.1 |
 | `POST /billing/portal` | signed in | `user_rate_limit`, moderate | 409 with no customer |
 | `GET /billing/subscription` | signed in | `rate_limit`, generous | The user's current subscription (plan, status, amount, founder, period dates, `cancel_at`) or `null`. Polled by `/account?billing=success`. |
-| `POST /billing/webhook` | Stripe signature | failures only | §6.3 |
+| `POST /billing/webhook` | Stripe signature | none — see §6.3 | §6.3 |
 | `POST /admin/billing/reconcile` | operator | admin write limit | §6.8 |
 | `GET /admin/users/quota` | operator | unchanged | `UserQuotaOut` gains `subscription_status`, `founder`, `cancel_at` — the lookup the operator uses to apply the 20% in-hand subscriber discount by hand. |
 | `GET /catalog/pricing` | public | unchanged | Gains `founder_seats_remaining` and `billing_enabled`. |
 
-`test_rate_limit_coverage.py` passes with no new entries in `UNLIMITED_BY_DESIGN`.
+`/billing/webhook` is the one deliberate entry `test_rate_limit_coverage.py` adds to `UNLIMITED_BY_DESIGN`.
 
 ## 8. Configuration and deployment
 

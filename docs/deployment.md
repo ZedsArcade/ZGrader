@@ -429,21 +429,34 @@ this order, **in Stripe test mode first**, end to end, before any live key goes 
    *before* any webhook exists, or the first maintenance window silently eats payment events.
 3. **Customer Portal** (Dashboard → Settings → Billing → Customer portal): cancellation **at end of
    period**; plan switching **off**; payment-method update and invoice history **on**.
-4. **Retries and emails** (Settings → Billing → Subscriptions and emails): Smart Retries on;
-   *if all retries for a payment fail* → **cancel the subscription**; customer emails for
-   successful and failed payments on. The code bounds past-due access at 21 days regardless, but
-   leaving the subscription past due forever keeps billing someone who has no access.
+4. **Retries and emails** (Settings → Billing → Subscriptions and emails): Smart Retries on, with
+   the retry duration set to **at most 3 weeks (21 days)** — it must not exceed the code's own
+   `PAST_DUE_GRACE`, or Refund Policy §9's "the subscription ends" after 21 days becomes false while
+   Stripe is still quietly retrying past it; *if all retries for a payment fail* → **cancel the
+   subscription**; customer emails for successful and failed payments on. The code bounds past-due
+   access at 21 days regardless, but leaving the subscription past due forever keeps billing someone
+   who has no access.
 5. **Webhook endpoint** (Developers → Webhooks → Add endpoint): URL
    `https://gemlab.app/api/billing/webhook`, events `checkout.session.completed`,
    `checkout.session.expired`, `customer.subscription.created`, `customer.subscription.updated`,
    `customer.subscription.deleted`. Copy its signing secret (`whsec_…`) into
    `ZGRADER_STRIPE_WEBHOOK_SECRET` — not the API key.
-6. **Keys.** Set `ZGRADER_STRIPE_SECRET_KEY` in the Portainer stack env, redeploy, and check
+6. **Clear what test mode wrote.** Everything above ran against Stripe test mode, and none of it
+   self-cleans: `plan_entitlements.stripe_product_id` still names a test product, so the first live
+   checkout for that plan gets "No such product" and 503s forever until this runs; any account that
+   clicked Subscribe in test mode still carries a test `stripe_customer_id`, so live checkout and the
+   portal 503 for them too; and any test-mode founder subscription still counts against the founder
+   seat cap. Run this **once, in one transaction, immediately before the next step** — it is safe
+   only *before* any live payment exists, because every row it touches was written by test mode:
+   ```
+   docker exec zgrader-app-postgres-1 psql -U zgrader -c "BEGIN; UPDATE plan_entitlements SET stripe_product_id = NULL; UPDATE users SET stripe_customer_id = NULL; DELETE FROM subscriptions; DELETE FROM checkout_attempts; DELETE FROM stripe_events; COMMIT;"
+   ```
+7. **Keys.** Set `ZGRADER_STRIPE_SECRET_KEY` in the Portainer stack env, redeploy, and check
    `/pricing` shows **Subscribe**. A `sk_test_` key in production logs a warning at every boot.
-7. **Prove delivery.** From the Dashboard, send a test event to the endpoint; it must answer 200 and
+8. **Prove delivery.** From the Dashboard, send a test event to the endpoint; it must answer 200 and
    a row must appear in `stripe_events`:
    `docker exec zgrader-app-postgres-1 psql -U zgrader -c "SELECT event_id, type FROM stripe_events ORDER BY processed_at DESC LIMIT 5"`.
-8. **Prove the bypass (L2).** Attach the maintenance route, then
+9. **Prove the bypass (L2).** Attach the maintenance route, then
    `curl -s -o /dev/null -w "%{http_code}\n" -X POST https://gemlab.app/api/billing/webhook` must print
    **400** (the origin refusing an unsigned request), while
    `curl -s -o /dev/null -w "%{http_code}\n" https://gemlab.app/` prints **503**. Detach the route.

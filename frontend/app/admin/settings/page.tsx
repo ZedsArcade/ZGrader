@@ -274,6 +274,49 @@ function TestEmailPanel({ token }: { token: string }) {
   );
 }
 
+/**
+ * Compare every mirrored subscription with Stripe right now, rather than
+ * waiting for the worker's daily pass -- the button to press after an outage
+ * (`docs/deployment.md`'s "Taking payments").
+ *
+ * A 404 means billing isn't enabled on this deployment (no Stripe keys set),
+ * which is a normal state rather than a failure -- shown as a toast so the
+ * section stays visible instead of silently disappearing.
+ */
+function ReconcileBillingPanel({ token }: { token: string }) {
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    setBusy(true);
+    try {
+      const result = await api.reconcileBilling(token);
+      toastSuccess(`Checked ${result.checked}, corrected ${result.corrected}.`);
+    } catch (err) {
+      if (err instanceof api.ApiError && err.status === 404) {
+        toastError("Billing is not enabled on this deployment.");
+      } else {
+        toastError(err instanceof Error ? err.message : "Reconcile failed");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-secondary p-3">
+      <p className="text-xs text-muted">
+        Compares every subscription with Stripe now — use it after an outage.
+      </p>
+      {/* type="button": this sits inside the settings <form>, and the HTML
+          default of type="submit" would save every setting on the page
+          instead of running the reconcile. */}
+      <Button type="button" variant="outline" size="sm" isDisabled={busy} onPress={run}>
+        {busy ? "Reconciling…" : "Reconcile billing"}
+      </Button>
+    </div>
+  );
+}
+
 function SectionHeading({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="mt-2 border-t border-border pt-4">
@@ -854,6 +897,13 @@ function SettingsForm() {
           />
 
           <UserQuotaLookup token={token ?? ""} />
+
+          <SectionHeading
+            title="Billing"
+            hint="Stripe is the authority on payment; this compares the local mirror against it directly instead of waiting for the worker's daily pass."
+          />
+
+          <ReconcileBillingPanel token={token ?? ""} />
 
           <SectionHeading
             title="Grading companies"
