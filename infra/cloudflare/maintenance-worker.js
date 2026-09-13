@@ -39,7 +39,15 @@ const RETRY_AFTER_SECONDS = 3600;
 
 // Requests allowed through even while maintenance is on. Health checks and
 // ACME challenges are the two that break in confusing ways if blocked.
-const BYPASS_PREFIXES = ["/.well-known/"];
+//
+// Payment callbacks must NEVER be gated. The Worker answers before the
+// tunnel, so a blocked Stripe webhook gets this page's 503; Stripe retries
+// for days and then disables the endpoint, and payments and entitlements
+// drift apart with nothing in the origin's logs, because nothing reached the
+// origin. backend/tests/test_maintenance_worker_bypass.py ties this entry to
+// the route's real path. Redeploy the Worker in the Cloudflare dashboard
+// whenever this list changes -- it is pasted in by hand, not deployed.
+const BYPASS_PREFIXES = ["/.well-known/", "/api/billing/webhook"];
 
 const PAGE = `<!doctype html>
 <html lang="en">

@@ -9,8 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from zgrader import images
+from zgrader import billing, images
 from zgrader.api.ratelimit import rate_limit
+from zgrader.api.routers.auth import CURRENT_TERMS_VERSION
 from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.models import CardDimensionReference, PhysicalPriceTier, PlanEntitlement
@@ -74,6 +75,9 @@ def get_pricing(db: Session = Depends(get_db)) -> PricingOut:
         founder_price_pence=settings.founder_price_pence,
         founder_seats=settings.founder_seats,
         subscriber_discount_pct=settings.subscriber_discount_pct,
+        billing_enabled=config.billing_enabled,
+        founder_seats_remaining=billing.founder_seats_remaining(db, settings),
+        terms_version=CURRENT_TERMS_VERSION,
     )
 
 

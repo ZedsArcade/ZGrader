@@ -2,6 +2,7 @@ from zgrader.models.analysis_result import AnalysisCategory, AnalysisResult, Ana
 from zgrader.models.audit_log import AuditLog
 from zgrader.models.card import Card
 from zgrader.models.card_dimensions import CardDimensionReference
+from zgrader.models.checkout_attempt import CheckoutAttempt
 from zgrader.models.contact_message import ContactMessage, ContactTopic
 from zgrader.models.grading_comparison import (
     GradingCompany,
@@ -15,6 +16,7 @@ from zgrader.models.plan_entitlement import FREE_PLAN, PlanEntitlement
 from zgrader.models.report import Report, ReportStatus
 from zgrader.models.scan_image import ScanImage, ScanSide
 from zgrader.models.settings import Settings
+from zgrader.models.stripe_event import StripeEvent
 from zgrader.models.submission import Submission, SubmissionLanguage, SubmissionStatus
 from zgrader.models.subscription import Subscription, SubscriptionStatus
 from zgrader.models.user import User, UserRole
@@ -26,6 +28,7 @@ __all__ = [
     "AuditLog",
     "Card",
     "CardDimensionReference",
+    "CheckoutAttempt",
     "ContactMessage",
     "ContactTopic",
     "GradingCompany",
@@ -41,6 +44,7 @@ __all__ = [
     "ScanImage",
     "ScanSide",
     "Settings",
+    "StripeEvent",
     "Submission",
     "SubmissionLanguage",
     "SubmissionStatus",

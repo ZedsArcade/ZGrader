@@ -240,6 +240,51 @@ Physical prices live in their own table rather than as more `plan_entitlements` 
 `entitlements.active_plan()` reads that table to decide what an account may do — a row named after a
 hand-fulfilled service sitting in it is one typo from granting somebody a software plan.
 
+**Stripe is the authority on payment; `subscriptions` is its mirror, and one function writes it.**
+`billing.apply_subscription` is the only writer — the webhook, the worker's reconcile sweep and
+`POST /admin/billing/reconcile` all end there. It re-reads the subscription from Stripe rather
+than trusting an event payload (deliveries arrive out of order), and it checks the metadata's
+user against `users.stripe_customer_id` before writing anything. Access is **never** granted
+because a browser reached the success page; `/account?billing=success` polls our own database.
+When a second live subscription appears for one account, the one Stripe created **earlier** is
+kept and the later one is refunded **before** it is cancelled — refund-after-cancel loses the
+refund for good if the refund call fails, because the retry reads the subscription as ended.
+
+A `StripeObject` is not a dict in the pinned SDK — subscripting it works but calling a dict method
+(`.get`, `.items`, ...) on one raises `AttributeError`, so anything read off one must be converted
+with `_plain` first. The duplicate-refund path shipped broken on exactly this: `cancel_and_refund`
+called `.get` on a nested StripeObject and crashed on every real call, because the adapter's own
+body was never executed by a test — every test replaced `billing_stripe.cancel_and_refund` itself
+rather than calling the real one against an SDK-constructed object.
+
+Prices stay single-sourced: checkout sends `plan_entitlements.price_pence` (or the founder price)
+inline, so no Stripe Price is ever authored and the admin panel remains the only place a price
+changes. The browser names a plan and nothing else — `CheckoutIn` forbids extra fields. Founder
+seats are counted and reserved under a row lock on `Settings`, committed before the Stripe call so
+no lock is held across the network; an open checkout is reused only for the same plan, and a
+customer who switches plan has the first session expired rather than left payable.
+
+**The webhook is the fast path and reconciliation is the guarantee.** `/api/billing/webhook` is in
+the maintenance Worker's `BYPASS_PREFIXES` (a test ties the two strings), because a gated webhook
+gets a 503 from the edge that never appears in origin logs. But the bypass cannot help when the
+stack itself is down — Stripe retries for days and then stops — so the worker reconciles at boot
+and daily, and every correction lands in the audit log as `billing_reconciled`.
+
+Signature verification runs on the **raw body**, before anything parses it; the endpoint is
+`async` for that reason alone. `stripe_events` is written in the same transaction as the event's
+effect, so a duplicate does nothing and a failure is retried for real. The webhook deliberately has
+**no rate limit** (it is in `UNLIMITED_BY_DESIGN`): Stripe sends every account's webhooks from one
+shared set of addresses, so any address-keyed limit could be exhausted by other Stripe accounts
+relaying forgeries and would then refuse genuine deliveries. Only `zgrader/billing_stripe.py`
+imports `stripe`, and `STRIPE_API_VERSION` fails a test when an SDK upgrade changes the API
+version under it.
+
+A quota window belongs to the plan it was counted under: `get_quota` resets it when
+`users.quota_plan` no longer matches, which covers a grace period expiring with nothing written.
+`past_due` stays entitled for `PAST_DUE_GRACE` from `current_period_start` — the failed renewal,
+not the period end, which is a whole period later — and Refund Policy §9 quotes that number
+(`tests/test_billing_published_promises.py` holds the two together).
+
 **`submission_code` is operator-facing and must never appear in a public URL.** It comes from
 `submission_code_seq`, so codes are sequential and guessable — a public route keyed on one would let
 anybody walk the sequence and read every customer's report. Sharing runs on `submissions.share_token`
@@ -719,12 +764,6 @@ it, so the next attempt starts from where the last one stopped.
 
 Listed so a review reports something new rather than re-deriving these:
 
-- **Nothing takes payment, and no account can be on a paid plan.** `Subscription` is never
-  constructed anywhere, so `active_plan()` returns `free` for every user forever;
-  `stripe_subscription_id` is a placeholder column and nothing more. The pricing page therefore
-  offers "get in touch" rather than a purchase button — a checkout would be a dead end. Selling
-  works today by hand: take payment however, then top the account up with
-  `PATCH /users/{user_id}/quota`, which is a complete manual fulfilment path needing no code.
 - **The session token lives in `localStorage`**, so an XSS could steal it, and it is valid for
   **24 hours** (`_ACCESS_TOKEN_EXPIRE_MINUTES`) with no refresh flow and no idle timeout. The TTL is
   what sets the blast radius, so it belongs in this entry rather than only in the constant. Moving
@@ -777,14 +816,16 @@ Listed so a review reports something new rather than re-deriving these:
   every cap renews. "N checks per account, ever" needs a nullable `period_days` meaning *never
   resets*, or an explicit lifetime cap — a very large `period_days` works arithmetically but shows
   the customer a countdown measured in decades.
-Five entries left this list rather than being forgotten, and the reason each was here is still
-worth knowing: outbound mail now goes through a real relay (the operator's send-test-email action
+Six entries left this list rather than being forgotten, and the reason each was here is still
+worth knowing: subscriptions are now sold through Stripe, so the entry saying nothing takes payment
+is gone (see the billing invariant under Invariants — the credit pack and in-hand services are still
+arranged by hand, fulfilled with `PATCH /users/{user_id}/quota`); outbound mail now goes through a real relay (the operator's send-test-email action
 in the admin panel is what proves it, and it reports what SMTP actually did); Postgres is backed up
 nightly by `infra/backup/`; and `submission_code` comes from `submission_code_seq` rather than
 `COUNT(*) + 1`, so a code is issued once and never reissued — see the comment on
 `models/submission.py`, which keeps the full reasoning.
 
-The fourth was **the header overflowing at 768px**, and it is worth knowing why it lasted. The
+The fifth was **the header overflowing at 768px**, and it is worth knowing why it lasted. The
 desktop nav appeared at `md` but the authed bar needs about 1114px before it fits, so every viewport
 from 768 to roughly 1150 scrolled sideways — measured at **+379px** signed in at 768 and **+123px**
 at 1024, with a long address. Signed out it was subtler and Spanish-only, +10px, because "Nosotros",
@@ -799,7 +840,7 @@ the one element whose width nobody controls, since a customer picks their own �
 737px on its own. Bounding an unbounded contributor is the fix that keeps working when the next
 long address arrives.
 
-The fifth was **the desktop nav links at 20px**, under the 24px WCAG 2.5.8 floor, now carrying
+The sixth was **the desktop nav links at 20px**, under the 24px WCAG 2.5.8 floor, now carrying
 `-my-2 py-2` — 36px of target, no layout moved, header still 64px. The theme switch went with them:
 its visible label was 32×**16** and is now 28 tall behind an unchanged 32×16 track.
 

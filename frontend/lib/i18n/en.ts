@@ -284,10 +284,24 @@ export const en = {
     deleteButton: "Delete my account",
     deleteConfirmTitle: "Delete your account?",
     deleteConfirmBody:
-      "Everything is removed immediately and permanently. There is no way to recover it.",
+      "Everything is removed immediately and permanently. There is no way to recover it. If you have a subscription, it is cancelled at the same moment, with no refund for the period in progress.",
     deleteConfirm: "Delete permanently",
     deleteCancel: "Cancel",
     deleteFailed: "Couldn't delete your account.",
+    billingTitle: "Subscription",
+    billingNone: "You're on the free plan.",
+    billingSeePlans: "See plans",
+    billingPlan: "{plan} — {price} {period}",
+    billingFounder: "Founder price",
+    billingRenews: "Renews on {date}.",
+    billingEnds: "Ends on {date}. You keep access until then.",
+    billingPastDue: "Your last payment didn't go through. Update your card to keep your subscription.",
+    billingManage: "Manage billing",
+    billingOpening: "Opening…",
+    billingConfirming: "Confirming your subscription…",
+    billingSlow:
+      "This is taking longer than usual — it will appear here shortly. You don't need to pay again.",
+    billingFailed: "Couldn't open billing.",
     googleTitle: "Google sign-in",
     googleConnectedBody:
       "Your Google account is connected, so you can sign in with either it or your password.",
@@ -524,6 +538,25 @@ export const en = {
     // Said plainly rather than discovered at a dead end: nothing here takes
     // card payments yet, so every paid tier is arranged by conversation.
     paidNote: "Paid tiers are arranged directly at the moment -- send a message and it is set up by hand.",
+    subscribeCta: "Subscribe",
+    subscribeSignIn: "Sign in to subscribe",
+    subscribeVerify: "Confirm your email to subscribe",
+    founderRemaining: "{remaining} of {seats} left.",
+    confirmTitle: "Subscribe to {plan}",
+    confirmBody:
+      "{price} {period}, taken now and again at each renewal until you cancel. You can cancel any time from your account page. The exact amount is shown again on the payment page before you pay.",
+    confirmTerms: "I accept the Terms & Conditions and the Refund Policy.",
+    // DRAFT -- cooling-off wording pending the adviser's review (spec §13).
+    // Live billing must not be switched on until this is approved or replaced,
+    // together with the matching paragraph in refunds.s9Body.
+    confirmImmediate:
+      "Start my subscription straight away. I understand that because I get access immediately, I lose my right to cancel for a refund of a billing period once it has started.",
+    confirmReadTerms: "Read the Terms",
+    confirmReadRefunds: "Refund Policy",
+    confirmContinue: "Continue to payment",
+    confirmRedirecting: "Opening the payment page…",
+    confirmCancel: "Cancel",
+    checkoutFailed: "Couldn't start the payment. Please try again.",
 
     physicalHeading: "Personalised Pre-grading",
     physicalLede:
@@ -852,7 +885,7 @@ export const en = {
   terms: {
     title: "Terms & Conditions",
     updated: "Last updated",
-    updatedValue: "August 2026",
+    updatedValue: "September 2026",
     intro:
       "These terms cover your use of {businessName}. By creating an account or submitting a card, you agree to them. Please read the disclaimer below in particular.",
     disclaimerTitle: "Important disclaimer",
@@ -878,7 +911,7 @@ export const en = {
       "Where you send a card to us, we handle it with care and keep handling to a minimum. Nothing is done to a physical card beyond scanning unless you have specifically requested it and we have agreed it with you in writing. You are responsible for postage to us and for insuring a card in transit at a value you are comfortable with. Restoration work, where agreed, carries an inherent risk of damage and a restored card may be graded as altered or refused outright by a grading company; that risk is explained and agreed before any work begins.",
     s7Title: "7. Fees",
     s7Body:
-      "The basic image analysis is currently free to use, subject to fair-use limits. Paid services are described on the Services page; where a service is marked as coming soon or planned it is not yet available to buy. Fees for any paid service are agreed with you before work starts. Nothing is sold through this website: where you buy a service, we arrange payment with you directly. Cancellation and refunds are covered by the Refund Policy, which forms part of these terms.",
+      "The basic image analysis is free to use, subject to fair-use limits. The monthly and annual subscriptions are bought on this website: payment is taken by Stripe, our payment processor, on Stripe's own secure page, and the card details you enter there never reach us. A subscription renews automatically at the end of each period until you cancel it, which you can do at any time from your account page; it then runs to the end of the period already paid for. Other paid services — the credit pack and anything involving a physical card — are arranged with you directly, and their fees are agreed before work starts. Cancellation and refunds are covered by the Refund Policy, which forms part of these terms.",
     s8Title: "8. Limitation of liability",
     s8Body:
       "To the extent permitted by law, we are not liable for decisions you make on the basis of a report, for grading outcomes, for loss of profit or expected value, or for the difference between a report and a grading company's decision. Nothing in these terms limits liability for death or personal injury caused by negligence, for fraud, or for anything else that cannot lawfully be limited. Where a card is lost or damaged while in our care, our liability is limited to the agreed handling arrangements for that card.",
@@ -896,7 +929,7 @@ export const en = {
   privacy: {
     title: "Privacy Policy",
     updated: "Last updated",
-    updatedValue: "August 2026",
+    updatedValue: "September 2026",
     intro:
       "This explains what personal data {businessName} collects, why, and what you can do about it. We collect as little as the service needs to work, and this page describes what the software actually does rather than what a policy template would say.",
     s1Title: "1. Who is responsible",
@@ -904,10 +937,10 @@ export const en = {
       "{businessName}, based in Gibraltar, is the data controller for the personal data described here. The service is run by one operator. You can reach us via the contact page.",
     s2Title: "2. What we collect",
     s2Body:
-      "To run your account: your email address and, unless you sign in with Google, a securely hashed password. Optionally a display name. We also record when you accepted the terms and which version, whether you opted in to marketing, and when you last signed in. If you sign in with Google we ask Google for two things only \u2014 your verified email address and the account identifier that lets us recognise you next time. We never receive your Google password. About your cards: the game, name, set and number you enter, the images you upload or that we produce by scanning a card you send us, the analysis derived from them, and the report. If you use the contact form: your name, email address, subject, message, the language you wrote in, and the IP address the message came from, which we keep to deal with abuse of the form. We also keep an audit record of actions taken on submissions. Your browser stores your sign-in token and your language and brand preferences on your own device; these are not cookies and are not used to track you. We do not use advertising or analytics tracking, and we never see your payment card details.",
+      "To run your account: your email address and, unless you sign in with Google, a securely hashed password. Optionally a display name. We also record when you accepted the terms and which version, whether you opted in to marketing, and when you last signed in. If you sign in with Google we ask Google for two things only \u2014 your verified email address and the account identifier that lets us recognise you next time. We never receive your Google password. About your cards: the game, name, set and number you enter, the images you upload or that we produce by scanning a card you send us, the analysis derived from them, and the report. If you use the contact form: your name, email address, subject, message, the language you wrote in, and the IP address the message came from, which we keep to deal with abuse of the form. We also keep an audit record of actions taken on submissions. Your browser stores your sign-in token and your language and brand preferences on your own device; these are not cookies and are not used to track you. If you subscribe, we also keep the identifiers Stripe gives your customer record and your subscription, the plan, the amount you pay, the billing dates and status, and which version of the terms you accepted and when you asked for the subscription to start straight away. We do not use advertising or analytics tracking, and we never see your payment card details.",
     s3Title: "3. Why we use it, and on what basis",
     s3Body:
-      "We use your email address to run your account, confirm it is yours, and tell you about your own submissions. We use your card details and images to produce the analysis and report you asked for. Both are necessary to perform the service you requested. We keep audit records, and the IP address attached to a contact message, to protect the service from abuse and to keep an accurate record of what happened \u2014 our legitimate interest as the operator. Marketing email, if we ever send any, goes only to people who have opted in, and you can withdraw that from your account page at any time.",
+      "We use your email address to run your account, confirm it is yours, and tell you about your own submissions. We use your card details and images to produce the analysis and report you asked for. Both are necessary to perform the service you requested. The billing details above are needed to take payment for a subscription and to keep the records the law requires of a business that sells. We keep audit records, and the IP address attached to a contact message, to protect the service from abuse and to keep an accurate record of what happened \u2014 our legitimate interest as the operator. Marketing email, if we ever send any, goes only to people who have opted in, and you can withdraw that from your account page at any time.",
     s4Title: "4. Your card images",
     s4Body:
       "Images you upload are used to produce your report and for nothing else. They are not sold, not published, and not used to advertise the service or to train anything without asking you first and separately. A photograph taken on a phone normally carries EXIF metadata, which can include the GPS coordinates of where it was taken \u2014 often someone's home. Every image is decoded and re-encoded the moment it reaches us, which discards that metadata before anything is written to disk: we keep the picture and not the place it was taken. The rotation recorded in that metadata is applied to the pixels first, so nothing is stored sideways. Separately, you can choose to publish a finished report at a private link. While that is switched on, anyone holding the link can read the report and see its images without signing in. The page asks search engines not to index it, but a link you have given out is beyond our control until you switch sharing off, which revokes it immediately and permanently.",
@@ -916,10 +949,10 @@ export const en = {
       "Submissions, scans, analysis and reports are kept for as long as your account is open, so you can go back to them; there is no automatic expiry, and you can delete any individual submission or your whole account whenever you like. Contact form messages are deleted automatically twelve months after they are sent. Backups are the one place where deleted material lingers, and we would rather state it plainly than imply otherwise: a backup of the database and of the stored files is taken to the server itself and kept for 14 days before being deleted. Those local backups are not encrypted, and they include report PDFs, which carry the account's email address. So a submission or an account you delete today can still exist in a backup for up to 14 days afterwards. If we ever restore from one, we re-apply any deletions made since it was taken. We are working on an encrypted, off-site copy with a 30-day retention; this page will change on the day that starts running, and it is not running yet.",
     s6Title: "6. Deleting your account and your data",
     s6Body:
-      "You do not need to email anyone. Deleting a single submission from your dashboard removes its scans, its analysis, its report and every image derived from it, from the database and from disk, straight away. Closing your account from the account page does the same for every submission you have, and then removes the account itself \u2014 your email address, your password hash, your Google sign-in link if you have one, and your preferences. It is a real deletion and not a flag on a row that stays behind. We keep the audit record of what happened, because it protects the integrity of the service, but the identity is stripped out of it: the entries no longer name you, and the two kinds of entry that recorded an email address in their body have it removed as part of the same operation. None of this can be undone, and the backup point in the section above is the one exception.",
+      "You do not need to email anyone. Deleting a single submission from your dashboard removes its scans, its analysis, its report and every image derived from it, from the database and from disk, straight away. Closing your account from the account page does the same for every submission you have, and then removes the account itself \u2014 your email address, your password hash, your Google sign-in link if you have one, and your preferences. It is a real deletion and not a flag on a row that stays behind. We keep the audit record of what happened, because it protects the integrity of the service, but the identity is stripped out of it: the entries no longer name you, and the two kinds of entry that recorded an email address in their body have it removed as part of the same operation. If you have a subscription, closing your account cancels it and deletes your customer record at Stripe at the same moment. Stripe keeps its own record of the payments themselves for as long as the law requires it to, under Stripe's own privacy policy; that record is Stripe's rather than ours, and deleting your account here cannot remove it. None of this can be undone, and the backup point in the section above is the one exception.",
     s7Title: "7. Who else sees it",
     s7Body:
-      "Nobody, other than the service operator. We do not sell personal data and we do not share it with grading companies. The service runs on hardware the operator owns rather than at a hosting company, so your images are not sitting on someone else's cloud. Three suppliers are unavoidably involved and are named here rather than hidden behind a general clause: Cloudflare carries traffic between your browser and the service, and sees the connection and your IP address; an email provider delivers the messages we send you, and sees your address and the contents of those messages; and Google, only if you choose to sign in with Google, which tells them you use this service. Beyond that we disclose personal data only where we are legally required to.",
+      "Nobody, other than the service operator. We do not sell personal data and we do not share it with grading companies. The service runs on hardware the operator owns rather than at a hosting company, so your images are not sitting on someone else's cloud. Four suppliers are unavoidably involved and are named here rather than hidden behind a general clause: Cloudflare carries traffic between your browser and the service, and sees the connection and your IP address; an email provider delivers the messages we send you, and sees your address and the contents of those messages; Google, only if you choose to sign in with Google, which tells them you use this service; and Stripe, only if you subscribe, which processes the payment and sees your name, email address, card details, billing address and IP address — the card number goes to Stripe directly and never reaches us. Beyond that we disclose personal data only where we are legally required to.",
     s8Title: "8. Your rights",
     s8Body:
       "Under Gibraltar data protection law you can ask for a copy of your data, ask us to correct it, ask us to delete it, object to or ask us to restrict certain processing, and ask for your data in a portable form. Deletion you can do yourself, immediately, as described above. For a copy or an export, contact us \u2014 there is no self-service button for that yet, so we produce it by hand, and we will respond within the statutory time limit. If you are unhappy with how we handle a request, you can complain to the Gibraltar Regulatory Authority.",
@@ -935,12 +968,12 @@ export const en = {
   refunds: {
     title: "Refund Policy",
     updated: "Last updated",
-    updatedValue: "August 2026",
+    updatedValue: "September 2026",
     intro:
       "When you can cancel a paid service from {businessName}, when you can get your money back, and the point after which you cannot. It forms part of our Terms & Conditions.",
     s1Title: "1. What this covers",
     s1Body:
-      "This policy covers services you pay for. The free image analysis costs nothing and so has nothing to refund \u2014 if you are on the free allowance, none of this applies to you. Nothing is bought through this website: there is no checkout, so every paid service is arranged with you directly and the price is agreed before any work starts.",
+      "This policy covers services you pay for. The free image analysis costs nothing and so has nothing to refund \u2014 if you are on the free allowance, none of this applies to you. Subscriptions are bought on this website and are covered by section 9. Every other paid service is arranged with you directly, and its price is agreed before any work starts.",
     s2Title: "2. Your right to cancel",
     s2Body:
       "You have 14 days from the day we agree to provide a service to change your mind and cancel it, without giving a reason. Tell us through the contact page within that window and we will refund what you have paid, subject to the two sections below.",
@@ -962,6 +995,13 @@ export const en = {
     s8Title: "8. How to ask, and how long it takes",
     s8Body:
       "Ask through the contact page, telling us what you paid for and, where you have one, the submission code. We will confirm whether a refund is due within five working days. Approved refunds go back by the same method you paid by, within 14 days of us agreeing them. We do not charge a fee for processing a refund.",
+    s9Title: "9. Subscriptions",
+    // DRAFT in part -- the sentence about starting straight away mirrors the
+    // checkout consent (pricing.confirmImmediate) and awaits the adviser's
+    // review (spec §13). The 21 days is PAST_DUE_GRACE in entitlements.py;
+    // tests/test_billing_published_promises.py ties the two together.
+    s9Body:
+      "You can cancel a subscription at any time from your account page. It then runs to the end of the period you have already paid for and is not renewed, so nothing further is charged; we do not refund part of a period that has already started. When you subscribe you ask us to give you access straight away, and you agree that this means you cannot cancel for a refund of a period once it has begun — we ask you to confirm that before you pay. Closing your account cancels your subscription at the same moment, without a refund for the period in progress. If a renewal payment fails, your subscription stays active for up to 21 days while the payment is retried; if it still cannot be taken, the subscription ends and your account returns to the free plan. Section 7 applies to subscriptions exactly as it does to everything else: if something has gone wrong on our side, we will put it right.",
     reviewNote:
       "This policy is written in plain language rather than legal boilerplate. It is not legal advice, and it does not reduce any right you have under Gibraltar consumer law; if you need advice about your own position, speak to a qualified adviser.",
   },

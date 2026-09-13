@@ -89,3 +89,12 @@ class PricingOut(BaseModel):
     founder_price_pence: int | None
     founder_seats: int | None
     subscriber_discount_pct: int | None
+    # Whether Subscribe can be offered. False keeps "Get in touch" on the page
+    # rather than a button into a checkout this deployment cannot run.
+    billing_enabled: bool
+    # Seats left at the founder price; None when the offer is off. One
+    # aggregate, nothing per user -- safe on an unauthenticated route.
+    founder_seats_remaining: int | None
+    # The Terms version the checkout confirm must echo back, so a customer
+    # always accepts the version the server currently enforces.
+    terms_version: str

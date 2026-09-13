@@ -50,6 +50,10 @@ services:
       # only appears when the backend reports it configured.
       ZGRADER_GOOGLE_CLIENT_ID: ${ZGRADER_GOOGLE_CLIENT_ID:-}
       ZGRADER_GOOGLE_CLIENT_SECRET: ${ZGRADER_GOOGLE_CLIENT_SECRET:-}
+      # Stripe billing. Both empty = billing off (config.billing_enabled).
+      # See docs/deployment.md "Taking payments" before setting either.
+      ZGRADER_STRIPE_SECRET_KEY: ${ZGRADER_STRIPE_SECRET_KEY:-}
+      ZGRADER_STRIPE_WEBHOOK_SECRET: ${ZGRADER_STRIPE_WEBHOOK_SECRET:-}
       ZGRADER_AI_ENABLED: ${ZGRADER_AI_ENABLED:-false}
       ZGRADER_AI_ENDPOINT: ${ZGRADER_AI_ENDPOINT:-}
       ZGRADER_AI_MODEL: ${ZGRADER_AI_MODEL:-}

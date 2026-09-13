@@ -247,6 +247,12 @@ export interface Pricing {
   founder_price_pence: number | null;
   founder_seats: number | null;
   subscriber_discount_pct: number | null;
+  /** False on a deployment with no Stripe account: keep "Get in touch". */
+  billing_enabled: boolean;
+  /** Founder seats left; null when the offer is off. */
+  founder_seats_remaining: number | null;
+  /** The Terms version /billing/checkout requires the customer to accept. */
+  terms_version: string;
 }
 
 export interface PublicContact {
@@ -547,6 +553,48 @@ export async function fetchPricing(): Promise<Pricing> {
   return request("/catalog/pricing");
 }
 
+// --- billing -----------------------------------------------------------
+//
+// The browser names a plan and confirms consent; it never sends an amount.
+// The server reads the price from its own rows and hands back a Stripe-hosted
+// page to redirect to, so no card detail ever touches this site.
+
+export interface BillingSubscription {
+  plan: string;
+  status: string;
+  /** False for a past-due subscription whose grace has run out. */
+  entitled: boolean;
+  founder: boolean;
+  amount_pence: number | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at: string | null;
+}
+
+export async function startCheckout(token: string, plan: string, termsVersion: string): Promise<{ url: string }> {
+  return request("/billing/checkout", {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ plan, terms_version: termsVersion, immediate_start_consent: true }),
+  });
+}
+
+export async function openBillingPortal(token: string): Promise<{ url: string }> {
+  return request("/billing/portal", { method: "POST", headers: authHeaders(token) });
+}
+
+/** Rejects with ApiError(404) when billing is off -- callers hide on that. */
+export async function getBillingSubscription(token: string): Promise<BillingSubscription | null> {
+  return request("/billing/subscription", { headers: authHeaders(token) });
+}
+
+/** Compares every mirrored subscription with Stripe right now, rather than
+ *  waiting for the worker's daily pass. Rejects with ApiError(404) when
+ *  billing is off. */
+export async function reconcileBilling(token: string): Promise<{ checked: number; corrected: number }> {
+  return request("/admin/billing/reconcile", { method: "POST", headers: authHeaders(token) });
+}
+
 // --- sharing -----------------------------------------------------------
 //
 // Enable is idempotent and rotate is not, deliberately: pressing "share" twice
@@ -654,6 +702,9 @@ export interface UserQuota {
   used: number;
   remaining: number | null;
   resets_at: string | null;
+  subscription_status: string | null;
+  founder: boolean;
+  cancel_at: string | null;
 }
 
 export async function findUserQuotas(token: string, email: string): Promise<UserQuota[]> {

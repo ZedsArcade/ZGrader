@@ -266,10 +266,25 @@ export const es: Dictionary = {
     deleteButton: "Eliminar mi cuenta",
     deleteConfirmTitle: "¿Eliminar su cuenta?",
     deleteConfirmBody:
-      "Todo se elimina de inmediato y de forma permanente. No hay manera de recuperarlo.",
+      "Todo se elimina de inmediato y de forma permanente. No hay manera de recuperarlo. Si tiene una suscripción, se cancela en ese mismo momento, sin reembolso del periodo en curso.",
     deleteConfirm: "Eliminar permanentemente",
     deleteCancel: "Cancelar",
     deleteFailed: "No se pudo eliminar su cuenta.",
+    billingTitle: "Suscripción",
+    billingNone: "Está en el plan gratuito.",
+    billingSeePlans: "Ver planes",
+    billingPlan: "{plan} — {price} {period}",
+    billingFounder: "Precio fundador",
+    billingRenews: "Se renueva el {date}.",
+    billingEnds: "Termina el {date}. Mantiene el acceso hasta entonces.",
+    billingPastDue:
+      "Su último pago no se completó. Actualice su tarjeta para mantener la suscripción.",
+    billingManage: "Gestionar facturación",
+    billingOpening: "Abriendo…",
+    billingConfirming: "Confirmando su suscripción…",
+    billingSlow:
+      "Está tardando más de lo habitual: aparecerá aquí en breve. No necesita volver a pagar.",
+    billingFailed: "No se pudo abrir la facturación.",
     googleTitle: "Acceso con Google",
     googleConnectedBody:
       "Su cuenta de Google está conectada, así que puede iniciar sesión con ella o con su contraseña.",
@@ -485,6 +500,23 @@ export const es: Dictionary = {
     freeCta: "Empezar un análisis gratis",
     paidCta: "Contactar",
     paidNote: "Por ahora los planes de pago se gestionan directamente: envíe un mensaje y se configura a mano.",
+    subscribeCta: "Suscribirse",
+    subscribeSignIn: "Inicie sesión para suscribirse",
+    subscribeVerify: "Confirme su correo para suscribirse",
+    founderRemaining: "Quedan {remaining} de {seats}.",
+    confirmTitle: "Suscribirse a {plan}",
+    confirmBody:
+      "{price} {period}, que se cobra ahora y en cada renovación hasta que cancele. Puede cancelar cuando quiera desde su página de cuenta. El importe exacto se vuelve a mostrar en la página de pago antes de pagar.",
+    confirmTerms: "Acepto los Términos y condiciones y la Política de reembolsos.",
+    // BORRADOR -- redacción del desistimiento pendiente de revisión (spec §13).
+    confirmImmediate:
+      "Quiero que mi suscripción empiece de inmediato. Entiendo que, al tener acceso desde el primer momento, pierdo el derecho a cancelar con reembolso un periodo de facturación una vez iniciado.",
+    confirmReadTerms: "Leer los Términos",
+    confirmReadRefunds: "Política de reembolsos",
+    confirmContinue: "Continuar al pago",
+    confirmRedirecting: "Abriendo la página de pago…",
+    confirmCancel: "Cancelar",
+    checkoutFailed: "No se pudo iniciar el pago. Inténtelo de nuevo.",
 
     physicalHeading: "Pre-clasificación personalizada",
     physicalLede:
@@ -802,7 +834,7 @@ export const es: Dictionary = {
   terms: {
     title: "Términos y condiciones",
     updated: "Última actualización",
-    updatedValue: "Agosto de 2026",
+    updatedValue: "Septiembre de 2026",
     intro:
       "Estos términos regulan su uso de {businessName}. Al crear una cuenta o enviar una carta, los acepta. Lea en particular el aviso siguiente.",
     disclaimerTitle: "Aviso importante",
@@ -828,7 +860,7 @@ export const es: Dictionary = {
       "Cuando nos envíe una carta, la tratamos con cuidado y reducimos la manipulación al mínimo. No se hace nada a una carta física más allá de escanearla salvo que usted lo haya solicitado expresamente y lo hayamos acordado por escrito. El envío hasta nosotros y el seguro en tránsito por el valor que considere adecuado corren de su cuenta. Los trabajos de restauración, cuando se acuerden, conllevan un riesgo inherente de daño y una carta restaurada puede ser calificada como alterada o rechazada por una compañía de calificación; ese riesgo se explica y se acuerda antes de comenzar cualquier trabajo.",
     s7Title: "7. Tarifas",
     s7Body:
-      "El análisis básico de imagen es actualmente gratuito, sujeto a límites de uso razonable. Los servicios de pago se describen en la página de Servicios; cuando un servicio figura como próximamente o previsto, todavía no está disponible para su contratación. Las tarifas de cualquier servicio de pago se acuerdan con usted antes de iniciar el trabajo. Nada se compra a través de este sitio web: cuando contrata un servicio, acordamos el pago con usted directamente. La cancelación y los reembolsos se rigen por la Política de reembolsos, que forma parte de estos términos.",
+      "El análisis básico de imagen es gratuito, sujeto a límites de uso razonable. Las suscripciones mensual y anual se contratan en este sitio web: el pago lo cobra Stripe, nuestro procesador de pagos, en su propia página segura, y los datos de tarjeta que introduzca allí nunca llegan a nosotros. Una suscripción se renueva automáticamente al final de cada periodo hasta que la cancele, algo que puede hacer en cualquier momento desde su página de cuenta; después sigue vigente hasta el final del periodo ya pagado. Los demás servicios de pago — el bono de créditos y todo lo que implique una carta física — se acuerdan con usted directamente, y sus tarifas se fijan antes de iniciar el trabajo. La cancelación y los reembolsos se rigen por la Política de reembolsos, que forma parte de estos términos.",
     s8Title: "8. Limitación de responsabilidad",
     s8Body:
       "En la medida en que lo permita la ley, no respondemos de las decisiones que tome a partir de un informe, de los resultados de calificación, del lucro cesante o el valor esperado, ni de la diferencia entre un informe y la decisión de una compañía de calificación. Nada en estos términos limita la responsabilidad por muerte o daños personales causados por negligencia, por fraude, ni por cualquier otro supuesto que no pueda limitarse legalmente. Cuando una carta se pierda o dañe bajo nuestra custodia, nuestra responsabilidad se limita a las condiciones de manipulación acordadas para esa carta.",
@@ -846,7 +878,7 @@ export const es: Dictionary = {
   privacy: {
     title: "Política de privacidad",
     updated: "Última actualización",
-    updatedValue: "Agosto de 2026",
+    updatedValue: "Septiembre de 2026",
     intro:
       "Aquí se explica qué datos personales recoge {businessName}, por qué y qué puede hacer al respecto. Recogemos lo mínimo que el servicio necesita para funcionar, y esta página describe lo que el software hace realmente, no lo que diría una plantilla.",
     s1Title: "1. Quién es responsable",
@@ -854,10 +886,10 @@ export const es: Dictionary = {
       "{businessName}, con sede en Gibraltar, es el responsable del tratamiento de los datos personales descritos aquí. El servicio lo gestiona un único operador. Puede contactarnos a través de la página de contacto.",
     s2Title: "2. Qué recogemos",
     s2Body:
-      "Para gestionar su cuenta: su dirección de correo electrónico y, salvo que inicie sesión con Google, una contraseña almacenada de forma cifrada. Opcionalmente, un nombre para mostrar. También registramos cuándo aceptó los términos y qué versión, si dio su consentimiento para recibir comunicaciones comerciales y cuándo inició sesión por última vez. Si inicia sesión con Google, le pedimos a Google únicamente dos cosas — su dirección de correo verificada y el identificador de cuenta que nos permite reconocerle la próxima vez. Nunca recibimos su contraseña de Google. Sobre sus cartas: el juego, el nombre, la colección y el número que introduce, las imágenes que sube o que producimos al escanear una carta que nos envía, el análisis derivado de ellas y el informe. Si utiliza el formulario de contacto: su nombre, su correo electrónico, el asunto, el mensaje, el idioma en el que escribió y la dirección IP desde la que se envió, que conservamos para hacer frente al uso abusivo del formulario. También guardamos un registro de auditoría de las acciones realizadas sobre los envíos. Su navegador almacena su testigo de sesión y sus preferencias de idioma y marca en su propio dispositivo; no son cookies y no se usan para rastrearle. No usamos publicidad ni analítica de seguimiento, y nunca vemos los datos de su tarjeta de pago.",
+      "Para gestionar su cuenta: su dirección de correo electrónico y, salvo que inicie sesión con Google, una contraseña almacenada de forma cifrada. Opcionalmente, un nombre para mostrar. También registramos cuándo aceptó los términos y qué versión, si dio su consentimiento para recibir comunicaciones comerciales y cuándo inició sesión por última vez. Si inicia sesión con Google, le pedimos a Google únicamente dos cosas — su dirección de correo verificada y el identificador de cuenta que nos permite reconocerle la próxima vez. Nunca recibimos su contraseña de Google. Sobre sus cartas: el juego, el nombre, la colección y el número que introduce, las imágenes que sube o que producimos al escanear una carta que nos envía, el análisis derivado de ellas y el informe. Si utiliza el formulario de contacto: su nombre, su correo electrónico, el asunto, el mensaje, el idioma en el que escribió y la dirección IP desde la que se envió, que conservamos para hacer frente al uso abusivo del formulario. También guardamos un registro de auditoría de las acciones realizadas sobre los envíos. Su navegador almacena su testigo de sesión y sus preferencias de idioma y marca en su propio dispositivo; no son cookies y no se usan para rastrearle. Si se suscribe, también conservamos los identificadores que Stripe asigna a su registro de cliente y a su suscripción, el plan, el importe que paga, las fechas y el estado de la facturación, y qué versión de los términos aceptó y cuándo pidió que la suscripción empezara de inmediato. No usamos publicidad ni analítica de seguimiento, y nunca vemos los datos de su tarjeta de pago.",
     s3Title: "3. Para qué lo usamos, y con qué base",
     s3Body:
-      "Usamos su correo electrónico para gestionar su cuenta, confirmar que es suyo e informarle sobre sus propios envíos. Usamos los datos y las imágenes de sus cartas para elaborar el análisis y el informe que solicitó. Ambas cosas son necesarias para prestar el servicio que pidió. Conservamos los registros de auditoría, y la dirección IP asociada a un mensaje de contacto, para proteger el servicio frente a abusos y mantener un registro fiel de lo ocurrido — nuestro interés legítimo como operador. Las comunicaciones comerciales, si alguna vez enviamos alguna, se dirigen solo a quienes lo hayan aceptado, y puede retirar ese consentimiento desde su página de cuenta en cualquier momento.",
+      "Usamos su correo electrónico para gestionar su cuenta, confirmar que es suyo e informarle sobre sus propios envíos. Usamos los datos y las imágenes de sus cartas para elaborar el análisis y el informe que solicitó. Ambas cosas son necesarias para prestar el servicio que pidió. Los datos de facturación anteriores son necesarios para cobrar una suscripción y para conservar los registros que la ley exige a un negocio que vende. Conservamos los registros de auditoría, y la dirección IP asociada a un mensaje de contacto, para proteger el servicio frente a abusos y mantener un registro fiel de lo ocurrido — nuestro interés legítimo como operador. Las comunicaciones comerciales, si alguna vez enviamos alguna, se dirigen solo a quienes lo hayan aceptado, y puede retirar ese consentimiento desde su página de cuenta en cualquier momento.",
     s4Title: "4. Sus imágenes de cartas",
     s4Body:
       "Las imágenes que sube se utilizan para elaborar su informe y para nada más. No se venden, no se publican y no se usan para promocionar el servicio ni para entrenar nada sin pedirle permiso antes y por separado. Una fotografía tomada con un móvil suele llevar metadatos EXIF, que pueden incluir las coordenadas GPS del lugar donde se tomó — a menudo el domicilio de alguien. Cada imagen se descodifica y se vuelve a codificar en cuanto llega, lo que descarta esos metadatos antes de escribir nada en disco: conservamos la fotografía y no el lugar donde se tomó. La rotación registrada en esos metadatos se aplica primero a los píxeles, de modo que nada se almacena de lado. Aparte de eso, puede optar por publicar un informe terminado en un enlace privado. Mientras esa opción esté activada, cualquiera que tenga el enlace puede leer el informe y ver sus imágenes sin iniciar sesión. La página pide a los buscadores que no la indexen, pero un enlace que usted haya difundido escapa a nuestro control hasta que desactive la opción de compartir, lo que lo revoca de forma inmediata y definitiva.",
@@ -866,10 +898,10 @@ export const es: Dictionary = {
       "Los envíos, escaneos, análisis e informes se conservan mientras su cuenta siga abierta, para que pueda volver a ellos; no hay caducidad automática, y puede eliminar cualquier envío concreto o su cuenta entera cuando quiera. Los mensajes del formulario de contacto se eliminan automáticamente doce meses después de enviarse. Las copias de seguridad son el único lugar donde el material eliminado permanece, y preferimos decirlo con claridad a insinuar lo contrario: se realiza una copia de la base de datos y de los archivos almacenados en el propio servidor, y se conserva 14 días antes de eliminarse. Esas copias locales no están cifradas, e incluyen los PDF de los informes, que llevan impresa la dirección de correo de la cuenta. Así que un envío o una cuenta que elimine hoy puede seguir existiendo en una copia de seguridad hasta 14 días después. Si alguna vez restauráramos desde una de ellas, volvemos a aplicar las eliminaciones realizadas desde que se tomó. Estamos trabajando en una copia cifrada y externa con 30 días de conservación; esta página cambiará el día en que eso empiece a funcionar, y todavía no funciona.",
     s6Title: "6. Eliminar su cuenta y sus datos",
     s6Body:
-      "No necesita escribir a nadie. Eliminar un envío concreto desde su panel borra sus escaneos, su análisis, su informe y todas las imágenes derivadas de él, de la base de datos y del disco, de inmediato. Cerrar su cuenta desde la página de cuenta hace lo mismo con todos sus envíos y después elimina la cuenta en sí — su dirección de correo, su contraseña cifrada, su vínculo de acceso con Google si lo tiene y sus preferencias. Es una eliminación real, no una marca en una fila que se queda ahí. Conservamos el registro de auditoría de lo ocurrido, porque protege la integridad del servicio, pero se le retira la identidad: las entradas ya no le nombran, y a los dos tipos de entrada que registraban una dirección de correo en su contenido se les retira como parte de la misma operación. Nada de esto se puede deshacer, y la salvedad de las copias de seguridad de la sección anterior es la única excepción.",
+      "No necesita escribir a nadie. Eliminar un envío concreto desde su panel borra sus escaneos, su análisis, su informe y todas las imágenes derivadas de él, de la base de datos y del disco, de inmediato. Cerrar su cuenta desde la página de cuenta hace lo mismo con todos sus envíos y después elimina la cuenta en sí — su dirección de correo, su contraseña cifrada, su vínculo de acceso con Google si lo tiene y sus preferencias. Es una eliminación real, no una marca en una fila que se queda ahí. Conservamos el registro de auditoría de lo ocurrido, porque protege la integridad del servicio, pero se le retira la identidad: las entradas ya no le nombran, y a los dos tipos de entrada que registraban una dirección de correo en su contenido se les retira como parte de la misma operación. Si tiene una suscripción, cerrar su cuenta la cancela y elimina al mismo tiempo su registro de cliente en Stripe. Stripe conserva su propio registro de los pagos en sí durante el tiempo que la ley le obligue, conforme a su propia política de privacidad; ese registro es de Stripe y no nuestro, y eliminar su cuenta aquí no puede borrarlo. Nada de esto se puede deshacer, y la salvedad de las copias de seguridad de la sección anterior es la única excepción.",
     s7Title: "7. Quién más lo ve",
     s7Body:
-      "Nadie, salvo el operador del servicio. No vendemos datos personales ni los compartimos con compañías de calificación. El servicio funciona en equipos propiedad del operador y no en una empresa de alojamiento, de modo que sus imágenes no están en la nube de un tercero. Hay tres proveedores inevitablemente implicados, y se nombran aquí en lugar de ocultarse tras una cláusula genérica: Cloudflare transporta el tráfico entre su navegador y el servicio, y ve la conexión y su dirección IP; un proveedor de correo entrega los mensajes que le enviamos, y ve su dirección y el contenido de esos mensajes; y Google, solo si elige iniciar sesión con Google, lo que les indica que usa este servicio. Más allá de eso, solo revelamos datos personales cuando la ley nos obliga.",
+      "Nadie, salvo el operador del servicio. No vendemos datos personales ni los compartimos con compañías de calificación. El servicio funciona en equipos propiedad del operador y no en una empresa de alojamiento, de modo que sus imágenes no están en la nube de un tercero. Hay cuatro proveedores inevitablemente implicados, y se nombran aquí en lugar de ocultarse tras una cláusula genérica: Cloudflare transporta el tráfico entre su navegador y el servicio, y ve la conexión y su dirección IP; un proveedor de correo entrega los mensajes que le enviamos, y ve su dirección y el contenido de esos mensajes; Google, solo si elige iniciar sesión con Google, lo que les indica que usa este servicio; y Stripe, solo si se suscribe, que procesa el pago y ve su nombre, su correo electrónico, los datos de su tarjeta, su dirección de facturación y su dirección IP — el número de tarjeta va directamente a Stripe y nunca llega a nosotros. Más allá de eso, solo revelamos datos personales cuando la ley nos obliga.",
     s8Title: "8. Sus derechos",
     s8Body:
       "Conforme a la legislación de protección de datos de Gibraltar, puede solicitar una copia de sus datos, pedir que los corrijamos, pedir que los eliminemos, oponerse a determinados tratamientos o pedir que los limitemos, y solicitar sus datos en un formato portátil. La eliminación puede hacerla usted mismo, de inmediato, tal como se describe arriba. Para una copia o una exportación, contáctenos — todavía no hay un botón de autoservicio para eso, así que la preparamos a mano, y responderemos dentro del plazo legal. Si no está conforme con cómo gestionamos una solicitud, puede reclamar ante la Gibraltar Regulatory Authority.",
@@ -885,12 +917,12 @@ export const es: Dictionary = {
   refunds: {
     title: "Política de reembolsos",
     updated: "Última actualización",
-    updatedValue: "Agosto de 2026",
+    updatedValue: "Septiembre de 2026",
     intro:
       "Cuándo puede cancelar un servicio de pago de {businessName}, cuándo puede recuperar su dinero y a partir de qué momento ya no. Forma parte de nuestros Términos y condiciones.",
     s1Title: "1. Qué cubre",
     s1Body:
-      "Esta política cubre los servicios que usted paga. El análisis de imagen gratuito no cuesta nada y por tanto no hay nada que reembolsar — si está usando la cuota gratuita, nada de esto le afecta. Nada se compra a través de este sitio web: no hay pasarela de pago, así que cada servicio de pago se acuerda con usted directamente y el precio se fija antes de iniciar cualquier trabajo.",
+      "Esta política cubre los servicios que usted paga. El análisis de imagen gratuito no cuesta nada y por tanto no hay nada que reembolsar — si está usando la cuota gratuita, nada de esto le afecta. Las suscripciones se contratan en este sitio web y se rigen por la sección 9. Cualquier otro servicio de pago se acuerda con usted directamente, y su precio se fija antes de iniciar cualquier trabajo.",
     s2Title: "2. Su derecho de desistimiento",
     s2Body:
       "Dispone de 14 días desde el día en que acordamos prestarle un servicio para cambiar de opinión y cancelarlo, sin necesidad de justificación. Avísenos a través de la página de contacto dentro de ese plazo y le reembolsaremos lo pagado, con las salvedades de las dos secciones siguientes.",
@@ -912,6 +944,10 @@ export const es: Dictionary = {
     s8Title: "8. Cómo solicitarlo y cuánto tarda",
     s8Body:
       "Solicítelo a través de la página de contacto, indicando qué servicio pagó y, si dispone de él, el código de envío. Le confirmaremos si procede el reembolso en un plazo de cinco días hábiles. Los reembolsos aprobados se devuelven por el mismo medio con el que pagó, en un plazo de 14 días desde que los aceptamos. No cobramos ninguna comisión por tramitar un reembolso.",
+    s9Title: "9. Suscripciones",
+    // BORRADOR en parte -- ver la nota de en.ts.
+    s9Body:
+      "Puede cancelar una suscripción en cualquier momento desde su página de cuenta. Después sigue vigente hasta el final del periodo que ya ha pagado y no se renueva, así que no se cobra nada más; no reembolsamos parte de un periodo ya iniciado. Al suscribirse nos pide que le demos acceso de inmediato, y acepta que eso significa que no puede cancelar con reembolso un periodo una vez iniciado — se lo pedimos confirmar antes de pagar. Cerrar su cuenta cancela su suscripción en ese mismo momento, sin reembolso del periodo en curso. Si falla el pago de una renovación, su suscripción sigue activa hasta 21 días mientras se reintenta el cobro; si aun así no se puede cobrar, la suscripción termina y su cuenta vuelve al plan gratuito. La sección 7 se aplica a las suscripciones exactamente igual que a todo lo demás: si algo ha salido mal por nuestra parte, lo subsanaremos.",
     reviewNote:
       "Esta política está redactada en lenguaje sencillo y no en jerga jurídica. No constituye asesoramiento jurídico ni reduce ningún derecho que le corresponda conforme a la legislación de consumo de Gibraltar; si necesita asesoramiento sobre su situación, consulte a un profesional cualificado.",
   },
