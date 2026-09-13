@@ -39,6 +39,28 @@ export function usePricing(): api.Pricing | null {
   return pricing;
 }
 
+/** Copy for each plan, keyed by the slug the backend seeds. A plan the
+ *  operator adds that is not in here still renders -- it falls back to its own
+ *  slug for a name and simply carries no blurb, which beats vanishing from the
+ *  page or crashing it. */
+export const PLAN_COPY: Record<string, { nameKey: string; noteKey: string }> = {
+  free: { nameKey: "planFree", noteKey: "planFreeNote" },
+  pack: { nameKey: "planPack", noteKey: "planPackNote" },
+  monthly: { nameKey: "planMonthly", noteKey: "planMonthlyNote" },
+  annual: { nameKey: "planAnnual", noteKey: "planAnnualNote" },
+};
+
+/** A plan's display name, from the same table the pricing page uses -- the
+ *  account page names the plan too, and two spellings of one plan is the
+ *  drift this file exists to prevent. An unknown slug falls back to itself. */
+export function usePlanName(): (plan: string) => string {
+  const t = useTranslations();
+  return (plan) => {
+    const copy = PLAN_COPY[plan];
+    return copy ? (t.pricing[copy.nameKey as keyof typeof t.pricing] as string) : plan;
+  };
+}
+
 /** The plan a user is on while they hold no subscription. Mirrors FREE_PLAN in
  *  `backend/zgrader/models/plan_entitlement.py`, which is the definition. */
 const FREE_PLAN = "free";

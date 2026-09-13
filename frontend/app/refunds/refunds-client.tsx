@@ -18,6 +18,7 @@ export default function RefundsClient() {
     { title: t.refunds.s6Title, body: t.refunds.s6Body },
     { title: t.refunds.s7Title, body: t.refunds.s7Body },
     { title: t.refunds.s8Title, body: t.refunds.s8Body },
+    { title: t.refunds.s9Title, body: t.refunds.s9Body },
   ];
 
   return (

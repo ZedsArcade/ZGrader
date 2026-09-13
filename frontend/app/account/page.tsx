@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Checkbox, Description, Input, Label, TextField } from "@heroui/react";
 import Button from "@/components/Button";
+import BillingCard from "@/components/BillingCard";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RequireAuth from "@/components/RequireAuth";
 import * as api from "@/lib/api";
@@ -205,6 +206,8 @@ function AccountInner() {
           </form>
         </Card.Content>
       </Card>
+
+      <BillingCard />
 
       <Card>
         <Card.Header>

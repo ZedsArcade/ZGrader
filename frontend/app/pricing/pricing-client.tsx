@@ -7,19 +7,9 @@ import Skeleton from "@/components/Skeleton";
 import StartCheckLink from "@/components/StartCheckLink";
 import OtherBrandServices from "@/components/OtherBrandServices";
 import { useTranslations } from "@/lib/i18n/context";
+import SubscribeButton from "@/components/SubscribeButton";
 import { useGradingCompanies, withCompanies } from "@/lib/use-grading-companies";
-import { bandLabel, useAllowanceLabel, useMoney, usePricing } from "@/lib/use-pricing";
-
-/** Copy for each plan, keyed by the slug the backend seeds. A plan the
- *  operator adds that is not in here still renders -- it falls back to its own
- *  slug for a name and simply carries no blurb, which beats vanishing from the
- *  page or crashing it. */
-const PLAN_COPY: Record<string, { nameKey: string; noteKey: string }> = {
-  free: { nameKey: "planFree", noteKey: "planFreeNote" },
-  pack: { nameKey: "planPack", noteKey: "planPackNote" },
-  monthly: { nameKey: "planMonthly", noteKey: "planMonthlyNote" },
-  annual: { nameKey: "planAnnual", noteKey: "planAnnualNote" },
-};
+import { PLAN_COPY, bandLabel, useAllowanceLabel, useMoney, usePricing } from "@/lib/use-pricing";
 
 export default function PricingClient() {
   const t = useTranslations();
@@ -62,6 +52,16 @@ export default function PricingClient() {
                 ? (t.pricing[copy.noteKey as keyof typeof t.pricing] as string)
                 : null;
               const free = plan.price_pence === null;
+              // What an annual buyer would be quoted while founder seats remain.
+              // The server decides the real amount; Stripe's page shows it again.
+              const founderQuote =
+                plan.billing_period === "year" &&
+                pricing.founder_price_pence != null &&
+                (pricing.founder_seats_remaining ?? 0) > 0
+                  ? pricing.founder_price_pence
+                  : null;
+              const sellable =
+                pricing.billing_enabled && (plan.billing_period === "month" || plan.billing_period === "year");
               return (
                 <Card key={plan.plan} className="flex flex-col">
                   <Card.Content className="flex flex-1 flex-col gap-3">
@@ -86,6 +86,13 @@ export default function PricingClient() {
                         <StartCheckLink className="inline-flex min-h-11 items-center text-sm font-semibold text-accent link-accent-hover hover:underline">
                           {t.pricing.freeCta}
                         </StartCheckLink>
+                      ) : sellable ? (
+                        <SubscribeButton
+                          plan={plan}
+                          planName={name}
+                          amountPence={founderQuote ?? plan.price_pence!}
+                          termsVersion={pricing.terms_version}
+                        />
                       ) : (
                         <Link
                           href="/contact"
@@ -101,9 +108,11 @@ export default function PricingClient() {
             })}
           </div>
         )}
-        {/* Nothing takes card payments yet, so say how a paid tier actually
-            starts rather than letting someone find out at a dead end. */}
-        <p className="mt-3 text-sm text-muted">{t.pricing.paidNote}</p>
+        {/* Only while nothing takes payments: say how a paid tier starts
+            rather than letting someone find out at a dead end. */}
+        {pricing !== null && !pricing.billing_enabled && (
+          <p className="mt-3 text-sm text-muted">{t.pricing.paidNote}</p>
+        )}
       </section>
 
       {/* In-hand pre-grading */}
@@ -201,13 +210,23 @@ export default function PricingClient() {
                 )}
               </li>
             )}
-            {pricing.founder_price_pence != null && pricing.founder_seats != null && (
-              <li>
-                {t.pricing.founder
-                  .replace("{seats}", String(pricing.founder_seats))
-                  .replace("{price}", money(pricing.founder_price_pence))}
-              </li>
-            )}
+            {pricing.founder_price_pence != null &&
+              pricing.founder_seats != null &&
+              pricing.founder_seats_remaining !== 0 && (
+                <li>
+                  {t.pricing.founder
+                    .replace("{seats}", String(pricing.founder_seats))
+                    .replace("{price}", money(pricing.founder_price_pence))}
+                  {pricing.billing_enabled && pricing.founder_seats_remaining != null && (
+                    <>
+                      {" "}
+                      {t.pricing.founderRemaining
+                        .replace("{remaining}", String(pricing.founder_seats_remaining))
+                        .replace("{seats}", String(pricing.founder_seats))}
+                    </>
+                  )}
+                </li>
+              )}
           </ul>
         </section>
       )}

@@ -34,6 +34,9 @@ from zgrader.models.subscription import LIVE_STATUSES, Subscription, Subscriptio
 #: here rather than trusted to the Dashboard: Stripe's "when retries run out"
 #: is a setting, and left at "leave it past due" an unbounded rule would grant
 #: access forever. The go-live checklist still sets it to cancel.
+#:
+#: A published promise: Refund Policy §9 quotes this number in both languages,
+#: and tests/test_billing_published_promises.py fails if they disagree.
 PAST_DUE_GRACE = datetime.timedelta(days=21)
 
 # Used only when the plan_entitlements row is missing entirely (an unseeded or

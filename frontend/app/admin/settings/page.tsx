@@ -362,6 +362,12 @@ function UserQuotaLookup({ token }: { token: string }) {
                 ? `${row.plan} — unlimited`
                 : `${row.plan} — ${row.remaining} of ${row.limit} left` +
                   (row.resets_at ? `, resets ${new Date(row.resets_at).toLocaleString(locale)}` : ", not started")}
+              {/* The subscriber-discount lookup for in-hand orders. English
+                  only, like the rest of the admin panel (backlog N1). */}
+              {row.subscription_status &&
+                ` · subscription ${row.subscription_status}` +
+                  (row.founder ? " (founder)" : "") +
+                  (row.cancel_at ? `, ends ${new Date(row.cancel_at).toLocaleDateString(locale)}` : "")}
             </div>
           </div>
 
