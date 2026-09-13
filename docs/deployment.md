@@ -415,6 +415,50 @@ how an operator ends up locked out with no way back except the database.
 Point `ZGRADER_SMTP_*` at a real relay before anyone else uses the site. To check it's working:
 register a throwaway account and confirm the verification mail arrives.
 
+## Taking payments
+
+Billing is off until both `ZGRADER_STRIPE_SECRET_KEY` and `ZGRADER_STRIPE_WEBHOOK_SECRET` are set;
+until then `/pricing` says "Get in touch" and every `/billing` route answers 404. Do the steps in
+this order, **in Stripe test mode first**, end to end, before any live key goes in.
+
+1. **The account.** Onboard as a Gibraltar business (registered entity, local address, Gibraltar
+   bank account). Get written answers on the cooling-off consent wording (the draft is in
+   `pricing.confirmImmediate` and Refund Policy §9) and on VAT for UK/EU consumers before live mode.
+2. **The maintenance Worker first.** Paste the current `infra/cloudflare/maintenance-worker.js` into
+   the Cloudflare dashboard and deploy it: its `BYPASS_PREFIXES` must include `/api/billing/webhook`
+   *before* any webhook exists, or the first maintenance window silently eats payment events.
+3. **Customer Portal** (Dashboard → Settings → Billing → Customer portal): cancellation **at end of
+   period**; plan switching **off**; payment-method update and invoice history **on**.
+4. **Retries and emails** (Settings → Billing → Subscriptions and emails): Smart Retries on;
+   *if all retries for a payment fail* → **cancel the subscription**; customer emails for
+   successful and failed payments on. The code bounds past-due access at 21 days regardless, but
+   leaving the subscription past due forever keeps billing someone who has no access.
+5. **Webhook endpoint** (Developers → Webhooks → Add endpoint): URL
+   `https://gemlab.app/api/billing/webhook`, events `checkout.session.completed`,
+   `checkout.session.expired`, `customer.subscription.created`, `customer.subscription.updated`,
+   `customer.subscription.deleted`. Copy its signing secret (`whsec_…`) into
+   `ZGRADER_STRIPE_WEBHOOK_SECRET` — not the API key.
+6. **Keys.** Set `ZGRADER_STRIPE_SECRET_KEY` in the Portainer stack env, redeploy, and check
+   `/pricing` shows **Subscribe**. A `sk_test_` key in production logs a warning at every boot.
+7. **Prove delivery.** From the Dashboard, send a test event to the endpoint; it must answer 200 and
+   a row must appear in `stripe_events`:
+   `docker exec zgrader-app-postgres-1 psql -U zgrader -c "SELECT event_id, type FROM stripe_events ORDER BY processed_at DESC LIMIT 5"`.
+8. **Prove the bypass (L2).** Attach the maintenance route, then
+   `curl -s -o /dev/null -w "%{http_code}\n" -X POST https://gemlab.app/api/billing/webhook` must print
+   **400** (the origin refusing an unsigned request), while
+   `curl -s -o /dev/null -w "%{http_code}\n" https://gemlab.app/` prints **503**. Detach the route.
+
+The webhook carries **no rate limit** by design (`UNLIMITED_BY_DESIGN` in
+`backend/tests/test_rate_limit_coverage.py`): it is authenticated per request by its signature, and
+Stripe sends every account's webhooks from one shared set of addresses, so any address-keyed limit
+could be exhausted by other Stripe accounts relaying forgeries. Cloudflare's edge rules are the
+flood control for that path.
+
+After an outage, press **Reconcile billing** in the admin panel (`POST /admin/billing/reconcile`)
+rather than waiting for the worker's daily pass; a redeploy also triggers one at worker boot.
+Refunds and disputes are handled in the Stripe Dashboard; a refund does not cancel a subscription
+by itself, so cancel it there too — the mirror follows either way.
+
 ## Still open
 
 Honest list of what this deployment does *not* have yet:
