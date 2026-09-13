@@ -9,6 +9,7 @@ payload: amounts come from our own rows on the way out and from a fresh read
 of Stripe on the way back.
 """
 
+import dataclasses
 import datetime
 import logging
 import uuid
@@ -504,3 +505,70 @@ def portal_url(db: Session, user: User) -> str:
         logger.exception("could not open a Stripe portal session")
         raise BillingRefused(503, "Billing is unavailable right now. Please try again shortly.") from exc
     return session["url"]
+
+
+@dataclasses.dataclass
+class ReconcileResult:
+    checked: int = 0
+    corrected: int = 0
+
+
+def _epoch(value: datetime.datetime | None) -> int | None:
+    return int(value.timestamp()) if value else None
+
+
+def _as_ended(row: Subscription, user: User) -> dict:
+    """What a vanished subscription looks like: our own record, ended.
+
+    Built from the row rather than blanks, so ending it keeps what it recorded
+    -- amount and period -- instead of erasing them.
+    """
+    return {
+        "id": row.stripe_subscription_id,
+        "status": "canceled",
+        "customer": user.stripe_customer_id,
+        "metadata": {"user_id": str(row.user_id), "plan": row.plan, "founder": "true" if row.founder else "false"},
+        "cancel_at": None,
+        "cancel_at_period_end": False,
+        "items": {
+            "data": [
+                {
+                    "price": {"unit_amount": row.amount_pence},
+                    "current_period_start": _epoch(row.current_period_start),
+                    "current_period_end": _epoch(row.current_period_end),
+                }
+            ]
+        },
+    }
+
+
+def reconcile(db: Session) -> ReconcileResult:
+    """Bring every mirrored subscription into line with Stripe. Commits."""
+    result = ReconcileResult()
+    if not config.billing_enabled:
+        return result
+
+    seen: set[str] = set()
+    for obj in billing_stripe.list_subscriptions():
+        seen.add(obj["id"])
+        result.checked += 1
+        if apply_subscription(db, obj, source="reconcile"):
+            result.corrected += 1
+
+    stale = (
+        db.query(Subscription)
+        .filter(Subscription.status.in_(LIVE_STATUSES), Subscription.stripe_subscription_id.notin_(seen or {""}))
+        .all()
+    )
+    for row in stale:
+        result.checked += 1
+        current = billing_stripe.retrieve_subscription(row.stripe_subscription_id)
+        obj = current if current is not None else _as_ended(row, row.user)
+        if apply_subscription(db, obj, source="reconcile"):
+            result.corrected += 1
+
+    db.query(CheckoutAttempt).filter(
+        CheckoutAttempt.state == ATTEMPT_OPEN, CheckoutAttempt.expires_at <= _now()
+    ).update({CheckoutAttempt.state: ATTEMPT_EXPIRED}, synchronize_session=False)
+    db.commit()
+    return result

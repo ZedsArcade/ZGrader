@@ -1,11 +1,12 @@
 import datetime
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from zgrader import entitlements, images
+from zgrader import billing, entitlements, images
 from zgrader.api.deps import require_operator
 from zgrader.api.ratelimit import rate_limit
 from zgrader.config import config
@@ -42,6 +43,9 @@ from zgrader.schemas.admin import (
     UserQuotaOut,
     UserQuotaUpdate,
 )
+from zgrader.schemas.billing import ReconcileOut
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -599,3 +603,21 @@ def send_test_email_endpoint(
             "(587 wants STARTTLS, 465 wants implicit TLS)."
         )
     return TestEmailResponse(sent=sent, detail=detail)
+
+
+# Each press is a full pass over Stripe, so tighter than an ordinary write.
+_admin_reconcile_limit = rate_limit("admin_billing_reconcile", limit=5, window_seconds=900)
+
+
+@router.post("/billing/reconcile", response_model=ReconcileOut, dependencies=[Depends(_admin_reconcile_limit)])
+def reconcile_billing(_operator: User = Depends(require_operator), db: Session = Depends(get_db)) -> ReconcileOut:
+    """Compare every subscription with Stripe now, rather than waiting for the
+    worker's daily pass -- the thing to press after an outage."""
+    if not config.billing_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Billing is not enabled")
+    try:
+        result = billing.reconcile(db)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("admin reconcile failed")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Stripe could not be reached.") from exc
+    return ReconcileOut(checked=result.checked, corrected=result.corrected)

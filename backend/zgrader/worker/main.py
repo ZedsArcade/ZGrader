@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from zgrader import billing
 from zgrader.config import config
 from zgrader.cpu import pin_analysis_threads
 from zgrader.db import SessionLocal
@@ -87,6 +88,12 @@ def _poll_pending_submissions() -> None:
 #: would be a pointless DELETE against a table nobody is writing to.
 _RETENTION_SWEEP_INTERVAL_SECONDS = 3600.0
 
+#: A full pass over Stripe once a day, plus one at every boot -- which means a
+#: redeploy after an outage catches up on whatever Stripe stopped retrying.
+_BILLING_RECONCILE_INTERVAL_SECONDS = 24 * 3600.0
+#: After a failed pass (Stripe unreachable), try again sooner than a day.
+_BILLING_RECONCILE_RETRY_SECONDS = 3600.0
+
 
 def purge_expired_contact_messages(db: Session) -> int:
     """Delete contact enquiries past the configured retention window.
@@ -127,6 +134,24 @@ def _sweep_retention() -> None:
         db.close()
 
 
+def _reconcile_billing() -> bool:
+    """Returns whether the pass completed. Never raises: this loop also runs
+    scan analysis, and a Stripe outage must not stop or crash that."""
+    if not config.billing_enabled:
+        return True
+    db = SessionLocal()
+    try:
+        result = billing.reconcile(db)
+        log = logger.warning if result.corrected else logger.info
+        log("billing reconcile: checked %d, corrected %d", result.checked, result.corrected)
+        return True
+    except Exception:  # noqa: BLE001
+        logger.exception("billing reconcile failed; retrying in an hour")
+        return False
+    finally:
+        db.close()
+
+
 def run_forever() -> None:
     # This process runs one analysis at a time, so it needs no semaphore -- but
     # it does need the same per-analysis thread limit as the API, or its single
@@ -154,6 +179,8 @@ def run_forever() -> None:
     # a container that restarts more often than the interval would otherwise
     # never purge anything at all.
     last_sweep = 0.0
+    # Starts at 0 for the same reason as last_sweep: the first pass at boot.
+    last_reconcile = 0.0
     try:
         while True:
             for code in handler.pop_ready_codes():
@@ -167,6 +194,12 @@ def run_forever() -> None:
             if now - last_sweep >= _RETENTION_SWEEP_INTERVAL_SECONDS:
                 _sweep_retention()
                 last_sweep = now
+
+            if now - last_reconcile >= _BILLING_RECONCILE_INTERVAL_SECONDS:
+                ok = _reconcile_billing()
+                last_reconcile = (
+                    now if ok else now - _BILLING_RECONCILE_INTERVAL_SECONDS + _BILLING_RECONCILE_RETRY_SECONDS
+                )
 
             time.sleep(1)
     except KeyboardInterrupt:
