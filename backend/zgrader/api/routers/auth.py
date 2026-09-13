@@ -1,3 +1,4 @@
+import logging
 import uuid
 from urllib.parse import urlencode
 
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from zgrader.api.deps import get_current_user
 from zgrader.auth import google as google_oauth
+from zgrader import billing_stripe
 from zgrader.config import config
 from zgrader.api.ratelimit import (
     google_link_rate_limit,
@@ -53,6 +55,8 @@ from zgrader.schemas.auth import (
     UpdateProfileRequest,
     UserOut,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -374,6 +378,25 @@ def delete_account(
             status.HTTP_403_FORBIDDEN,
             "Operator accounts can't be deleted from here.",
         )
+
+    # Stop the billing before removing the account. Deleting the Stripe
+    # customer cancels its subscriptions immediately. If that cannot happen --
+    # Stripe unreachable, or billing switched off since this person
+    # subscribed -- refuse outright: an account deleted while its card is
+    # still being charged is the one outcome here nobody can fix afterwards.
+    if user.stripe_customer_id:
+        refused = HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "We couldn't cancel your subscription with our payment provider, so nothing has been "
+            "deleted. Please try again in a few minutes.",
+        )
+        if not config.billing_enabled:
+            raise refused
+        try:
+            billing_stripe.delete_customer(user.stripe_customer_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("could not delete Stripe customer during account deletion")
+            raise refused from exc
 
     codes = [s.submission_code for s in user.submissions]
 
