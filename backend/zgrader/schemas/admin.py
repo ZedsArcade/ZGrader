@@ -56,6 +56,11 @@ class UserQuotaOut(BaseModel):
     used: int
     remaining: int | None
     resets_at: datetime.datetime | None
+    # The subscription the operator needs to see -- e.g. to apply the
+    # subscriber discount on an in-hand order by hand. Never card data.
+    subscription_status: str | None = None
+    founder: bool = False
+    cancel_at: datetime.datetime | None = None
 
 
 class UserQuotaUpdate(BaseModel):

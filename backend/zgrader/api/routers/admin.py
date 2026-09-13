@@ -231,6 +231,7 @@ def delete_brand_logo(slug: str, _operator: User = Depends(require_operator)) ->
 
 def _quota_out(db: Session, user: User) -> UserQuotaOut:
     quota = entitlements.get_quota(db, user)
+    sub = billing.current_subscription(db, user)
     return UserQuotaOut(
         user_id=user.id,
         email=user.email,
@@ -240,6 +241,9 @@ def _quota_out(db: Session, user: User) -> UserQuotaOut:
         used=quota.used,
         remaining=quota.remaining,
         resets_at=quota.resets_at,
+        subscription_status=sub.status if sub else None,
+        founder=bool(sub and sub.founder),
+        cancel_at=sub.cancel_at if sub else None,
     )
 
 
