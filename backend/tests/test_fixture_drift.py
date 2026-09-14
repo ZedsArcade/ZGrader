@@ -18,6 +18,7 @@ import json
 import sys
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -26,11 +27,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from fixture_drift import (  # noqa: E402
     BASELINE_PATH,
     TOLERANCE,
+    crop_like_a_customer,
     diff,
     measure_all_synthetic,
 )
 
 from tests.fixtures.generate_samples import build_fixture, fixture_names  # noqa: E402
+from zgrader.analysis.fixture_metrics import measure_image  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -89,3 +92,20 @@ def test_tolerance_is_tight_enough_to_be_useful():
     0.002 on a 0-10 score is a hundredth of the smallest change worth
     shipping."""
     assert TOLERANCE <= 0.01
+
+
+def test_the_harness_can_measure_the_cropped_path():
+    """Production always passes a crop, and the harness used to measure real
+    photographs only without one -- so a bug confined to the cropped path,
+    like the crop-offset sign that displaced every cropped mask, was invisible
+    to the one tool meant to catch analysis regressions. Padded so the crop
+    origin is not (0, 0); see test_geometry for why that matters."""
+    image = cv2.copyMakeBorder(
+        build_fixture("pokemon_back"), 400, 0, 300, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0)
+    )
+    crop = crop_like_a_customer(image)
+    assert crop.shape == (4, 2)
+
+    metrics = measure_image(image, 63.0, 88.0, roi_quad=crop)
+    assert metrics["geometry.fitted"] == 1.0
+    assert "corners.raw_score" in metrics

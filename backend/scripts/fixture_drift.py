@@ -32,12 +32,14 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 import cv2  # noqa: E402
+import numpy as np  # noqa: E402
 
 from tests.fixtures.generate_samples import (  # noqa: E402
     build_fixture,
     card_size_mm,
     fixture_names,
 )
+from zgrader.analysis import preprocessing  # noqa: E402
 from zgrader.analysis.fixture_metrics import measure_image  # noqa: E402
 
 BASELINE_PATH = BACKEND_ROOT / "tests" / "fixtures" / "drift_baseline.json"
@@ -61,8 +63,19 @@ def measure_all_synthetic() -> dict[str, dict[str, float]]:
     return results
 
 
-def measure_real_scans() -> dict[str, dict[str, float]]:
-    """Measure any real photographs that have been dropped in.
+def crop_like_a_customer(image: np.ndarray) -> np.ndarray:
+    """The four points a customer's crop would carry: the card's own corners
+    from an uncropped run -- fitted apexes when the fit held, the coarse quad
+    when it fell back. rectify records either as `apexes`."""
+    rectified = preprocessing.rectify(image, *_DEFAULT_CARD_MM)
+    return np.array(rectified.geometry["apexes"], dtype=np.float64)
+
+
+def measure_real_scans() -> dict[str, dict[str, dict[str, float]]]:
+    """Measure any real photographs that have been dropped in, both without a
+    crop and with one -- production always passes a crop, and a bug confined to
+    that path was once invisible here because only the uncropped path was
+    measured.
 
     Returns empty when the directory is absent or empty, which is the normal
     state for a fresh clone without git-LFS content pulled -- this must never
@@ -79,7 +92,12 @@ def measure_real_scans() -> dict[str, dict[str, float]]:
             print(f"  ! could not read {path.name}", file=sys.stderr)
             continue
         try:
-            results[path.stem] = measure_image(image, *_DEFAULT_CARD_MM)
+            results[path.stem] = {
+                "uncropped": measure_image(image, *_DEFAULT_CARD_MM),
+                "cropped": measure_image(
+                    image, *_DEFAULT_CARD_MM, roi_quad=crop_like_a_customer(image)
+                ),
+            }
         except Exception as exc:  # noqa: BLE001 -- one bad photo must not stop the run
             print(f"  ! {path.name}: {type(exc).__name__}: {exc}", file=sys.stderr)
     return results
@@ -145,23 +163,28 @@ def main() -> int:
     real = measure_real_scans()
     if real:
         print(f"\nreal photographs measured (not baselined): {len(real)}")
-        for name, metrics in real.items():
-            # "--" where a category declined to score. The first real card that
-            # produced an unmeasurable centering crashed this line with a
-            # KeyError, because it assumed every category always yields a
-            # number -- which is exactly the assumption the nullable score was
-            # introduced to remove, still living in the reporting.
-            def _score(key: str) -> str:
-                value = metrics.get(key)
-                return f"{value:5.2f}" if value is not None else "   --"
+        for name, paths in real.items():
+            for label, metrics in paths.items():
+                # "--" where a category declined to score. The first real card that
+                # produced an unmeasurable centering crashed this line with a
+                # KeyError, because it assumed every category always yields a
+                # number -- which is exactly the assumption the nullable score was
+                # introduced to remove, still living in the reporting.
+                def _score(key: str) -> str:
+                    value = metrics.get(key)
+                    return f"{value:5.2f}" if value is not None else "   --"
 
-            print(
-                f"  {name:28} cen {_score('centering.raw_score')}"
-                f"  cor {_score('corners.raw_score')}"
-                f"  edg {_score('edges.raw_score')}"
-                f"  sur {_score('surface.raw_score')}"
-                f"  ({metrics['px_per_mm']:.1f} px/mm)"
-            )
+                tag = name if label == "uncropped" else "  (cropped)"
+                print(
+                    f"  {tag:28} cen {_score('centering.raw_score')}"
+                    f"  cor {_score('corners.raw_score')}"
+                    f"  edg {_score('edges.raw_score')}"
+                    f"  sur {_score('surface.raw_score')}"
+                    f"  ({metrics['px_per_mm']:.1f} px/mm)"
+                )
+        for label in ("uncropped", "cropped"):
+            scored = sum("corners.raw_score" in paths[label] for paths in real.values())
+            print(f"  corners scored, {label}: {scored}/{len(real)}")
 
     if not changes:
         print(f"\nno drift across {len(current)} fixtures.")

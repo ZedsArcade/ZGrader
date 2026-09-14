@@ -24,17 +24,26 @@ def _round(value: float) -> float:
     return round(float(value), PRECISION)
 
 
-def measure_image(image: np.ndarray, width_mm: float, height_mm: float) -> dict[str, float]:
+def measure_image(
+    image: np.ndarray,
+    width_mm: float,
+    height_mm: float,
+    roi_quad: np.ndarray | None = None,
+) -> dict[str, float]:
     """Every number the four analysers produce for one card, flattened.
 
     Flat rather than nested so a diff can name exactly what moved --
     "corners.per_corner.top_left.whitening_score" is a useful failure message;
     "corners changed" is not.
+
+    `roi_quad` is a customer's crop. Synthetic fixtures are measured without
+    one, because their crop origin clips to (0, 0) and a cropped pass would
+    prove nothing; real photographs are measured both ways, because the
+    cropped path is the one that ships.
     """
     # The same entry point the pipeline uses, so the harness measures what
-    # ships. No roi_quad: a fixture has no customer crop, and passing one would
-    # test the hint path rather than detection.
-    rectified = preprocessing.rectify(image, width_mm, height_mm)
+    # ships.
+    rectified = preprocessing.rectify(image, width_mm, height_mm, roi_quad=roi_quad)
     card = rectified.image
     px_per_mm = rectified.px_per_mm
 
