@@ -184,6 +184,103 @@ def _edge_inset_px(mask_crop: np.ndarray, px_per_mm: float) -> tuple[int, int]:
     return rows_inset, cols_inset
 
 
+# --- Whether a corner's mask can be believed ---------------------------------
+#
+# The mask is a filled threshold contour; the lines the raster is built from
+# are RANSAC fits over the same contour, which reject outliers where the mask
+# cannot. So glare, or a pale border against a pale backdrop, can break the
+# mask while leaving the lines exactly right -- measured on 9 of 36 real
+# photographs whose fit held. Each corner is therefore checked against its own
+# fitted lines, in its own window, before its material loss is believed.
+#
+# The whole-raster check this replaces (1% of the raster missing) was wrong in
+# both directions: it passed a 7.72mm2 bite out of an intact corner, because
+# 0.21% of a whole card is small, and it failed cards whose hole was nowhere
+# near a corner.
+#
+# REASONED, all four, and measured rather than picked. Across the real
+# photographs the photo-level outcome is identical for straight-section
+# thresholds 0.05-0.20 and visibility thresholds 0.05-0.10 -- a plateau, not a
+# knife edge. They are still calibrated on 46 photographs of about ten cards.
+#
+# What this cannot do: a compact, rounded artefact -- a 2-3mm shadow over an
+# intact corner -- is exactly the shape of real wear and passes. It catches
+# artefacts that run along the straight edge, which is what every failure in
+# the real set did. "Gated" is not "correct".
+
+#: How far inside the fitted line the mask's boundary may sit, as a median over
+#: a corner's straight sections, before the mask is describing something other
+#: than the card's cut.
+CORNER_MAX_EDGE_INSET_MM = 0.3
+
+#: A straight-section line whose material starts this much deeper than the
+#: section's median is deviating...
+CORNER_STRAIGHT_DEVIATION_MM = 0.3
+
+#: ...and more than this fraction of deviating lines is a bite along the edge.
+#: A median alone cannot see a bite that covers under half the section.
+CORNER_MAX_STRAIGHT_DEVIATION_FRACTION = 0.10
+
+#: Fraction of missing pixels allowed to be unreachable from the cut along
+#: their row or their column. Real corner loss is reachable from the cut;
+#: misclassification speckle is not.
+CORNER_MAX_VISIBILITY_VIOLATION = 0.05
+
+#: Below this many missing pixels there is no shape to judge.
+_MIN_VISIBILITY_PIXELS = 20
+
+
+def _first_material_depths(lines: np.ndarray) -> np.ndarray:
+    """Per line, the index of the first card pixel.
+
+    A line with no material at all reports the full line length -- the deepest
+    deviation possible -- rather than being dropped as _edge_inset_px drops it.
+    That is right for a calibration and wrong here.
+    """
+    present = lines.any(axis=1)
+    return np.where(present, np.argmax(lines, axis=1), lines.shape[1])
+
+
+def _corner_readable(
+    mask_crop: np.ndarray, px_per_mm: float, excess_mm2: float | None
+) -> str | None:
+    """None when this corner's mask can be believed, otherwise why not.
+
+    `mask_crop` is oriented like every corner crop: the ideal apex at [0, 0],
+    non-zero where there is card. The straight sections are the parts of both
+    edges beyond _STRAIGHT_EDGE_START_MM, where the card's boundary must lie on
+    the fitted line.
+    """
+    size = mask_crop.shape[0]
+    card = mask_crop != 0
+    start = min(size - 1, int(round(_STRAIGHT_EDGE_START_MM * px_per_mm)))
+    rows = _first_material_depths(card[start:, :])
+    cols = _first_material_depths(card[:, start:].T)
+    median_rows, median_cols = float(np.median(rows)), float(np.median(cols))
+
+    if max(median_rows, median_cols) / px_per_mm > CORNER_MAX_EDGE_INSET_MM:
+        return "inset"
+
+    tolerance = CORNER_STRAIGHT_DEVIATION_MM * px_per_mm
+    deviating = max(
+        float(np.mean(rows > median_rows + tolerance)),
+        float(np.mean(cols > median_cols + tolerance)),
+    )
+    if deviating > CORNER_MAX_STRAIGHT_DEVIATION_FRACTION:
+        return "straight"
+
+    if excess_mm2 is not None and excess_mm2 > 0:
+        missing = ~card
+        total = int(missing.sum())
+        if total > _MIN_VISIBILITY_PIXELS:
+            visible = np.cumprod(missing, axis=1).astype(bool) | np.cumprod(
+                missing, axis=0
+            ).astype(bool)
+            if (missing & ~visible).sum() / total > CORNER_MAX_VISIBILITY_VIOLATION:
+                return "visibility"
+    return None
+
+
 def _material_loss(mask_crop: np.ndarray, px_per_mm: float) -> dict:
     """How much of the ideal corner is not card, and how blunt the tip is.
 

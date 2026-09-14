@@ -15,6 +15,7 @@ asserts the property that makes the reversal safe.
 import tempfile
 
 import cv2
+import numpy as np
 import pytest
 
 from tests.fixtures.generate_samples import build_fixture, card_size_mm, make_card_scan
@@ -200,6 +201,66 @@ def test_backing_is_excluded_from_the_tip_colour_sample():
     assert with_mask > without, (
         "excluding the backing should stop it dragging the tip's lightness down"
     )
+
+
+# --- Whether a corner's mask can be believed --------------------------------
+#
+# Hand-built masks rather than fixtures: each one isolates exactly one way a
+# mask can disagree with the card's fitted lines. 20 px/mm over a 5mm window.
+
+_PPM = 20.0
+_SIZE = 100
+
+
+def _rounded_corner(radius_mm: float = 1.5) -> np.ndarray:
+    """A clean factory corner, oriented like every corner crop (apex at [0, 0])."""
+    mask = np.full((_SIZE, _SIZE), 255, np.uint8)
+    r = int(round(radius_mm * _PPM))
+    yy, xx = np.mgrid[0:r, 0:r]
+    mask[:r, :r][np.hypot(r - yy, r - xx) > r] = 0
+    return mask
+
+
+def test_a_clean_rounded_corner_is_readable():
+    assert corners._corner_readable(_rounded_corner(), _PPM, 0.0) is None
+    # Loss that is visible from the cut is what real wear looks like.
+    assert corners._corner_readable(_rounded_corner(), _PPM, 0.5) is None
+
+
+def test_a_bite_along_the_straight_edge_is_not_believed():
+    """The failure behind 13_FrontSideAngle: the contour cut into an intact,
+    cleanly rounded corner along its edge, and 7.72mm2 of "loss" zeroed it. A
+    median of the edge inset cannot see a bite covering under half the section,
+    which is why the fraction of deviating lines is checked separately."""
+    mask = _rounded_corner()
+    mask[70:82, :12] = 0  # 30% of the straight section, 0.6mm deep
+    assert corners._corner_readable(mask, _PPM, 1.0) == "straight"
+
+
+def test_a_line_with_no_material_counts_as_deviating():
+    """_edge_inset_px drops a line with no material, which is right for a
+    calibration and wrong here: an empty line is the most extreme deviation
+    there is, not one to ignore."""
+    mask = _rounded_corner()
+    mask[70:76, :] = 0  # 15% of the straight section, no material at all
+    assert corners._corner_readable(mask, _PPM, 1.0) == "straight"
+
+
+def test_a_mask_sitting_inside_the_fitted_lines_is_not_believed():
+    mask = _rounded_corner()
+    mask[:, :10] = 0
+    mask[:10, :] = 0  # 0.5mm inside both lines
+    assert corners._corner_readable(mask, _PPM, 1.0) == "inset"
+
+
+def test_loss_that_cannot_see_the_cut_is_not_believed_when_it_is_scored():
+    """Real corner loss is reachable from the cut along a row or a column;
+    misclassified speckle inside the card is not. Checked only when there is
+    excess to score -- speckle that costs nothing need not decline anything."""
+    mask = _rounded_corner()
+    mask[40:51, 40:51] = 0
+    assert corners._corner_readable(mask, _PPM, 0.5) == "visibility"
+    assert corners._corner_readable(mask, _PPM, 0.0) is None
 
 
 # --- Aggregation -----------------------------------------------------------
