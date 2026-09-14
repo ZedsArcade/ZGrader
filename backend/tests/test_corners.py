@@ -383,3 +383,31 @@ def test_a_shadowed_corner_is_declined_not_scored_as_damage():
     assert bottom_left["excess_area_mm2"] > 1.0, "fixture no longer invents loss at the corner"
     assert bottom_left["boundary_check"] is not None
     assert result["raw_score"] is None
+
+
+def test_loss_reaching_along_the_edge_declines_rather_than_scoring():
+    """A known limit, pinned so it stays a decision rather than an accident.
+
+    The straight-section check cannot tell a chip long enough to reach past
+    the straight-section start from a contour bite of the same shape -- the
+    shadowed-corner fixture is exactly such a shape. So a square chip that
+    stays inside the factory-rounding zone is scored, and one that runs along
+    the edge declines. If a signal ever separates a real cut from an artefact,
+    this is the test that should change.
+    """
+    card = _rectified()
+    ppm = card.px_per_mm
+
+    def _chipped(side_mm: float) -> dict:
+        mask = card.mask.copy()
+        side = int(round(side_mm * ppm))
+        mask[:side, :side] = 0
+        return corners.measure_corners(card.image, px_per_mm=ppm, mask=mask)
+
+    small = _chipped(2.5)
+    assert small["measurements"]["per_corner"]["top_left"]["boundary_check"] is None
+    assert small["raw_score"] is not None
+
+    large = _chipped(3.5)
+    assert large["measurements"]["per_corner"]["top_left"]["boundary_check"] == "straight"
+    assert large["raw_score"] is None

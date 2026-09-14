@@ -161,7 +161,7 @@ export const en = {
       // Leads with retaking the photo, not re-cropping: a crop does not repair
       // these outlines (measured -- cropped and uncropped agreed on 34 of 35).
       corners_boundary_unreadable:
-        "The card's outline couldn't be traced reliably at a corner — glare, a finger, or a background too close in colour to the border — so corners weren't scored. A photo on a plain, contrasting surface without glare on the corners would let them be measured.",
+        "The card's outline couldn't be traced reliably at a corner in this photo — glare, a finger, a background too close in colour to the border, or a chip large enough to run along the edge — so this photo's corners weren't scored. A photo on a plain, contrasting surface without glare on the corners would let them be measured.",
       centering_no_frame:
         "No clear printed border to measure against — normal on full-art cards.",
       centering_partial_frame:

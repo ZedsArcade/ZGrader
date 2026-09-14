@@ -342,3 +342,8 @@ recorded in §7 rather than tuned away.
   tell them apart. C′ catches artefacts that run along the straight edge, which is what every failure in
   the real set did. It is not a general guarantee. AGENTS.md records this beside the gate, so nobody reads
   "gated" as "correct".
+- **Real corner loss that runs along the edge is declined, not scored.** Found in the final review: the
+  straight-section rule declines square chips of 3.25mm and larger, which contradicts "real damage must never be gated
+  away" above that size. Kept because a mask-shape rule cannot separate such a chip from a same-shaped artefact (the
+  shadow fixture), and relaxing it re-admits the invented losses this work removes. The copy names the possibility;
+  AGENTS.md records the limit; a test pins it. An open product decision, not a settled one.

@@ -248,20 +248,27 @@ def _corner_readable(
 
 
 def _boundary_flag(unreadable: list[str]) -> dict:
-    where = (
-        "at the "
-        + ", ".join(name.replace("_", " ") for name in unreadable)
-        + (" corners" if len(unreadable) > 1 else " corner")
-        if unreadable
-        else "at the corners"
-    )
+    if not unreadable:
+        # No mask or no scale: nothing to trace an outline against at all, which
+        # is not the photo's fault in the way glare or a finger is.
+        return {
+            "lower_confidence": True,
+            "reason": (
+                "There was no card outline to measure the corners against for this photo, "
+                "so its corners were not scored."
+            ),
+        }
+    names = [name.replace("_", " ") for name in unreadable]
+    where = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    noun = "corner" if len(names) == 1 else "corners"
     return {
         "lower_confidence": True,
         "reason": (
-            f"The card's outline could not be traced reliably {where} in this photo -- "
-            "usually glare on the corner, a finger over it, or a background close in "
-            "colour to the card's border -- so corners were not scored rather than "
-            "scored against the wrong outline."
+            f"The card's outline could not be traced reliably at the {where} {noun} in this "
+            "photo -- usually glare on the corner, a finger over it, or a background close in "
+            "colour to the card's border, though a chip large enough to run along the edge "
+            "looks the same -- so this photo's corners were not scored rather than scored "
+            "against the wrong outline."
         ),
     }
 

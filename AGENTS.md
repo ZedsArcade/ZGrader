@@ -522,8 +522,8 @@ Read in this order; each module depends on the one above it.
 | `border.py` | Where the printed border ends. Shared by edges (to place its reference) and centering (because it *is* the measurement). Extracted precisely so the two cannot drift apart. |
 | `capture.py` | Sharpness, resolution, clipping, illumination uniformity. **Only `px_per_mm` gates anything** — the other three track what is *printed* on the card as strongly as how it was photographed, so no absolute threshold works. |
 | `assessment.py` | The output contract: `measured`/`unmeasurable`, confidence, interval, limitation **codes**. `EXTERNAL_LIMITATION_FACTORS` is the hook for anything established once per card rather than per category (geometry provenance, foil). |
-| `corners.py` | Material loss (mm² beyond the factory rounding) and whitening per corner, and whether each corner's mask can be believed at all (`_corner_readable`). One unreadable corner declines the category; there is no whitening-only fallback. |
 | `scoring.py` | Every measurement→score mapping, each tagged DERIVED / REASONED / ARBITRARY. **Every consumer must route through it** — `recompute.py` is the one that keeps forgetting, twice now. |
+| `corners.py` | Material loss (mm² beyond the factory rounding) and whitening per corner, and whether each corner's mask can be believed at all (`_corner_readable`). One unreadable corner declines the category; there is no whitening-only fallback. |
 
 Two structural rules that keep being re-learned: a category that cannot measure something returns
 `raw_score = None` rather than a low score, and `build_regions` plus `_annotate_category` both key
@@ -807,6 +807,16 @@ it, so the next attempt starts from where the last one stopped.
 - **Two corner declines are borderline and accepted.** 4_FrontSlightLight top-right and 7_FrontView
   top-right carry only 0.25 and 0.12mm² of excess with no visible damage; the visibility rule fires on
   small speckle there. Relaxing it needs a new constant, and six failures are too few to fit one.
+- **Corner loss that runs along the edge declines rather than scoring.** `corners._corner_readable`'s straight-section
+  rule cannot tell a chip long enough to reach past `_STRAIGHT_EDGE_START_MM` (3mm) along an edge from a contour bite
+  of the same shape — `capture_shadowed_corner` is exactly such a shape, and so was 13_FrontSideAngle's. Measured in
+  the final review of this work: square chips up to 3.0mm score, 3.25mm and larger decline. So the most heavily
+  chipped cards get no corners score at all, and `rules_engine` then raises no corners flag for them — a quiet
+  outcome for exactly the cards that matter most. The copy names a chip as a possible cause rather than blaming the
+  photo alone, because retaking cannot help. The obvious exemption — loss contiguous with the apex and shrinking away
+  from it — also exempts the shadow fixture and the real bite, so it is not the fix. A fix needs a signal that
+  separates a real cut from an artefact. `test_loss_reaching_along_the_edge_declines_rather_than_scoring` pins the
+  current limit.
 
 ## Known-open, deliberately
 
