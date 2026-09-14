@@ -361,3 +361,25 @@ def test_a_capture_too_small_to_measure_still_declines_to_score():
     result = corners.measure_corners(card.image, px_per_mm=7.0, mask=card.mask)
     assert result["raw_score"] is None
     assert result["measurements"]["assessment"]["state"] == assessment.UNMEASURABLE
+
+
+def test_a_shadowed_corner_is_declined_not_scored_as_damage():
+    """The regression the drift baseline could not otherwise hold -- every
+    other synthetic fixture fits its mask cleanly.
+
+    A soft shadow darkens an intact bottom-left corner until its border falls
+    below the threshold separating card from backing: the mechanism behind
+    13_FrontSideAngle, where a border indistinguishable from the backdrop let
+    the contour bite 7.72mm2 out of a corner that was not damaged. The old
+    whole-raster gate passed this card and scored the bite as lost material.
+    """
+    name = "capture_shadowed_corner"
+    card = preprocessing.rectify(build_fixture(name), *card_size_mm(name))
+    assert float(np.mean(card.mask == 0)) < 0.01, "fixture no longer passes the old global gate"
+
+    result = corners.measure_corners(card.image, px_per_mm=card.px_per_mm, mask=card.mask)
+    bottom_left = result["measurements"]["per_corner"]["bottom_left"]
+
+    assert bottom_left["excess_area_mm2"] > 1.0, "fixture no longer invents loss at the corner"
+    assert bottom_left["boundary_check"] is not None
+    assert result["raw_score"] is None
