@@ -21,13 +21,22 @@ def _deskewed(**kwargs):
     return card_image
 
 
+def _measured_corners(**kwargs):
+    """Corners through rectify, as the pipeline does -- it needs the card mask,
+    and without one it declines and draws nothing."""
+    rectified = preprocessing.rectify(make_card_scan(63.0, 88.0, **kwargs), 63.0, 88.0)
+    result = corners.measure_corners(
+        rectified.image, px_per_mm=rectified.px_per_mm, mask=rectified.mask
+    )
+    return rectified.image, result
+
+
 def _regions_for(category, card_image, result, extra, language="en"):
     return regions.build_regions(category, card_image.shape[:2], _PX_PER_MM, language, result, extra)
 
 
 def test_pristine_corners_are_all_ok_with_no_notes():
-    card = _deskewed()
-    result = corners.measure_corners(card)
+    card, result = _measured_corners()
     region_list = _regions_for(AnalysisCategory.corners, card, result, None)
 
     assert {r["id"] for r in region_list} == {"top_left", "top_right", "bottom_left", "bottom_right"}
@@ -41,8 +50,7 @@ def test_pristine_corners_are_all_ok_with_no_notes():
 
 
 def test_whitened_corner_produces_flag_with_note():
-    card = _deskewed(whiten_top_left_corner=True)
-    result = corners.measure_corners(card)
+    card, result = _measured_corners(whiten_top_left_corner=True)
     region_list = _regions_for(AnalysisCategory.corners, card, result, None)
 
     top_left = next(r for r in region_list if r["id"] == "top_left")
@@ -55,8 +63,7 @@ def test_whitened_corner_produces_flag_with_note():
 
 
 def test_whitened_corner_note_is_localized_for_spanish():
-    card = _deskewed(whiten_top_left_corner=True)
-    result = corners.measure_corners(card)
+    card, result = _measured_corners(whiten_top_left_corner=True)
     region_list = _regions_for(AnalysisCategory.corners, card, result, None, language="es")
 
     top_left = next(r for r in region_list if r["id"] == "top_left")

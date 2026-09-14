@@ -15,14 +15,21 @@ from zgrader.analysis import assessment, centering, corners, edges, preprocessin
 
 
 def _analyse(name: str) -> dict:
-    """Every category's assessment block for one catalogue fixture."""
+    """Every category's assessment block for one catalogue fixture.
+
+    Corners goes through rectify, as the pipeline does: it needs the card mask,
+    and without one it declines rather than scoring on whitening alone.
+    """
     image = build_fixture(name)
     card, _info = preprocessing.locate_and_deskew(image)
     px_per_mm = scale.px_per_mm(card.shape[:2], *card_size_mm(name))
+    rectified = preprocessing.rectify(image, *card_size_mm(name))
     surface_result, _mask = surface.measure_surface(card, px_per_mm=px_per_mm)
     return {
         "centering": centering.measure_centering(card, px_per_mm)["measurements"]["assessment"],
-        "corners": corners.measure_corners(card)["measurements"]["assessment"],
+        "corners": corners.measure_corners(
+            rectified.image, px_per_mm=rectified.px_per_mm, mask=rectified.mask
+        )["measurements"]["assessment"],
         "edges": edges.measure_edges(card)["measurements"]["assessment"],
         "surface": surface_result["measurements"]["assessment"],
     }
@@ -64,9 +71,12 @@ def test_surface_always_admits_the_lighting_limitation():
     assert block["confidence"] == assessment.CONFIDENCE_SURFACE
 
 
-def test_corners_always_admit_that_material_loss_is_not_measured():
+def test_corners_on_the_shipped_path_measure_material():
+    """The caveat this replaced was true of a code path that no longer scores:
+    corners without a mask now declines rather than reporting whitening alone."""
     block = _analyse("pokemon_back")["corners"]
-    assert assessment.CORNERS_WHITENING_ONLY in block["limitations"]
+    assert block["state"] == assessment.MEASURED
+    assert assessment.CORNERS_WHITENING_ONLY not in block["limitations"]
 
 
 def test_a_white_border_lowers_corner_confidence():

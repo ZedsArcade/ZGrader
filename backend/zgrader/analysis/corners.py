@@ -71,16 +71,6 @@ _TIP_FRACTION = 0.25
 _REFERENCE_START = 0.6
 _REFERENCE_WIDTH = 0.15
 
-CORNERS_WHITENING_ONLY_FLAG = {
-    "lower_confidence": True,
-    "reason": (
-        "The card's boundary could not be established for this scan, so corner "
-        "material loss was not measured. Corners were assessed for "
-        "discolouration only, which means a corner worn blunt but not "
-        "discoloured will not be penalised here."
-    ),
-}
-
 
 def _window_px(card_image: np.ndarray, px_per_mm: float | None) -> int:
     """Corner window size in pixels.
@@ -111,30 +101,6 @@ def corner_crops(
         "bottom_left": np.flipud(card_image[h - size : h, 0:size]),
         "bottom_right": np.flipud(np.fliplr(card_image[h - size : h, w - size : w])),
     }
-
-
-#: Fraction of the canonical raster that may be missing from the card mask
-#: before the mask is judged not to describe a card at all.
-#:
-#: The raster *is* the card's ideal rectangle, so a sound mask fills essentially
-#: all of it. Measured across 29 real photographs the separation is stark:
-#: every trustworthy corner reading came from a mask 99.85-99.89% filled, while
-#: the unreliable ones were missing 2% to 56%. Those were not cards with
-#: material missing -- they were photographs where thresholding caught the desk,
-#: a shadow or a glare bloom, and corners then measured 24mm^2 of "loss" against
-#: a boundary that was not the card's.
-#:
-#: 1% sits an order of magnitude above the sound cases and well below the
-#: failures. For scale, genuine damage is far smaller still: a 2.5mm corner chip
-#: is about 6mm^2, or 0.11% of a card, so real wear never approaches this.
-#:
-#: The consequence of tripping it is *not* a bad score. Material loss becomes
-#: unmeasurable and the category falls back to whitening alone, declaring
-#: CORNERS_WHITENING_ONLY -- the same honest degradation used when no mask is
-#: supplied at all. A wrong boundary must not be allowed to produce a confident
-#: number, which is what it was doing: the same card scored 0.00 in one
-#: photograph and 9.52 in another.
-MAX_MASK_MISSING_FRACTION = 0.01
 
 
 #: Distance from the apex, in millimetres, beyond which the card's boundary is
@@ -281,6 +247,25 @@ def _corner_readable(
     return None
 
 
+def _boundary_flag(unreadable: list[str]) -> dict:
+    where = (
+        "at the "
+        + ", ".join(name.replace("_", " ") for name in unreadable)
+        + (" corners" if len(unreadable) > 1 else " corner")
+        if unreadable
+        else "at the corners"
+    )
+    return {
+        "lower_confidence": True,
+        "reason": (
+            f"The card's outline could not be traced reliably {where} in this photo -- "
+            "usually glare on the corner, a finger over it, or a background close in "
+            "colour to the card's border -- so corners were not scored rather than "
+            "scored against the wrong outline."
+        ),
+    }
+
+
 def _material_loss(mask_crop: np.ndarray, px_per_mm: float) -> dict:
     """How much of the ideal corner is not card, and how blunt the tip is.
 
@@ -415,17 +400,22 @@ def measure_corners(
     """Assess all four corners.
 
     `mask` is the canonical card mask from preprocessing.rectify -- the same
-    raster as `card_image`, non-zero where there is card. Without it material
-    loss cannot be measured and the category degrades to whitening only,
-    declaring that in its limitations rather than quietly scoring less.
+    raster as `card_image`, non-zero where there is card. Material loss is
+    measured against it, and each corner is believed only where the mask agrees
+    with that corner's own fitted lines (see _corner_readable). One unreadable
+    corner declines the category: corners are scored worst-anchored, so a score
+    from three corners cannot know it skipped the worst one.
+
+    Without a mask or a scale there is nothing to measure against, and the
+    category declines. It used to fall back to whitening alone, but with no mask
+    the rounded corner is backdrop, and real photographs read lightness "rises"
+    of -40 to -150 there -- clipped to zero, scored as a clean corner.
     """
     size = _window_px(card_image, px_per_mm)
     crops = corner_crops(card_image, size=size, corner_fraction=corner_fraction)
     mask_usable = mask is not None and mask.shape[:2] == card_image.shape[:2]
+    # A diagnostic only. It gates nothing any more -- see _corner_readable.
     mask_missing = float(np.mean(mask == 0)) if mask_usable else 1.0
-    if mask_usable and mask_missing > MAX_MASK_MISSING_FRACTION:
-        # The mask is not describing a card. See MAX_MASK_MISSING_FRACTION.
-        mask_usable = False
 
     mask_crops = (
         corner_crops(mask, size=size, corner_fraction=corner_fraction) if mask_usable else {}
@@ -436,23 +426,28 @@ def measure_corners(
     for name, crop in crops.items():
         mask_crop = mask_crops.get(name)
         info = dict(_whitening(crop, mask_crop, px_per_mm))
+        excess = None
         if can_measure_material:
             info.update(_material_loss(mask_crop, px_per_mm))
-        excess = info.get("excess_area_mm2") if can_measure_material else None
+            excess = info["excess_area_mm2"]
+        # Still computed when the category declines: these are the diagnostics
+        # the drift harness tracks and a later retune gets compared against.
         info["combined_score"] = round(
             scoring.corner_score(excess, info["lightness_rise"], info["chroma_loss"]), 2
         )
         info["material_measured"] = can_measure_material
+        info["boundary_check"] = (
+            _corner_readable(mask_crop, px_per_mm, excess) if can_measure_material else None
+        )
         per_corner[name] = info
 
     scores = [c["combined_score"] for c in per_corner.values()]
-    raw_score = round(scoring.corners_category_score(scores), 2)
     worst_corner = min(per_corner, key=lambda k: per_corner[k]["combined_score"])
+    unreadable = sorted(n for n, c in per_corner.items() if c["boundary_check"] is not None)
 
     # A pale border has almost no chroma to lose, so the whitening channel is
-    # weak there. This used to be the category's central blind spot; it is now
-    # a caveat on one of two channels, because material loss does not care what
-    # colour the border is.
+    # weak there. It is a caveat on one of two channels, because material loss
+    # does not care what colour the border is.
     mean_reference_chroma = float(np.mean([c["reference_chroma"] for c in per_corner.values()]))
     pale = mean_reference_chroma < assessment.PALE_BORDER_CHROMA
 
@@ -470,6 +465,7 @@ def measure_corners(
         "mean_reference_chroma": round(mean_reference_chroma, 1),
         "material_measured": can_measure_material,
         "mask_missing_fraction": round(mask_missing, 5),
+        "unreadable_corners": unreadable,
     }
 
     if too_low_resolution:
@@ -489,22 +485,24 @@ def measure_corners(
             },
         }
 
+    if not can_measure_material or unreadable:
+        codes = (assessment.CORNERS_BOUNDARY_UNREADABLE,) + (
+            (capture_code,) if capture_code is not None else ()
+        )
+        measurements["assessment"] = assessment.unmeasurable(codes).as_dict()
+        return {
+            "category": CATEGORY,
+            "raw_score": None,
+            "measurements": measurements,
+            "flags": _boundary_flag(unreadable),
+        }
+
+    raw_score = round(scoring.corners_category_score(scores), 2)
     limitations: list[str] = []
     confidence = assessment.CONFIDENCE_CORNERS
-    if not can_measure_material:
-        limitations.append(assessment.CORNERS_WHITENING_ONLY)
-        confidence = assessment.CONFIDENCE_CORNERS_WHITENING_ONLY
     if pale:
         limitations.append(assessment.CORNERS_PALE_BORDER)
-        # A pale border costs far less than it used to. It disables one of two
-        # channels now rather than the only one, so the confidence floor for
-        # these cards is set by whether material loss was measurable.
-        confidence = min(
-            confidence,
-            assessment.CONFIDENCE_CORNERS_PALE_BORDER
-            if not can_measure_material
-            else assessment.CONFIDENCE_CORNERS_PALE_BORDER_WITH_MATERIAL,
-        )
+        confidence = min(confidence, assessment.CONFIDENCE_CORNERS_PALE_BORDER_WITH_MATERIAL)
     if capture_code is not None:
         limitations.append(capture_code)
         confidence *= assessment.CONFIDENCE_MODEST_RESOLUTION_FACTOR
@@ -512,10 +510,9 @@ def measure_corners(
     measurements["assessment"] = assessment.measured(
         raw_score, confidence, tuple(limitations)
     ).as_dict()
-    flags = dict(CORNERS_WHITENING_ONLY_FLAG) if not can_measure_material else {}
     return {
         "category": CATEGORY,
         "raw_score": raw_score,
         "measurements": measurements,
-        "flags": flags,
+        "flags": {},
     }

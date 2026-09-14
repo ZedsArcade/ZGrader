@@ -31,17 +31,24 @@ def analyzed_side():
     cv2.imwrite(path, scan)
     card, _info = preprocessing.locate_and_deskew(preprocessing.load_image(path))
     ppm = scale.px_per_mm(card.shape[:2], 63.0, 88.0)
+    rectified = preprocessing.rectify(preprocessing.load_image(path), 63.0, 88.0)
 
     surface_result, mask = surface.measure_surface(card)
     built = {
         AnalysisCategory.centering: (centering.measure_centering(card, ppm), None),
-        AnalysisCategory.corners: (corners.measure_corners(card), None),
+        AnalysisCategory.corners: (
+            corners.measure_corners(rectified.image, px_per_mm=rectified.px_per_mm, mask=rectified.mask),
+            None,
+        ),
         AnalysisCategory.edges: (edges.measure_edges(card), None),
         AnalysisCategory.surface: (surface_result, mask),
     }
+    # Corners was measured on the rectified raster, so its boxes are
+    # normalised against that raster's shape rather than the deskewed one.
+    shapes = {AnalysisCategory.corners: rectified.image.shape[:2]}
     for category, (result, extra) in built.items():
         result["measurements"]["regions"] = regions.build_regions(
-            category, card.shape[:2], ppm, "en", result, extra
+            category, shapes.get(category, card.shape[:2]), ppm, "en", result, extra
         )
     return {category.value: result for category, (result, _e) in built.items()}
 

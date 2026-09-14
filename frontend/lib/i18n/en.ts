@@ -153,10 +153,15 @@ export const en = {
         "This photo has no fine detail on the card's face, so a scratch couldn't have shown up either — surface wasn't scored.",
       surface_diffuse_light:
         "Lit evenly rather than at an angle, so faint scratches can be missed.",
+      // No longer emitted; stored results still carry it.
       corners_whitening_only:
         "The card's outline couldn't be established, so only discolouration was checked — a corner worn blunt but not discoloured isn't caught.",
       corners_pale_border:
         "This border is pale, so the colour half of the corner check has little to work with. Missing material is still measured.",
+      // Leads with retaking the photo, not re-cropping: a crop does not repair
+      // these outlines (measured -- cropped and uncropped agreed on 34 of 35).
+      corners_boundary_unreadable:
+        "The card's outline couldn't be traced reliably at a corner — glare, a finger, or a background too close in colour to the border — so corners weren't scored. A photo on a plain, contrasting surface without glare on the corners would let them be measured.",
       centering_no_frame:
         "No clear printed border to measure against — normal on full-art cards.",
       centering_partial_frame:
