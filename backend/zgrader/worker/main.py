@@ -9,6 +9,7 @@ import logging
 import time
 from pathlib import Path
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -17,8 +18,10 @@ from zgrader import billing
 from zgrader.config import config
 from zgrader.cpu import pin_analysis_threads
 from zgrader.db import SessionLocal
-from zgrader.models import ContactMessage, Submission, SubmissionStatus
+from zgrader.models import AuditLog, ContactMessage, ScanImage, Submission, SubmissionStatus
+from zgrader.models.submission import PRE_ANALYSIS_STATUSES
 from zgrader.seed import seed_all
+from zgrader.storage import purge_submission_files
 from zgrader.worker.watcher import SUBMISSION_CODE_RE, process_submission_folder
 
 logging.basicConfig(level=logging.INFO)
@@ -120,6 +123,67 @@ def purge_expired_contact_messages(db: Session) -> int:
     return removed
 
 
+def purge_stale_drafts(db: Session) -> int:
+    """Delete photo drafts nobody has touched for `draft_retention_days`.
+
+    A draft costs nothing until analysis scores it, so an abandoned one would
+    otherwise keep a customer's photograph on this box forever for no reason.
+    Mail-in submissions (the card is in the post), charged ones and anything
+    already analysed are never touched.
+
+    "Touched" is the later of the submission's and its newest photo's
+    updated_at: an upload writes a ScanImage, not the submission row.
+
+    Files go before the row, which names their directory -- a purge that
+    fails after the row is gone leaves photos nothing can find. A failed
+    purge keeps the row for the next pass.
+    """
+    days = config.draft_retention_days
+    if days <= 0:
+        return 0
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+    newest_photo = (
+        select(func.max(ScanImage.updated_at))
+        .where(ScanImage.submission_id == Submission.id)
+        .scalar_subquery()
+    )
+    last_touched = func.greatest(Submission.updated_at, func.coalesce(newest_photo, Submission.updated_at))
+    stale = (
+        db.query(Submission)
+        .filter(
+            Submission.charged_at.is_(None),
+            Submission.mail_in.is_(False),
+            Submission.status.in_(PRE_ANALYSIS_STATUSES),
+            last_touched < cutoff,
+        )
+        .all()
+    )
+
+    removed = 0
+    for submission in stale:
+        code = submission.submission_code
+        try:
+            purge_submission_files(code)
+        except OSError:
+            logger.warning("could not remove files for stale draft %s; kept for the next pass", code, exc_info=True)
+            continue
+        db.query(AuditLog).filter(AuditLog.submission_id == submission.id).update(
+            {AuditLog.submission_id: None}, synchronize_session=False
+        )
+        db.add(
+            AuditLog(
+                submission_id=None,
+                user_id=submission.user_id,
+                action="draft_expired",
+                detail={"deleted_code": code},
+            )
+        )
+        db.delete(submission)
+        db.commit()
+        removed += 1
+    return removed
+
+
 def _sweep_retention() -> None:
     db = SessionLocal()
     try:
@@ -129,6 +193,11 @@ def _sweep_retention() -> None:
                 "purged %d contact message(s) older than %d days",
                 removed,
                 config.contact_message_retention_days,
+            )
+        drafts = purge_stale_drafts(db)
+        if drafts:
+            logger.info(
+                "purged %d photo draft(s) untouched for %d days", drafts, config.draft_retention_days
             )
     finally:
         db.close()
