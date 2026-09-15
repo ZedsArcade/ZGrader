@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Card, buttonVariants, cn } from "@heroui/react";
 import Button from "@/components/Button";
 import CardLabelFields, { labelChanges, labelsOf, type CardLabels } from "@/components/CardLabelFields";
@@ -164,11 +164,36 @@ export default function SubmissionView({ code }: { code: string | null }) {
   const { locale } = useLocale();
   const t = useTranslations();
   const router = useRouter();
+  const pathname = usePathname();
   const [submission, setSubmission] = useState<api.SubmissionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Track the URL this render tree last saw. window.history.replaceState (in
+  // CheckFlow.adopt) integrates with usePathname -- see next/dist/docs's
+  // Linking-and-Navigating guide, "Native History API" -- so a draft created
+  // on this same /dashboard/new instance changes `pathname` to
+  // /dashboard/{code} without a remount. Following <Link href="/dashboard/new">
+  // afterwards is a no-op for Next's router (this instance's segment was
+  // already "new"), so it does not remount SubmissionView either -- only
+  // `pathname` snaps back. That transition, and only that one, means "the
+  // customer asked to start over": drop the stale draft/error and hand
+  // CheckFlow a new key so it mounts fresh rather than keeping whatever it
+  // had (an errored crop, an in-flight upload). This is React's documented
+  // "adjust state during rendering" pattern -- setState called directly in
+  // the render body, guarded by a comparison against the previous render --
+  // not an effect, so it does not cost an extra commit+paint.
+  const [seenPath, setSeenPath] = useState(pathname);
+  const [checkSession, setCheckSession] = useState(0);
+  if (pathname !== seenPath) {
+    setSeenPath(pathname);
+    if (code === null && pathname === "/dashboard/new" && submission !== null) {
+      setSubmission(null);
+      setCheckSession((n) => n + 1);
+    }
+  }
 
   const load = useCallback(() => {
     if (!token || !code) return;
@@ -247,11 +272,17 @@ export default function SubmissionView({ code }: { code: string | null }) {
       </div>
     );
   }
-  if (!submission) return <CheckFlow submission={null} onChange={setSubmission} />;
-
   const s = submission;
   let body: ReactNode;
-  if (s.mail_in && PRE_ANALYSIS.has(s.status) && !analysing) {
+  if (!s) {
+    // Same element type, same slot in the tree, same key as the draft-crop
+    // branch below -- adopting a draft (CheckFlow.adopt -> onChange) must not
+    // move CheckFlow to a different position in this fragment, or React
+    // remounts it. checkSession only changes on the explicit "start over"
+    // reset above, so an upload in flight survives the state update that
+    // hands it its just-created submission.
+    body = <CheckFlow key={checkSession} submission={null} onChange={setSubmission} />;
+  } else if (s.mail_in && PRE_ANALYSIS.has(s.status) && !analysing) {
     body = (
       <Notice
         title={t.checkFlow.awaitingCardTitle}
@@ -259,7 +290,7 @@ export default function SubmissionView({ code }: { code: string | null }) {
       />
     );
   } else if (PRE_ANALYSIS.has(s.status) && !s.confirmed_sides.includes("front")) {
-    body = <CheckFlow submission={s} onChange={setSubmission} />;
+    body = <CheckFlow key={checkSession} submission={s} onChange={setSubmission} />;
   } else if (analysing) {
     body = <ProcessingState status="processing" locale={locale} stillWorking={pollTimedOut} />;
   } else if (s.status === "error") {
@@ -286,35 +317,44 @@ export default function SubmissionView({ code }: { code: string | null }) {
     );
   }
 
+  // Always the same fragment shape -- three slots, in this order, every
+  // render past the error/skeleton early returns above -- so that adopting a
+  // draft (which turns `s` from null into a value) changes what is rendered
+  // in the third slot without ever changing CheckFlow's position in the
+  // tree. See the FINDING 1 fix note on `body` above.
   return (
     <>
-      <SubmissionHeader
-        submission={s}
-        onChange={setSubmission}
-        actions={
-          <>
-            {s.status === "published" && (
-              <Button variant="primary" onPress={handleDownload} isDisabled={downloading}>
-                {downloading ? t.submissionDetail.downloading : t.submissionDetail.download}
+      {s ? (
+        <SubmissionHeader
+          submission={s}
+          onChange={setSubmission}
+          actions={
+            <>
+              {s.status === "published" && (
+                <Button variant="primary" onPress={handleDownload} isDisabled={downloading}>
+                  {downloading ? t.submissionDetail.downloading : t.submissionDetail.download}
+                </Button>
+              )}
+              <Button variant="outline" onPress={() => setConfirmDelete(true)}>
+                {t.submissionDetail.deleteButton}
               </Button>
-            )}
-            <Button variant="outline" onPress={() => setConfirmDelete(true)}>
-              {t.submissionDetail.deleteButton}
-            </Button>
-          </>
-        }
-      />
-      <ConfirmDialog
-        open={confirmDelete}
-        title={t.submissionDetail.deleteTitle}
-        body={t.submissionDetail.deleteBody}
-        confirmLabel={t.submissionDetail.deleteConfirm}
-        cancelLabel={t.submissionDetail.deleteCancel}
-        destructive
-        busy={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmDelete(false)}
-      />
+            </>
+          }
+        />
+      ) : null}
+      {s ? (
+        <ConfirmDialog
+          open={confirmDelete}
+          title={t.submissionDetail.deleteTitle}
+          body={t.submissionDetail.deleteBody}
+          confirmLabel={t.submissionDetail.deleteConfirm}
+          cancelLabel={t.submissionDetail.deleteCancel}
+          destructive
+          busy={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      ) : null}
       {body}
     </>
   );
