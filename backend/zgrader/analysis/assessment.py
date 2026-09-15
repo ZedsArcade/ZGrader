@@ -41,10 +41,14 @@ import dataclasses
 SURFACE_DIFFUSE_LIGHT = "surface_diffuse_light"
 #: The image carries no fine detail, so no scratch could have shown up in it.
 SURFACE_NO_DETAIL = "surface_no_detail"
-#: Corners are assessed for discolouration only -- material loss is not measured.
+#: No longer emitted. Stored results still carry it and reports still render it, so its copy stays.
 CORNERS_WHITENING_ONLY = "corners_whitening_only"
 #: Whitening is a loss of saturation, so a pale or white border has little to lose.
 CORNERS_PALE_BORDER = "corners_pale_border"
+#: A corner's mask disagrees with that corner's fitted lines -- glare, a finger,
+#: a background close in colour to the border -- or there is no mask at all, so
+#: corners declines rather than scoring against the wrong outline.
+CORNERS_BOUNDARY_UNREADABLE = "corners_boundary_unreadable"
 #: No clean printed border was found -- full-art, or artwork bleeding to the edge.
 CENTERING_NO_FRAME = "centering_no_frame"
 #: A printed frame was found on some sides but not all of them.
@@ -71,6 +75,7 @@ ALL_LIMITATION_CODES = (
     SURFACE_NO_DETAIL,
     CORNERS_WHITENING_ONLY,
     CORNERS_PALE_BORDER,
+    CORNERS_BOUNDARY_UNREADABLE,
     CENTERING_NO_FRAME,
     CENTERING_PARTIAL_FRAME,
     EDGES_PARTIAL,
@@ -106,11 +111,6 @@ CONFIDENCE_CENTERING_PARTIAL_FRAME = 0.6
 #: That is a materially better position than the whitening-only reading this
 #: number described before, hence the rise.
 CONFIDENCE_CORNERS = 0.8
-#: No card mask, so discolouration is all there was.
-CONFIDENCE_CORNERS_WHITENING_ONLY = 0.55
-#: Pale border *and* no material measurement -- the old worst case, where the
-#: only channel available is the one the border defeats.
-CONFIDENCE_CORNERS_PALE_BORDER = 0.35
 #: Pale border but material loss measured. One channel of two is weak, which is
 #: a far better position than the line above and should not be scored as if it
 #: were the same.

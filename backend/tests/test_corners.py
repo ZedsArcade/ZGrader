@@ -12,23 +12,12 @@ wherever the card's material happened to end. The test that replaces it
 asserts the property that makes the reversal safe.
 """
 
-import tempfile
-
-import cv2
+import numpy as np
 import pytest
 
 from tests.fixtures.generate_samples import build_fixture, card_size_mm, make_card_scan
-from zgrader.analysis import assessment, corners, preprocessing, scoring
-
-
-def _deskewed(**kwargs):
-    """A card with no mask -- exercises the degraded, whitening-only path."""
-    scan = make_card_scan(63.0, 88.0, **kwargs)
-    fd, path = tempfile.mkstemp(suffix=".png")
-    cv2.imwrite(path, scan)
-    image = preprocessing.load_image(path)
-    card_image, _info = preprocessing.locate_and_deskew(image)
-    return card_image
+from zgrader.analysis import assessment, corners, preprocessing, regions, scoring
+from zgrader.models import AnalysisCategory
 
 
 def _rectified(**kwargs):
@@ -192,14 +181,114 @@ def test_backing_is_excluded_from_the_tip_colour_sample():
     opposite of whitening, so the worst corners would look the cleanest.
     """
     card = _rectified(clip_top_left_corner=True)
-    masked = corners.measure_corners(card.image, px_per_mm=card.px_per_mm, mask=card.mask)
-    unmasked = corners.measure_corners(card.image, px_per_mm=card.px_per_mm, mask=None)
+    size = corners._window_px(card.image, card.px_per_mm)
+    crop = corners.corner_crops(card.image, size=size)["top_left"]
+    mask_crop = corners.corner_crops(card.mask, size=size)["top_left"]
 
-    with_mask = masked["measurements"]["per_corner"]["top_left"]["lightness_rise"]
-    without = unmasked["measurements"]["per_corner"]["top_left"]["lightness_rise"]
+    with_mask = corners._whitening(crop, mask_crop, card.px_per_mm)["lightness_rise"]
+    without = corners._whitening(crop, None, card.px_per_mm)["lightness_rise"]
     assert with_mask > without, (
         "excluding the backing should stop it dragging the tip's lightness down"
     )
+
+
+# --- Whether a corner's mask can be believed --------------------------------
+#
+# Hand-built masks rather than fixtures: each one isolates exactly one way a
+# mask can disagree with the card's fitted lines. 20 px/mm over a 5mm window.
+
+_PPM = 20.0
+_SIZE = 100
+
+
+def _rounded_corner(radius_mm: float = 1.5) -> np.ndarray:
+    """A clean factory corner, oriented like every corner crop (apex at [0, 0])."""
+    mask = np.full((_SIZE, _SIZE), 255, np.uint8)
+    r = int(round(radius_mm * _PPM))
+    yy, xx = np.mgrid[0:r, 0:r]
+    mask[:r, :r][np.hypot(r - yy, r - xx) > r] = 0
+    return mask
+
+
+def test_a_clean_rounded_corner_is_readable():
+    assert corners._corner_readable(_rounded_corner(), _PPM, 0.0) is None
+    # Loss that is visible from the cut is what real wear looks like.
+    assert corners._corner_readable(_rounded_corner(), _PPM, 0.5) is None
+
+
+def test_a_bite_along_the_straight_edge_is_not_believed():
+    """The failure behind 13_FrontSideAngle: the contour cut into an intact,
+    cleanly rounded corner along its edge, and 7.72mm2 of "loss" zeroed it. A
+    median of the edge inset cannot see a bite covering under half the section,
+    which is why the fraction of deviating lines is checked separately."""
+    mask = _rounded_corner()
+    mask[70:82, :12] = 0  # 30% of the straight section, 0.6mm deep
+    assert corners._corner_readable(mask, _PPM, 1.0) == "straight"
+
+
+def test_a_line_with_no_material_counts_as_deviating():
+    """_edge_inset_px drops a line with no material, which is right for a
+    calibration and wrong here: an empty line is the most extreme deviation
+    there is, not one to ignore."""
+    mask = _rounded_corner()
+    mask[70:76, :] = 0  # 15% of the straight section, no material at all
+    assert corners._corner_readable(mask, _PPM, 1.0) == "straight"
+
+
+def test_a_mask_sitting_inside_the_fitted_lines_is_not_believed():
+    mask = _rounded_corner()
+    mask[:, :10] = 0
+    mask[:10, :] = 0  # 0.5mm inside both lines
+    assert corners._corner_readable(mask, _PPM, 1.0) == "inset"
+
+
+def test_loss_that_cannot_see_the_cut_is_not_believed_when_it_is_scored():
+    """Real corner loss is reachable from the cut along a row or a column;
+    misclassified speckle inside the card is not. Checked only when there is
+    excess to score -- speckle that costs nothing need not decline anything."""
+    mask = _rounded_corner()
+    mask[40:51, 40:51] = 0
+    assert corners._corner_readable(mask, _PPM, 0.5) == "visibility"
+    assert corners._corner_readable(mask, _PPM, 0.0) is None
+
+
+def test_one_unreadable_corner_declines_the_whole_category():
+    """Corners are scored worst-anchored, so a score from three corners cannot
+    know it skipped the worst one. The bite here runs along the bottom edge of
+    the bottom-left corner, clear of the factory rounding -- the shape of the
+    contour failure seen on real photographs."""
+    card = _rectified()
+    ppm = card.px_per_mm
+    mask = card.mask.copy()
+    h = mask.shape[0]
+    mask[h - int(round(0.8 * ppm)) :, int(round(3.2 * ppm)) : int(round(3.8 * ppm))] = 0
+
+    result = corners.measure_corners(card.image, px_per_mm=ppm, mask=mask)
+
+    assert result["raw_score"] is None
+    assert result["measurements"]["unreadable_corners"] == ["bottom_left"]
+    assert result["measurements"]["per_corner"]["bottom_left"]["boundary_check"] == "straight"
+    assert (
+        assessment.CORNERS_BOUNDARY_UNREADABLE
+        in result["measurements"]["assessment"]["limitations"]
+    )
+    assert "bottom left" in result["flags"]["reason"]
+    assert regions.build_regions(
+        AnalysisCategory.corners, card.image.shape[:2], ppm, "en", result, None
+    ) == []
+
+
+def test_real_damage_is_measured_not_gated_away():
+    """The check exists to refuse a mask that is wrong, never to refuse damage.
+    A clipped corner is exactly the loss corners exists to report."""
+    card = _rectified(clip_top_left_corner=True)
+    result = corners.measure_corners(card.image, px_per_mm=card.px_per_mm, mask=card.mask)
+
+    top_left = result["measurements"]["per_corner"]["top_left"]
+    assert top_left["boundary_check"] is None
+    assert top_left["excess_area_mm2"] == pytest.approx(1.59, abs=0.3)
+    assert result["raw_score"] is not None
+    assert result["measurements"]["unreadable_corners"] == []
 
 
 # --- Aggregation -----------------------------------------------------------
@@ -224,18 +313,21 @@ def test_the_category_score_tracks_its_worst_corner():
 # --- Degrading honestly ----------------------------------------------------
 
 
-def test_without_a_mask_the_category_says_it_measured_only_whitening():
-    """The old caveat was permanent. It is now conditional, and only true when
-    the boundary could not be established."""
-    result = corners.measure_corners(_deskewed(), px_per_mm=23.6, mask=None)
+def test_without_a_mask_the_category_declines():
+    """There is no scored whitening-only path any more. Whitening sampled with
+    no mask measures whatever sits behind the rounded corner -- on a real
+    photograph, the desk -- and real photographs read lightness "rises" of -40
+    to -150 there, which clip to zero and score a clean corner. A reading with
+    nothing behind it declines instead."""
+    card = _rectified()
+    result = corners.measure_corners(card.image, px_per_mm=card.px_per_mm, mask=None)
 
-    assert result["measurements"]["material_measured"] is False
-    assert (
-        assessment.CORNERS_WHITENING_ONLY
-        in result["measurements"]["assessment"]["limitations"]
-    )
+    assert result["raw_score"] is None
+    block = result["measurements"]["assessment"]
+    assert block["state"] == assessment.UNMEASURABLE
+    assert assessment.CORNERS_BOUNDARY_UNREADABLE in block["limitations"]
+    assert assessment.CORNERS_WHITENING_ONLY not in block["limitations"]
     assert result["flags"]["lower_confidence"] is True
-    assert "material loss was not measured" in result["flags"]["reason"]
 
 
 def test_with_a_mask_the_whitening_only_caveat_is_gone():
@@ -248,24 +340,18 @@ def test_with_a_mask_the_whitening_only_caveat_is_gone():
     assert result["flags"] == {}
 
 
-def test_a_pale_border_costs_less_confidence_than_it_used_to():
-    """It used to disable the only channel there was. It now disables one of
-    two, and a reading with material loss behind it should not be scored as if
-    it were the old whitening-only guess."""
-    card = preprocessing.rectify(build_fixture("white_border_clean"), *card_size_mm("white_border_clean"))
-    with_material = corners.measure_corners(
-        card.image, px_per_mm=card.px_per_mm, mask=card.mask
-    )
-    without = corners.measure_corners(card.image, px_per_mm=card.px_per_mm, mask=None)
+def test_a_pale_border_lowers_confidence_but_material_is_still_measured():
+    """A pale border disables the colour half of the corner reading, not the
+    material half, so it costs confidence without costing the measurement."""
+    pale = preprocessing.rectify(build_fixture("white_border_clean"), *card_size_mm("white_border_clean"))
+    plain = preprocessing.rectify(build_fixture("centering_perfect"), *card_size_mm("centering_perfect"))
+    pale_result = corners.measure_corners(pale.image, px_per_mm=pale.px_per_mm, mask=pale.mask)
+    plain_result = corners.measure_corners(plain.image, px_per_mm=plain.px_per_mm, mask=plain.mask)
 
-    assert (
-        assessment.CORNERS_PALE_BORDER
-        in with_material["measurements"]["assessment"]["limitations"]
-    )
-    assert (
-        with_material["measurements"]["assessment"]["confidence"]
-        > without["measurements"]["assessment"]["confidence"]
-    )
+    pale_block = pale_result["measurements"]["assessment"]
+    assert assessment.CORNERS_PALE_BORDER in pale_block["limitations"]
+    assert pale_result["measurements"]["material_measured"] is True
+    assert pale_block["confidence"] < plain_result["measurements"]["assessment"]["confidence"]
 
 
 def test_a_capture_too_small_to_measure_still_declines_to_score():
@@ -275,3 +361,53 @@ def test_a_capture_too_small_to_measure_still_declines_to_score():
     result = corners.measure_corners(card.image, px_per_mm=7.0, mask=card.mask)
     assert result["raw_score"] is None
     assert result["measurements"]["assessment"]["state"] == assessment.UNMEASURABLE
+
+
+def test_a_shadowed_corner_is_declined_not_scored_as_damage():
+    """The regression the drift baseline could not otherwise hold -- every
+    other synthetic fixture fits its mask cleanly.
+
+    A soft shadow darkens an intact bottom-left corner until its border falls
+    below the threshold separating card from backing: the mechanism behind
+    13_FrontSideAngle, where a border indistinguishable from the backdrop let
+    the contour bite 7.72mm2 out of a corner that was not damaged. The old
+    whole-raster gate passed this card and scored the bite as lost material.
+    """
+    name = "capture_shadowed_corner"
+    card = preprocessing.rectify(build_fixture(name), *card_size_mm(name))
+    assert float(np.mean(card.mask == 0)) < 0.01, "fixture no longer passes the old global gate"
+
+    result = corners.measure_corners(card.image, px_per_mm=card.px_per_mm, mask=card.mask)
+    bottom_left = result["measurements"]["per_corner"]["bottom_left"]
+
+    assert bottom_left["excess_area_mm2"] > 1.0, "fixture no longer invents loss at the corner"
+    assert bottom_left["boundary_check"] is not None
+    assert result["raw_score"] is None
+
+
+def test_loss_reaching_along_the_edge_declines_rather_than_scoring():
+    """A known limit, pinned so it stays a decision rather than an accident.
+
+    The straight-section check cannot tell a chip long enough to reach past
+    the straight-section start from a contour bite of the same shape -- the
+    shadowed-corner fixture is exactly such a shape. So a square chip that
+    stays inside the factory-rounding zone is scored, and one that runs along
+    the edge declines. If a signal ever separates a real cut from an artefact,
+    this is the test that should change.
+    """
+    card = _rectified()
+    ppm = card.px_per_mm
+
+    def _chipped(side_mm: float) -> dict:
+        mask = card.mask.copy()
+        side = int(round(side_mm * ppm))
+        mask[:side, :side] = 0
+        return corners.measure_corners(card.image, px_per_mm=ppm, mask=mask)
+
+    small = _chipped(2.5)
+    assert small["measurements"]["per_corner"]["top_left"]["boundary_check"] is None
+    assert small["raw_score"] is not None
+
+    large = _chipped(3.5)
+    assert large["measurements"]["per_corner"]["top_left"]["boundary_check"] == "straight"
+    assert large["raw_score"] is None

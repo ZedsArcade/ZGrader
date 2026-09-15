@@ -177,6 +177,14 @@ LIMITATION_LABELS = {
             "This card's border is pale, so the colour half of the corner assessment has "
             "little to work with. Material missing from the corner is still measured."
         ),
+        "corners_boundary_unreadable": (
+            "The card's outline could not be traced reliably at one or more corners in this "
+            "photo -- usually glare on the corner, a finger over it, or a background close in "
+            "colour to the card's border, though a chip large enough to run along the edge looks "
+            "the same -- so this photo's corners were not scored rather than scored against the "
+            "wrong outline. A photo on a plain surface that contrasts with the border, without "
+            "glare on the corners, would let them be measured."
+        ),
         "centering_no_frame": (
             "No clear printed border was found to measure against, which is normal on "
             "full-art cards where the artwork runs to the edge."
@@ -243,6 +251,14 @@ LIMITATION_LABELS = {
             "El borde de esta carta es pálido, así que la parte del análisis basada en el "
             "color tiene poco con lo que trabajar. El material que falta en la esquina "
             "sí se mide."
+        ),
+        "corners_boundary_unreadable": (
+            "No se pudo trazar con fiabilidad el contorno de la carta en una o más esquinas de "
+            "esta foto (normalmente por un reflejo en la esquina, un dedo encima o un fondo de "
+            "color parecido al borde de la carta, aunque un desperfecto lo bastante grande como "
+            "para seguir el borde se ve igual), así que las esquinas de esta foto no se puntuaron "
+            "en lugar de puntuarse contra un contorno equivocado. Una foto sobre una superficie "
+            "lisa que contraste con el borde, sin reflejos en las esquinas, permitiría medirlas."
         ),
         "centering_no_frame": (
             "No se encontró un borde impreso claro con el que medir, algo normal en "

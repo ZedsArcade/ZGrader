@@ -41,6 +41,20 @@ def _card(name: str):
     return card, scale.px_per_mm(card.shape[:2], width_mm, height_mm)
 
 
+def _rectified_card(name: str):
+    """Through rectify, as the pipeline does. Corners needs the card mask;
+    without one it declines rather than scoring whitening alone."""
+    return preprocessing.rectify(build_fixture(name), *card_size_mm(name))
+
+
+def _measure_at(module, px_per_mm: float) -> dict:
+    if module is corners:
+        card = _rectified_card("pokemon_front")
+        return corners.measure_corners(card.image, px_per_mm=px_per_mm, mask=card.mask)
+    card, _ = _card("pokemon_front")
+    return edges.measure_edges(card, px_per_mm=px_per_mm)
+
+
 # --- The metrics -----------------------------------------------------------
 
 
@@ -129,13 +143,12 @@ def test_the_resolution_gate_bands(px_per_mm, expected):
     assert capture.resolution_limitation(px_per_mm) == expected
 
 
-def test_an_absent_scale_makes_no_claim():
-    """A caller that supplies no px_per_mm gets the old behaviour, not a
-    guess. Silently assuming the capture was fine would put a confidence
-    number on a photograph nothing measured."""
+def test_an_absent_scale_makes_no_capture_claim():
+    """A caller that supplies no px_per_mm gets no guess about the capture.
+    Corners can no longer score at all without a scale -- material loss is
+    measured in mm^2 -- but it must still not claim anything about resolution."""
     card, _ = _card("pokemon_front")
     result = corners.measure_corners(card)
-    assert result["raw_score"] is not None
     limitations = result["measurements"]["assessment"]["limitations"]
     assert assessment.CAPTURE_MODEST_RESOLUTION not in limitations
     assert assessment.CAPTURE_TOO_LOW_RESOLUTION not in limitations
@@ -161,9 +174,6 @@ def test_a_capture_too_small_to_measure_is_not_scored(module):
 
 @pytest.mark.parametrize("module", [corners, edges])
 def test_a_modest_capture_still_scores_but_at_lower_confidence(module):
-    card, _ = _card("pokemon_front")
-    measure = module.measure_corners if module is corners else module.measure_edges
-
     # Straddling the threshold rather than at the extremes of each band, and
     # both close to the fixture's true ~23.6 px/mm. Since this phase, the scale
     # decides how much card the sampling windows cover -- a 5mm corner box, a
@@ -172,8 +182,8 @@ def test_a_modest_capture_still_scores_but_at_lower_confidence(module):
     # the minimum. That is the analyser behaving correctly on the scale it was
     # given; it just makes the two readings incomparable, which is not what
     # this test is about.
-    modest = measure(card, px_per_mm=24.0)
-    comfortable = measure(card, px_per_mm=26.0)
+    modest = _measure_at(module, 24.0)
+    comfortable = _measure_at(module, 26.0)
 
     # Both categories now sample physical windows -- a 5mm corner box, a
     # 0.4mm edge strip beside a located border -- so px_per_mm is a
@@ -198,9 +208,9 @@ def test_the_penalty_compounds_with_an_existing_limitation():
     """Multiplicative, not absolute. A pale-bordered card photographed small
     is worse off than either alone, and a fixed low value would flatten the
     two into the same reading."""
-    card, _ = _card("white_border_clean")
-    pale_only = corners.measure_corners(card, px_per_mm=COMFORTABLE)
-    pale_and_small = corners.measure_corners(card, px_per_mm=MODEST)
+    card = _rectified_card("white_border_clean")
+    pale_only = corners.measure_corners(card.image, px_per_mm=COMFORTABLE, mask=card.mask)
+    pale_and_small = corners.measure_corners(card.image, px_per_mm=MODEST, mask=card.mask)
 
     assert (
         assessment.CORNERS_PALE_BORDER

@@ -52,6 +52,15 @@ def _rng(seed: int) -> np.random.Generator:
 #: cannot contradict it, which is the one thing a fixture is for.
 _CORNER_RADIUS_MM = 1.5
 
+#: A soft shadow over one intact corner, for `capture_shadowed_corner`. Radius
+#: and floor were settled against the shipped pipeline rather than picked: the
+#: old whole-raster mask gate passes this card (0.36% missing) while its
+#: contour invents about 10.8mm^2 of loss at the corner, and every neighbouring
+#: setting (radius 4.0-5.0mm, floor 0.1-0.2) is declined by the per-corner
+#: check too -- so the fixture sits inside that region, not on its edge.
+_CORNER_SHADOW_RADIUS_MM = 4.5
+_CORNER_SHADOW_FLOOR = 0.15
+
 
 def _round_corners(card: np.ndarray, radius_px: int) -> np.ndarray:
     """Cut the card's four corners to a radius, leaving backing behind them.
@@ -161,6 +170,7 @@ def make_card_scan(
     glare: bool = False,
     keystone_amount: float = 0.0,
     scale: float = 1.0,
+    shadow_bottom_left_corner: bool = False,
 ) -> np.ndarray:
     """Build one synthetic scan.
 
@@ -238,6 +248,20 @@ def make_card_scan(
             (255, 255, 255),
             thickness=3,
         )
+
+    if shadow_bottom_left_corner:
+        # Darkens an intact corner until its border falls below the threshold
+        # that separates card from backing -- a border indistinguishable from
+        # the backdrop at one corner, which is how a real photograph's contour
+        # came to bite an undamaged corner. Applied before the die-cut rounding
+        # so the corner is shaped exactly as every other fixture's.
+        px_per_mm = card_h / height_mm
+        yy, xx = np.mgrid[0:card_h, 0:card_w]
+        distance_mm = np.hypot(yy - (card_h - 1), xx) / px_per_mm
+        falloff = 1.0 - (1.0 - _CORNER_SHADOW_FLOOR) * np.exp(
+            -((distance_mm / _CORNER_SHADOW_RADIUS_MM) ** 2)
+        )
+        card = np.clip(card.astype(np.float64) * falloff[..., None], 0, 255).astype(np.uint8)
 
     # Place on a dark scanner-backing canvas with a comfortable margin.
     # Real cards are die-cut to a rounded corner, roughly 1.5mm radius. Every
@@ -360,6 +384,13 @@ FIXTURES: tuple[tuple[str, tuple[float, float], dict], ...] = (
     ("capture_tilted", _POKEMON, dict(keystone_amount=0.08)),
     ("capture_glared", _POKEMON, dict(glare=True)),
     ("capture_noisy", _POKEMON, dict(grain_sigma=14.0, seed=21)),
+    (
+        # An intact corner the card mask cannot be believed at. Declined, never
+        # scored as damage -- see test_a_shadowed_corner_is_declined_not_scored_as_damage.
+        "capture_shadowed_corner",
+        _POKEMON,
+        dict(shadow_bottom_left_corner=True),
+    ),
     (
         # ~7 px/mm, far below the ~25 the brief calls the floor for seeing
         # corner wear at all.

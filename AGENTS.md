@@ -95,6 +95,32 @@ around the card has never broken a fit that worked without one — the five appa
 the first measurement were an artefact of simulating crops as centred rectangles, which clip a card
 that is off-centre.
 
+**A crop offset has to be tested with a crop that is not at the image origin.** `rectify` draws the card
+mask in the region of interest's coordinates and warps it through the homography composed with the crop
+offset. It composed `−offset` where `+offset` was right, so every cropped analysis got a mask displaced by
+twice the ROI origin. Production always passes a crop — the watcher analyses only sides with
+`crop_points`, and operator ingest writes the detected box as one — and on 32 of 34 real photographs the
+displaced mask left 7–100% of the raster reading as missing, which dropped corners to whitening alone on
+nearly every report. Nothing saw it, for two reasons that are each worth remembering: every synthetic
+fixture sits on an 8% margin while the ROI adds 10%, so the ROI origin clips to (0, 0) and the offset is
+zero whichever way round it is applied; and the drift harness measured real photographs **uncropped**,
+which is not the path that ships. `test_geometry.py`'s padded-canvas test puts the origin in the hundreds
+of pixels, and the real-photo block now prints the cropped path beside the uncropped one.
+
+**A corner's mask is believed only where it agrees with that corner's own fitted lines.** The mask is a
+filled threshold contour; the lines are RANSAC over the same contour, which rejects outliers where the
+mask cannot. Glare, or a pale border against a pale backdrop, breaks the first and not the second — on 9
+of 36 real photographs whose fit held. The whole-raster gate that used to judge it (1% missing) was wrong
+both ways: it passed a 7.72mm² bite out of an intact corner, because 0.21% of a card is small, and failed
+cards whose hole was nowhere near a corner. `corners._corner_readable` checks each corner's straight
+sections against the fitted lines and that any scored loss is reachable from the cut, and one unreadable
+corner declines the category with `corners_boundary_unreadable` — a worst-anchored score cannot know it
+skipped the worst corner. **There is no scored whitening-only path.** Sampled with no mask, the rounded
+corner is backdrop, and real photographs read lightness "rises" of −40 to −150 there, which clip to zero
+and score a clean corner. And the gate has a known blind spot: it catches artefacts that run along the
+straight edge, but **a compact, rounded artefact is the shape of real wear and passes** — a 2–3mm shadow
+over an intact corner reads as 1.6–5.3mm² of damage. "Gated" does not mean "correct".
+
 **A threshold calibrated against the synthetic fixtures has been wrong on real photographs every
 single time it was checked.** Thirty photographs of seven real cards found five bugs that
 twenty-three synthetic fixtures could not, and each was the same shape: a confident number with
@@ -118,7 +144,9 @@ noise that produced it is false precision, and it biases every number downstream
 production as a 500 on every request for the affected submission), the drift harness's reporting,
 `fixture_metrics`, and `recompute`. The guard in `recompute._adjusted_side_score` is written against
 the assessment *state* rather than per category so the fifth is covered. Grep for `raw_score` before
-adding a fifth declining path.
+adding a fifth declining path. Corners now also declines on its boundary check — about a third of real
+photographs, the most frequent decline path yet — and `tests/test_corners_decline_end_to_end.py` carries
+one through the combined row and the PDF.
 
 **A client adjustment changes the numbers; anything drawn from those numbers has to be redrawn.**
 `centering_adjustments` sits *beside* the `AnalysisResult` rather than over it, so the stored
@@ -495,6 +523,7 @@ Read in this order; each module depends on the one above it.
 | `capture.py` | Sharpness, resolution, clipping, illumination uniformity. **Only `px_per_mm` gates anything** — the other three track what is *printed* on the card as strongly as how it was photographed, so no absolute threshold works. |
 | `assessment.py` | The output contract: `measured`/`unmeasurable`, confidence, interval, limitation **codes**. `EXTERNAL_LIMITATION_FACTORS` is the hook for anything established once per card rather than per category (geometry provenance, foil). |
 | `scoring.py` | Every measurement→score mapping, each tagged DERIVED / REASONED / ARBITRARY. **Every consumer must route through it** — `recompute.py` is the one that keeps forgetting, twice now. |
+| `corners.py` | Material loss (mm² beyond the factory rounding) and whitening per corner, and whether each corner's mask can be believed at all (`_corner_readable`). One unreadable corner declines the category; there is no whitening-only fallback. |
 
 Two structural rules that keep being re-learned: a category that cannot measure something returns
 `raw_score = None` rather than a low score, and `build_regions` plus `_annotate_category` both key
@@ -759,6 +788,35 @@ it, so the next attempt starts from where the last one stopped.
   leaves the detector no background to find an edge against — it latches onto the printed artwork
   frame instead. `7_FrontView`, a visually perfect rectification, scores 0.324; `6_FrontSkewed`, a
   fallback, scores 0.975. Do not reach for that one again.
+- **Corner-local colour segmentation does not work, and has been measured.** Warping a padded raster so
+  each corner sees its own backdrop, building Lab models of card (just inside the fitted lines) and
+  background (just outside), and counting as missing only non-card pixels connected to the outside does
+  remove the invented losses — 7.72 → 0.43mm² on 13_FrontSideAngle — but nothing says when to believe it.
+  Against six clear failures, Fisher d′ scored AUC 0.85, overlap error 0.82 and a one-class background
+  distance 0.68. The cause is physical: cards print badges and text boxes within a millimetre of the cut,
+  so the card model is bimodal and its dark print looks like a dark mat. Under decline-if-any-corner the
+  per-corner error compounds (65% per corner is about 18% per photo), and the best gate read 7–14 of 35
+  photographs. Tracing the corner arc by gradient was rejected for the reason `border.py` exists: a printed
+  box 2mm from the cut wins the rays. Do not reach for either without a card model that tolerates print at
+  the edge.
+- **Healthy-mask corner excess is biased and noisy.** Clean-looking corners read about 1mm² of excess
+  (Kabutop 0.95–1.04 on all four), and card 7's move by 1–2mm² between shots. That fits a real die-cut
+  radius nearer 2.5–3mm than the assumed 1.5mm, or boundary blur at 22–40 px/mm, and it is comparable to
+  the 4mm² scoring range — the "noise comparable to its range" rule. It caps clean cards near 7.5 on
+  corners. Settling it needs calipers on a real card; it is its own piece of work.
+- **Two corner declines are borderline and accepted.** 4_FrontSlightLight top-right and 7_FrontView
+  top-right carry only 0.25 and 0.12mm² of excess with no visible damage; the visibility rule fires on
+  small speckle there. Relaxing it needs a new constant, and six failures are too few to fit one.
+- **Corner loss that runs along the edge declines rather than scoring.** `corners._corner_readable`'s straight-section
+  rule cannot tell a chip long enough to reach past `_STRAIGHT_EDGE_START_MM` (3mm) along an edge from a contour bite
+  of the same shape — `capture_shadowed_corner` is exactly such a shape, and so was 13_FrontSideAngle's. Measured in
+  the final review of this work: square chips up to 3.0mm score, 3.25mm and larger decline. So the most heavily
+  chipped cards get no corners score at all, and `rules_engine` then raises no corners flag for them — a quiet
+  outcome for exactly the cards that matter most. The copy names a chip as a possible cause rather than blaming the
+  photo alone, because retaking cannot help. The obvious exemption — loss contiguous with the apex and shrinking away
+  from it — also exempts the shadow fixture and the real bite, so it is not the fix. A fix needs a signal that
+  separates a real cut from an artefact. `test_loss_reaching_along_the_edge_declines_rather_than_scoring` pins the
+  current limit.
 
 ## Known-open, deliberately
 

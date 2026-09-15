@@ -530,12 +530,18 @@ def rectify(
 
     canonical_mask = None
     if material is not None:
-        # The mask is warped in the ROI's own coordinates, so it needs the
-        # homography composed with the crop offset rather than the homography
-        # alone -- otherwise it lands displaced by the crop and every corner
-        # reads as destroyed.
+        # `matrix` maps *source-image* coordinates onto the canonical raster,
+        # and `material` was drawn in *ROI* coordinates, so a mask pixel at q
+        # sits at q + offset in the source image. The composition is therefore
+        # matrix @ T(+offset).
+        #
+        # It was T(-offset) for a long time, which put every cropped mask twice
+        # the ROI origin away from the card. Production always passes a crop,
+        # so corners fell back to whitening on nearly every report. No fixture
+        # showed it, because the synthetic cards' ROI origin clips to (0, 0) --
+        # see test_a_crop_away_from_the_image_origin_keeps_the_mask_on_the_card.
         shift = np.array(
-            [[1.0, 0.0, -offset[0]], [0.0, 1.0, -offset[1]], [0.0, 0.0, 1.0]], dtype="float64"
+            [[1.0, 0.0, offset[0]], [0.0, 1.0, offset[1]], [0.0, 0.0, 1.0]], dtype="float64"
         )
         # INTER_NEAREST: this is a label image, and interpolating between
         # "card" and "not card" invents a fringe of half-material around every

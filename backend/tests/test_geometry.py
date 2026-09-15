@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 import pytest
 
-from zgrader.analysis import assessment, geometry, preprocessing
+from zgrader.analysis import assessment, corners, geometry, preprocessing
 
 from tests.fixtures.generate_samples import build_fixture, card_size_mm
 
@@ -276,6 +276,36 @@ def test_a_bad_crop_no_longer_decides_where_the_card_is():
     assert sloppy.image.shape == detected.image.shape
     assert sloppy.px_per_mm == pytest.approx(detected.px_per_mm, abs=0.05)
     assert not sloppy.limitations
+
+
+def test_a_crop_away_from_the_image_origin_keeps_the_mask_on_the_card():
+    """The card mask is drawn in the crop's coordinates and warped through the
+    homography composed with the crop offset. That offset was applied with the
+    wrong sign, which put every cropped mask twice the crop origin away from
+    the card -- and production always passes a crop.
+
+    No fixture could show it on its own. Every synthetic card sits on an 8%
+    margin and rectify widens the crop by 10%, so the crop origin clips to
+    (0, 0) and the offset is zero whichever way round it is applied. The
+    padding here is what puts the origin in the hundreds of pixels; remove it
+    and this test passes against the broken sign too.
+    """
+    image = cv2.copyMakeBorder(
+        build_fixture("pokemon_back"), 400, 0, 300, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0)
+    )
+    uncropped = preprocessing.rectify(image, *POKEMON_MM)
+    crop = np.array(uncropped.geometry["apexes"], dtype=np.float64)
+    cropped = preprocessing.rectify(image, *POKEMON_MM, roi_quad=crop)
+
+    assert cropped.geometry["method"] == "ransac"
+    missing = float(np.mean(cropped.mask == 0))
+    assert missing < 0.01, f"{missing:.1%} of the cropped raster reads as missing card"
+    assert missing == pytest.approx(float(np.mean(uncropped.mask == 0)), abs=0.002)
+
+    result = corners.measure_corners(
+        cropped.image, px_per_mm=cropped.px_per_mm, mask=cropped.mask
+    )
+    assert result["measurements"]["material_measured"] is True
 
 
 def test_falling_back_to_the_crop_is_never_silent():

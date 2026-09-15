@@ -148,6 +148,8 @@ export const es: Dictionary = {
         "No se pudo establecer el contorno de la carta, así que solo se comprobó la decoloración: una esquina desgastada pero sin decolorar no se detecta.",
       corners_pale_border:
         "Este borde es pálido, así que la mitad del análisis basada en el color tiene poco con lo que trabajar. El material que falta sí se mide.",
+      corners_boundary_unreadable:
+        "No se pudo trazar bien el contorno en alguna esquina de esta foto (un reflejo, un dedo, un fondo de color parecido al borde o un desperfecto que sigue el borde), así que las esquinas de esta foto no se puntuaron. Una foto sobre una superficie lisa que contraste, sin reflejos en las esquinas, permitiría medirlas.",
       centering_no_frame:
         "No hay un borde impreso claro con el que medir: normal en cartas de ilustración completa.",
       centering_partial_frame:

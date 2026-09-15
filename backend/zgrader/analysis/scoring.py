@@ -295,8 +295,9 @@ def corner_score(
     no worse than its worst aspect -- the first thing to revisit against real
     graded cards.
 
-    `excess_area_mm2` is None when no card mask was available, in which case
-    the corner is scored on whitening alone and the category says so.
+    `excess_area_mm2` is None when no card mask was available. The per-corner
+    value computed then is a diagnostic only: corners.measure_corners declines
+    the whole category without a mask rather than scoring on whitening alone.
     """
     whitening = corner_whitening_penalty(lightness_rise, chroma_loss)
     if excess_area_mm2 is None:
