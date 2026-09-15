@@ -16,11 +16,12 @@ const GIVE_UP_MS = 600_000;
  * when the caller shows "we'll email you". Worst case is about a third of
  * the submission_read allowance (300 per 5 minutes per address).
  *
- * Returns whether it gave up.
+ * Returns whether it gave up. Resets when polling stops.
  */
 export function useSubmissionPoll(active: boolean, poll: () => Promise<void>): boolean {
   const [timedOut, setTimedOut] = useState(false);
   const pollRef = useRef(poll);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     pollRef.current = poll;
@@ -42,10 +43,14 @@ export function useSubmissionPoll(active: boolean, poll: () => Promise<void>): b
     };
     const tick = async () => {
       if (cancelled || document.hidden) return; // resumed by visibilitychange
+      if (inFlight.current) return; // a poll is already outstanding
+      inFlight.current = true;
       try {
         await pollRef.current();
       } catch {
         // A failed read is retried on the next tick; nothing to show.
+      } finally {
+        inFlight.current = false;
       }
       if (!cancelled) schedule();
     };
@@ -60,6 +65,8 @@ export function useSubmissionPoll(active: boolean, poll: () => Promise<void>): b
     schedule();
     return () => {
       cancelled = true;
+      inFlight.current = false;
+      setTimedOut(false);
       window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
