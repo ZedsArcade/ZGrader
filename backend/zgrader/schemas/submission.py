@@ -71,11 +71,18 @@ class CardOut(BaseModel):
 
 
 class SubmissionSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """One row of the customer's list: enough to tell ten cards apart."""
 
     submission_code: str
     status: SubmissionStatus
     created_at: datetime.datetime
+    card_name: str | None = None
+    game: str | None = None
+    mail_in: bool = False
+    charged: bool = False
+    # The four combined category scores once analysed; None = unmeasurable,
+    # never zero. Empty before any analysis.
+    scores: dict[str, float | None] = {}
 
 
 class AnalysisResultOut(BaseModel):

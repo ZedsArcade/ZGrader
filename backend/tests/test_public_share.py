@@ -425,3 +425,17 @@ def test_public_images_stop_resolving_once_revoked(shared):
     assert (
         client.get(f"/public/reports/{shared['token']}/images/front_base.png").status_code == 404
     )
+
+
+def test_a_card_with_no_name_still_renders_publicly(shared):
+    """PublicCardOut is built field by field, so a required name would turn a
+    nameless card into a 500 on the one page a buyer sees."""
+    with SessionLocal() as db:
+        submission = db.query(Submission).filter(Submission.submission_code == shared["code"]).one()
+        submission.card.card_name = None
+        db.commit()
+
+    resp = client.get(f"/public/reports/{shared['token']}")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["card"]["card_name"] is None

@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from zgrader import entitlements, images, sharing
 from zgrader.analysis import artifacts, assessment, pipeline, preprocessing, recompute, scale
@@ -19,6 +19,7 @@ from zgrader.models.settings import get_or_create_settings
 from zgrader.models.submission import PRE_ANALYSIS_STATUSES, submission_code_seq
 from zgrader.models import (
     AnalysisCategory,
+    AnalysisSide,
     AuditLog,
     Card,
     ReportStatus,
@@ -241,14 +242,40 @@ def create_submission(
     return submission
 
 
+def _summary(submission: Submission) -> SubmissionSummary:
+    card = submission.card
+    return SubmissionSummary(
+        submission_code=submission.submission_code,
+        status=submission.status,
+        created_at=submission.created_at,
+        card_name=card.card_name if card else None,
+        game=card.game if card else None,
+        mail_in=submission.mail_in,
+        charged=submission.charged,
+        scores={
+            str(getattr(result.category, "value", result.category)): (
+                float(result.raw_score) if result.raw_score is not None else None
+            )
+            for result in submission.analysis_results
+            if result.side == AnalysisSide.combined
+        },
+    )
+
+
 @router.get(
     "", response_model=list[SubmissionSummary], dependencies=[Depends(_submission_read_limit)]
 )
-def list_submissions(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Submission]:
-    query = db.query(Submission)
+def list_submissions(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[SubmissionSummary]:
+    # selectinload: one query per relationship however many rows, rather
+    # than one per row -- tests/test_submission_summary.py counts them.
+    query = db.query(Submission).options(
+        selectinload(Submission.card), selectinload(Submission.analysis_results)
+    )
     if user.role != UserRole.operator:
         query = query.filter(Submission.user_id == user.id)
-    return query.order_by(Submission.created_at.desc()).all()
+    return [_summary(s) for s in query.order_by(Submission.created_at.desc()).all()]
 
 
 @router.get(
