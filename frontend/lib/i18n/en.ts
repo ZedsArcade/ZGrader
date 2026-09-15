@@ -125,20 +125,6 @@ export const en = {
     // screen readers from `category`.
     scoreAbbrev: { centering: "Cen", corners: "Cor", edges: "Edg", surface: "Sur" },
   },
-  newSubmission: {
-    title: "New submission",
-    subtitle: "Tell us about the card, then ship it to us for scanning.",
-    game: "Game",
-    dimensionsUnverified: " (dimensions unverified)",
-    cardName: "Card name",
-    setName: "Set (optional)",
-    cardNumber: "Card number (optional)",
-    foil: "Foil / holo",
-    submit: "Create submission",
-    submitting: "Creating…",
-    failed: "Failed to create submission",
-    gamesLoadFailed: "Failed to load games",
-  },
   submissionDetail: {
     createdOn: "Created",
     download: "Download report",
@@ -359,22 +345,13 @@ export const en = {
     loginLink: "Sign in",
   },
   upload: {
-    title: "Upload your card scans",
-    subtitle: "Add a clear photo of each side, or scan it with your device's camera.",
     // The one thing the customer controls that matters most, said before they
     // shoot rather than after it fails. Edges are found by contrast against the
     // background, so a dark card on a dark surface is the case the detector
     // cannot recover -- and nothing used to mention it anywhere.
     backgroundHint:
       "Stand the card on a plain surface that contrasts with it — a dark card on a light background, a pale one on dark. That contrast is what lets the card's edges be found.",
-    frontLabel: "Front (required)",
-    backLabel: "Back (optional)",
-    backHint: "Add now, or add it later — front alone still gets you a partial check.",
-    chooseFile: "Choose photo",
     uploading: "Uploading…",
-    frontUploadedTitle: "Front received",
-    frontUploadedNote:
-      "Your partial check is underway. Add a back image any time before it's approved for a full check, or leave it as-is.",
     uploadFailed: "Upload failed",
     invalidImage: "That doesn't look like a valid image. Try a JPEG, PNG, or TIFF.",
     fileTooLarge: "That image is too large.",

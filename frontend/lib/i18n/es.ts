@@ -122,20 +122,6 @@ export const es: Dictionary = {
     continue: "Continuar",
     scoreAbbrev: { centering: "Cen", corners: "Esq", edges: "Bor", surface: "Sup" },
   },
-  newSubmission: {
-    title: "Nuevo envío",
-    subtitle: "Cuéntenos sobre la carta y luego envíenosla para escanearla.",
-    game: "Juego",
-    dimensionsUnverified: " (dimensiones no verificadas)",
-    cardName: "Nombre de la carta",
-    setName: "Edición (opcional)",
-    cardNumber: "Número de carta (opcional)",
-    foil: "Foil / holográfica",
-    submit: "Crear envío",
-    submitting: "Creando…",
-    failed: "Error al crear el envío",
-    gamesLoadFailed: "Error al cargar los juegos",
-  },
   submissionDetail: {
     createdOn: "Creado",
     download: "Descargar informe",
@@ -338,21 +324,11 @@ export const es: Dictionary = {
     loginLink: "Iniciar sesión",
   },
   upload: {
-    title: "Suba las fotos de su carta",
-    subtitle: "Añada una foto clara de cada lado, o escanéela con la cámara de su dispositivo.",
     // El contraste con el fondo es lo que permite encontrar los bordes, y es
     // lo unico que el cliente controla de verdad.
     backgroundHint:
       "Coloque la carta sobre una superficie lisa que contraste con ella — una carta oscura sobre fondo claro, una clara sobre fondo oscuro. Ese contraste es lo que permite encontrar los bordes de la carta.",
-    frontLabel: "Frente (obligatorio)",
-    backLabel: "Reverso (opcional)",
-    backHint:
-      "Añádalo ahora o más tarde — solo el frente ya le permite obtener una revisión parcial.",
-    chooseFile: "Elegir foto",
     uploading: "Subiendo…",
-    frontUploadedTitle: "Frente recibido",
-    frontUploadedNote:
-      "Su revisión parcial está en curso. Añada una foto del reverso en cualquier momento antes de que se apruebe para una revisión completa, o déjelo así.",
     uploadFailed: "Error al subir la imagen",
     invalidImage: "Eso no parece una imagen válida. Pruebe con un JPEG, PNG o TIFF.",
     fileTooLarge: "Esa imagen es demasiado grande.",
