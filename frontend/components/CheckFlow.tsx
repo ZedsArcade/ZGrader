@@ -385,7 +385,7 @@ export default function CheckFlow({
                 </Button>
               </div>
             )}
-            <QuotaLine charged={false} />
+            <QuotaLine charged={submission?.charged ?? false} />
             {!submission && (
               <button
                 type="button"

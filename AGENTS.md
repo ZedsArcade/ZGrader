@@ -871,6 +871,14 @@ Listed so a review reports something new rather than re-deriving these:
   free" cannot outlive a seed granting three a week again. What remains is purely the *number* — 3
   checks per 7 days, renewing, is generous enough that the paid tiers have nothing to sell. That is
   a business decision, and it is a panel value rather than a deploy, deliberately.
+- **Free analyses that fail are bounded by rate limits, not by the draft cap or the sweep.** A photo
+  whose geometry fit fails, or whose every category declines, costs nothing — that is the
+  charge-on-score rule working — but it leaves an uncharged submission in `error` or `draft_ready`,
+  and both `max_open_drafts` and `purge_stale_drafts` look only at `created`/`awaiting_scans`. So
+  such rows are never counted and never swept, and an all-declined `draft_ready` still lands in the
+  operator's review queue. Before charge-on-score each one cost a check; now only the create and
+  confirm-crop rate limits bound them. Extending the cap and the sweep to uncharged, non-mail-in
+  `error`/`draft_ready` rows is the fix if it starts to matter.
 - **The offsite half of the backup has never been proved.** The local half now has. On 2026-08-22
   `infra/backup/drill.sh` ran against the deployed Postgres and passed: dump written by the real
   `backup.sh`, database dropped and recreated, `pg_restore` run, two rows and three files verified

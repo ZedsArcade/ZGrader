@@ -596,29 +596,37 @@ def confirm_crop(
             f"Submission is '{submission.status.value}' -- crop can no longer be confirmed",
         )
 
-    # Before the crop is saved, not after: saved crop points make the front
-    # "confirmed", and the worker's poll analyses confirmed fronts without
-    # asking anyone -- so a refusal here that left them stored would be
-    # followed by a charge past the limit anyway. A charged submission is
-    # completing a check already paid for (typically adding its back).
-    if submission.charged_at is None:
-        quota = entitlements.get_quota(db, submission.user)
-        if not quota.can_submit:
-            db.commit()  # keep a rolled-forward window, as GET /quota does
-            raise _quota_exhausted(quota)
-
     scan = _get_scan(submission, side)
     _validate_points(payload, scan)
 
-    scan.crop_points = [list(point) for point in payload.points]
-    db.commit()
-    db.refresh(submission)
-
-    confirmed = _confirmed_sides(submission)
-    # The pipeline runs inside this call, so this is where request concurrency
-    # becomes CPU concurrency. The guard refuses rather than queues -- see
-    # api/capacity.py for why a 503 beats a hang here.
+    # The slot is acquired before anything is saved, not after. A capacity
+    # refusal (409/503) that landed after the crop was persisted would still
+    # leave it stored -- saved crop points make the front "confirmed", and the
+    # worker's poll analyses confirmed fronts without asking anyone, so a
+    # refused request here would be followed by an unattended analysis and
+    # charge with no quota check at all. Holding the slot first means a
+    # refusal leaves nothing saved: the quota check, the crop save and the
+    # analysis all happen inside it, or none of them do.
     with capacity.analysis_slot(user.id, code):
+        # Before the crop is saved, not after: saved crop points make the front
+        # "confirmed", and the worker's poll analyses confirmed fronts without
+        # asking anyone -- so a refusal here that left them stored would be
+        # followed by a charge past the limit anyway. A charged submission is
+        # completing a check already paid for (typically adding its back).
+        if submission.charged_at is None:
+            quota = entitlements.get_quota(db, submission.user)
+            if not quota.can_submit:
+                db.commit()  # keep a rolled-forward window, as GET /quota does
+                raise _quota_exhausted(quota)
+
+        scan.crop_points = [list(point) for point in payload.points]
+        db.commit()
+        db.refresh(submission)
+
+        confirmed = _confirmed_sides(submission)
+        # The pipeline runs inside this call, so this is where request
+        # concurrency becomes CPU concurrency -- see api/capacity.py for why a
+        # 503 beats a hang here.
         submission = _advance_submission(db, submission, confirmed, {ScanSide(side)}, code)
     db.refresh(submission)
     return submission

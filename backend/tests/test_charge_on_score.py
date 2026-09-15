@@ -19,10 +19,12 @@ from zgrader.models import (
     AnalysisSide,
     AuditLog,
     Card,
+    PlanEntitlement,
     Submission,
     SubmissionStatus,
     User,
 )
+from zgrader.models.subscription import Subscription, SubscriptionStatus
 from zgrader.worker.watcher import process_submission_folder
 
 from tests import checkflow_helpers as h
@@ -132,6 +134,26 @@ def test_the_charge_is_claimed_once_even_when_asked_twice(db_session):
     db_session.commit()
     db_session.refresh(user)
     assert user.quota_used == 1
+
+
+def test_a_charge_on_an_unlimited_plan_spends_nothing(db_session, sample_scan_paths):
+    """A subscription is a null submission_limit, not an exemption from being
+    counted -- quota_used must stay 0 rather than track against nothing."""
+    token = h.login("charge-unlimited@example.com")
+    user = db_session.query(User).filter(User.email == "charge-unlimited@example.com").one()
+    db_session.add(PlanEntitlement(plan="tier1", submission_limit=None, period_days=7))
+    db_session.add(Subscription(user_id=user.id, plan="tier1", status=SubscriptionStatus.active))
+    db_session.commit()
+
+    code = h.create_code(token)
+    h.upload(token, code, "front", sample_scan_paths["pokemon_front"])
+
+    resp = h.confirm(token, code, "front")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["charged"] is True
+    db_session.refresh(user)
+    assert user.quota_used == 0
 
 
 def test_the_worker_charges_and_never_refuses(db_session, sample_scan_paths):

@@ -245,7 +245,7 @@ def render(submission: Submission, business_name: str, dest: Path) -> Path:
     text_left = (photo_right + 40) if photo_right > _MARGIN else _MARGIN
     text_width = OG_WIDTH - _MARGIN - text_left
 
-    name = (card.card_name if card else None) or "Card"
+    name = (card.card_name if card else None) or _UNTITLED_CARD.get(language, _UNTITLED_CARD["en"])
     draw.text(
         (text_left, _MARGIN),
         _truncate(draw, name, _font(58, bold=True), text_width),
@@ -340,6 +340,15 @@ _ADJUSTED_LABELS = {
 _UNMEASURED = {
     "en": "Not measured",
     "es": "Sin medir",
+}
+
+#: Unnamed is now the default for a photo check (see AGENTS.md), and this
+#: image is exactly what a Discord unfurl reads -- "Card" said nothing and was
+#: never translated. ASCII in both languages, so `_renders_glyphs` has nothing
+#: to catch here; ` a ` and `n` need no fallback-font check.
+_UNTITLED_CARD = {
+    "en": "Untitled card",
+    "es": "Carta sin nombre",
 }
 
 # Separated with a middot rather than an em dash: the dash is not in every
