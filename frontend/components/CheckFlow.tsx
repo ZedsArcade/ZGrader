@@ -169,6 +169,9 @@ export default function CheckFlow({
   const t = useTranslations();
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
+  // Set false on unmount, so a create that resolves after the customer has left
+  // cannot rewrite the address of whatever page they are on now.
+  const mounted = useRef(true);
 
   const [games, setGames] = useState<api.Game[] | null>(null);
   const [gamesError, setGamesError] = useState<string | null>(null);
@@ -202,6 +205,13 @@ export default function CheckFlow({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(loadGames, [loadGames]);
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   /** The two refusals the page shows as panels rather than toasts. */
   function handleRefusal(err: unknown): boolean {
     if (!(err instanceof api.ApiError)) return false;
@@ -221,7 +231,11 @@ export default function CheckFlow({
    *  resumes it rather than starting another. */
   function adopt(created: api.SubmissionDetail) {
     rememberGame(game);
-    window.history.replaceState(null, "", `/dashboard/${created.submission_code}`);
+    // Only rewrite while this CheckFlow is still mounted at /dashboard/new,
+    // so a late create does not rewrite another page's URL.
+    if (mounted.current && window.location.pathname === "/dashboard/new") {
+      window.history.replaceState(null, "", `/dashboard/${created.submission_code}`);
+    }
     onChange(created);
   }
 
