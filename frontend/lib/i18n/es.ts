@@ -408,6 +408,7 @@ export const es: Dictionary = {
       bottomRight: "Esquina inferior derecha",
       bottomLeft: "Esquina inferior izquierda",
     },
+    cornerFallback: "Esquina",
     keyboardHint: "Las flechas mueven la esquina seleccionada; mantenga Mayús para pasos más grandes.",
   },
   checkFlow: {

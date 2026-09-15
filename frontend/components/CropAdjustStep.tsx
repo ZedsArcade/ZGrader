@@ -30,13 +30,55 @@ const NUDGE_LARGE = 0.02;
 /** Where a drag is, in normalised photo space plus the photo's on-screen size. */
 type Loupe = { x: number; y: number; width: number; height: number };
 
-/** Names a handle by where it sits relative to the others, so the label is
- *  right whatever order the suggestion returned the points in. */
-function cornerKey(point: NormPoint, centre: NormPoint): CornerKey {
-  const top = point[1] < centre[1];
-  const left = point[0] < centre[0];
-  if (top) return left ? "topLeft" : "topRight";
-  return left ? "bottomLeft" : "bottomRight";
+/** Assigns stable labels to a quad of points based on their position relative
+ *  to their centroid in sum/difference space. Labels stay with their index
+ *  even after drag or nudge, so no duplicate labels appear when one handle
+ *  passes another. Returns null for all if four distinct labels cannot be
+ *  assigned (collision guard). */
+function assignCornerLabels(pts: NormPoint[]): (CornerKey | null)[] {
+  if (pts.length !== 4) return [null, null, null, null];
+
+  // Calculate sum and difference for each point; these define corners uniquely
+  // for most quads. Sum partitions by diagonal (top-left vs bottom-right);
+  // difference partitions by the other diagonal (top-right vs bottom-left).
+  const metrics = pts.map(([x, y], i) => ({
+    index: i,
+    sum: x + y,
+    diff: x - y,
+  }));
+
+  // Find the index for each corner by its metric extremum
+  const topLeftIdx = metrics.reduce((min, m) =>
+    m.sum < metrics[min].sum ? m.index : min,
+    0,
+  );
+  const bottomRightIdx = metrics.reduce((max, m) =>
+    m.sum > metrics[max].sum ? m.index : max,
+    0,
+  );
+  const topRightIdx = metrics.reduce((max, m) =>
+    m.diff > metrics[max].diff ? m.index : max,
+    0,
+  );
+  const bottomLeftIdx = metrics.reduce((min, m) =>
+    m.diff < metrics[min].diff ? m.index : min,
+    0,
+  );
+
+  // Collision guard: if any two rules picked the same index, return null for all
+  const indices = [topLeftIdx, bottomRightIdx, topRightIdx, bottomLeftIdx];
+  if (new Set(indices).size !== 4) {
+    return [null, null, null, null];
+  }
+
+  // Assign labels by index
+  const result: (CornerKey | null)[] = [null, null, null, null];
+  result[topLeftIdx] = "topLeft";
+  result[bottomRightIdx] = "bottomRight";
+  result[topRightIdx] = "topRight";
+  result[bottomLeftIdx] = "bottomLeft";
+
+  return result;
 }
 
 export default function CropAdjustStep({
@@ -71,6 +113,7 @@ export default function CropAdjustStep({
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [dims, setDims] = useState<{ width_px: number; height_px: number } | null>(null);
   const [points, setPoints] = useState<NormPoint[] | null>(null);
+  const [labels, setLabels] = useState<(CornerKey | null)[] | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [snapping, setSnapping] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -94,11 +137,11 @@ export default function CropAdjustStep({
         objectUrl = URL.createObjectURL(blob);
         setPhotoUrl(objectUrl);
         setDims({ width_px: suggestion.width_px, height_px: suggestion.height_px });
-        setPoints(
-          suggestion.points.map(
-            ([x, y]) => [x / suggestion.width_px, y / suggestion.height_px] as NormPoint
-          )
+        const normalizedPoints = suggestion.points.map(
+          ([x, y]) => [x / suggestion.width_px, y / suggestion.height_px] as NormPoint
         );
+        setPoints(normalizedPoints);
+        setLabels(assignCornerLabels(normalizedPoints));
       } catch (err) {
         toastError(err instanceof api.ApiError ? err.message : t.cropAdjust.loadFailed);
       }
@@ -213,7 +256,9 @@ export default function CropAdjustStep({
     setSnapping(true);
     try {
       const { points: snapped } = await api.snapCrop(token, code, side, toPixels(points));
-      setPoints(snapped.map(([x, y]) => [x / dims.width_px, y / dims.height_px] as NormPoint));
+      const normalizedSnapped = snapped.map(([x, y]) => [x / dims.width_px, y / dims.height_px] as NormPoint);
+      setPoints(normalizedSnapped);
+      setLabels(assignCornerLabels(normalizedSnapped));
     } catch (err) {
       toastError(err instanceof api.ApiError ? err.message : t.cropAdjust.snapFailed);
     } finally {
@@ -289,10 +334,6 @@ export default function CropAdjustStep({
   // the handles, which are HTML positioned by percentage, since circles
   // distort into ellipses under anisotropic scaling (see AnnotatedPhoto.tsx).
   const polygonPoints = points.map(([x, y]) => `${x},${y}`).join(" ");
-  const centre: NormPoint = [
-    points.reduce((s, p) => s + p[0], 0) / points.length,
-    points.reduce((s, p) => s + p[1], 0) / points.length,
-  ];
 
   let loupeStyle: CSSProperties | null = null;
   if (loupe) {
@@ -337,7 +378,7 @@ export default function CropAdjustStep({
           <button
             key={i}
             type="button"
-            aria-label={t.cropAdjust.handleLabel[cornerKey([x, y], centre)]}
+            aria-label={labels?.[i] ? t.cropAdjust.handleLabel[labels[i]!] : `${t.cropAdjust.cornerFallback} ${i + 1}`}
             onPointerDown={(e) => handlePointerDown(i, e)}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}

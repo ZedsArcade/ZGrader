@@ -441,6 +441,7 @@ export const en = {
       bottomRight: "Bottom-right corner",
       bottomLeft: "Bottom-left corner",
     },
+    cornerFallback: "Corner",
     keyboardHint: "Arrow keys move a selected corner; hold Shift for bigger steps.",
   },
   // The photo-first check page (components/CheckFlow.tsx) and the states of a
