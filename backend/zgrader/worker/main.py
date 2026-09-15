@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -167,20 +168,27 @@ def purge_stale_drafts(db: Session) -> int:
         except OSError:
             logger.warning("could not remove files for stale draft %s; kept for the next pass", code, exc_info=True)
             continue
-        db.query(AuditLog).filter(AuditLog.submission_id == submission.id).update(
-            {AuditLog.submission_id: None}, synchronize_session=False
-        )
-        db.add(
-            AuditLog(
-                submission_id=None,
-                user_id=submission.user_id,
-                action="draft_expired",
-                detail={"deleted_code": code},
+        # A cleanup chore must not crash the process that analyses photos;
+        # catch DB errors and keep sweeping, same rule as _reconcile_billing.
+        try:
+            db.query(AuditLog).filter(AuditLog.submission_id == submission.id).update(
+                {AuditLog.submission_id: None}, synchronize_session=False
             )
-        )
-        db.delete(submission)
-        db.commit()
-        removed += 1
+            db.add(
+                AuditLog(
+                    submission_id=None,
+                    user_id=submission.user_id,
+                    action="draft_expired",
+                    detail={"deleted_code": code},
+                )
+            )
+            db.delete(submission)
+            db.commit()
+            removed += 1
+        except SQLAlchemyError:
+            db.rollback()
+            logger.exception("could not delete stale draft %s; kept for the next pass", code)
+            continue
     return removed
 
 

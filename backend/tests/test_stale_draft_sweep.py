@@ -104,3 +104,34 @@ def test_zero_disables_the_sweep(db_session, sample_scan_paths, monkeypatch):
 
     assert worker_main.purge_stale_drafts(db_session) == 0
     assert _exists(db_session, code)
+
+
+def test_a_database_error_on_one_draft_does_not_stop_the_sweep(db_session, sample_scan_paths, monkeypatch):
+    """A transient DB error (OperationalError, IntegrityError) on one draft must
+    not crash the sweep and stop photo analysis -- keep sweeping, skip that row,
+    and retry it next pass."""
+    import sqlalchemy.exc
+
+    token = h.login("sweep-db-error@example.com")
+    code1 = _draft(db_session, token, sample_scan_paths)
+    code2 = _draft(db_session, token, sample_scan_paths)
+    for code in (code1, code2):
+        _age(db_session, code)
+
+    # Make the first delete() call raise OperationalError, later calls work normally
+    original_delete = db_session.delete
+    call_count = [0]
+
+    def delete_with_error(obj):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise sqlalchemy.exc.OperationalError("DELETE", {}, Exception("boom"))
+        return original_delete(obj)
+
+    monkeypatch.setattr(db_session, "delete", delete_with_error)
+
+    # Should not raise; should sweep the second one successfully
+    assert worker_main.purge_stale_drafts(db_session) == 1
+    # Exactly one of the two should be gone
+    assert _exists(db_session, code1) or _exists(db_session, code2)
+    assert not (_exists(db_session, code1) and _exists(db_session, code2))
