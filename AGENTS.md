@@ -252,6 +252,29 @@ aggregates would multiply-count. Put per-submission cleanup in the pipeline, nev
 deletes are bulk, so they bypass the identity map and the relationship collections must be expired
 afterwards, or `_persist_combined` and `rules_engine.evaluate` read rows that no longer exist.
 
+**A check is charged when an analysis first scores the card — once, and never refunded.**
+`entitlements.charge_if_scored` is the only thing that spends one, called from `_advance_submission`
+so the API's `confirm-crop` and the worker charge identically; `run_analysis` knows nothing of
+billing, so `dev_trigger` stays free. "Scored" means at least one combined `AnalysisResult` with a
+number, read from the database rather than from relationship collections the pipeline's bulk
+deletes leave stale. A pipeline error or an all-declined result (a failed geometry fit) costs
+nothing: the customer got no answer. `submissions.charged_at` is claimed by a conditional
+`UPDATE ... WHERE charged_at IS NULL`, because the API and the worker are not serialised and only
+one of two racing analyses may charge.
+
+It used to be spent at "Create submission", before any photo existed, so an abandoned draft or a
+photo that never cropped still cost one. The migration backfilled every existing row to its
+`created_at` — left NULL, a late back photo on an old submission would have charged it twice.
+
+Two consequences are easy to undo by accident. `confirm-crop` refuses with 402 **before** it saves
+the crop points: saved points make the front confirmed, the worker's poll analyses confirmed fronts
+without asking anyone, and a refusal after the save would be followed by a charge past the limit
+anyway. And because a draft is free, drafts need their own ceiling — `max_open_drafts` photo
+drafts per account, with `purge_stale_drafts` removing any untouched for `draft_retention_days`,
+photos first. "Untouched" is the later of the submission's and its newest photo's `updated_at`,
+because an upload writes a `ScanImage`, not the submission row. Mail-in submissions are exempt from
+both: their card is in the post.
+
 **Every published price is a row, and the shopfront renders from the rows that enforce it.**
 `plan_entitlements` carries a plan's allowance *and* its `price_pence`; `physical_price_tiers` holds
 the in-hand volume bands; the loose figures (founder price and seats, subscriber discount, triage
@@ -841,7 +864,7 @@ Listed so a review reports something new rather than re-deriving these:
   stranded. Noted because a WCAG sweep will keep reporting it.
 - **Nobody ever has to pay on today's settings.** The free tier *is* enforced and it *is* described
   accurately — those were two earlier versions of this entry, and both are now settled.
-  `submissions.py` refuses on `quota.can_submit` and consumes on create, the rules live in the
+  `submissions.py` refuses on `quota.can_submit`, a check is spent when an analysis first scores the card (`entitlements.charge_if_scored`), the rules live in the
   admin-editable `plan_entitlements` table (`GET`/`PATCH /plans/{plan}`), and `QuotaChip` counts the
   customer down. The copy no longer disagrees either: `useFreeAllowanceSentence` renders the CTAs on
   `/how-it-works` and `/methodology` from the same row the quota check reads, so "The first check is
