@@ -72,20 +72,32 @@ def test_report_published_falls_back_to_default_business_name_when_settings_miss
 # the notification builder in isolation. ---
 
 
-def test_creating_a_submission_sends_a_received_email():
+def test_a_photo_draft_sends_no_received_email():
     from fastapi.testclient import TestClient
 
     from zgrader.api.main import app
 
     client = TestClient(app)
-    # register_and_verify, not a bare register: creating a submission now
-    # requires a confirmed email address.
     token = register_and_verify(client, "emailwire1@example.com")
+
+    with patch("zgrader.api.routers.submissions.send_submission_received") as mock_send:
+        resp = client.post("/submissions", json={"game": "Pokemon"}, headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 201
+        mock_send.assert_not_called()
+
+
+def test_a_mail_in_submission_sends_a_received_email():
+    from fastapi.testclient import TestClient
+
+    from zgrader.api.main import app
+
+    client = TestClient(app)
+    token = register_and_verify(client, "emailwire1b@example.com")
 
     with patch("zgrader.api.routers.submissions.send_submission_received") as mock_send:
         resp = client.post(
             "/submissions",
-            json={"game": "Pokemon", "card_name": "Wired Card"},
+            json={"game": "Pokemon", "card_name": "Wired Card", "mail_in": True},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 201

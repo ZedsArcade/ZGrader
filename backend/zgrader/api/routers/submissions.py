@@ -16,7 +16,7 @@ from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.email.notifications import send_report_published, send_submission_received
 from zgrader.models.settings import get_or_create_settings
-from zgrader.models.submission import submission_code_seq
+from zgrader.models.submission import PRE_ANALYSIS_STATUSES, submission_code_seq
 from zgrader.models import (
     AnalysisCategory,
     AuditLog,
@@ -175,12 +175,39 @@ def create_submission(
     if not quota.can_submit:
         raise _quota_exhausted(quota)
 
+    # Drafts are free until analysis scores them, so they need a ceiling of
+    # their own. Mail-in submissions are waiting on the post, not on the
+    # customer, and operators create on others' behalf.
+    if not payload.mail_in and user.role != UserRole.operator:
+        open_drafts = (
+            db.query(Submission)
+            .filter(
+                Submission.user_id == user.id,
+                Submission.mail_in.is_(False),
+                Submission.charged_at.is_(None),
+                Submission.status.in_(PRE_ANALYSIS_STATUSES),
+            )
+            .count()
+        )
+        if open_drafts >= config.max_open_drafts:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                {
+                    "message": (
+                        f"You have {open_drafts} unfinished checks. "
+                        "Finish or delete one to start another."
+                    ),
+                    "code": "too_many_drafts",
+                },
+            )
+
     code = _next_submission_code(db)
     submission = Submission(
         submission_code=code,
         user_id=user.id,
         status=SubmissionStatus.created,
         language=payload.language,
+        mail_in=payload.mail_in,
     )
     db.add(submission)
     db.flush()
@@ -202,8 +229,12 @@ def create_submission(
     db.commit()
     db.refresh(submission)
 
-    settings = db.query(Settings).first()
-    send_submission_received(user, submission, settings)
+    # Only a mail-in is a submission the customer is waiting on us for; the
+    # email carries the reference to put in the package. A photo draft is
+    # created silently by its first upload and may never be finished.
+    if submission.mail_in:
+        settings = db.query(Settings).first()
+        send_submission_received(user, submission, settings)
 
     return submission
 

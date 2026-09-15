@@ -3,7 +3,7 @@ import uuid
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from zgrader.models import SubmissionLanguage, SubmissionStatus
 
@@ -42,6 +42,9 @@ class SubmissionCreate(BaseModel):
     card_number: str | None = Field(default=None, max_length=50)
     foil: bool = False
     language: SubmissionLanguage = SubmissionLanguage.en
+    # The card is coming by post. Needs a name -- the operator matches the
+    # physical card by it -- and is exempt from the open-draft cap.
+    mail_in: bool = False
 
     @field_validator("card_name", mode="before")
     @classmethod
@@ -49,6 +52,12 @@ class SubmissionCreate(BaseModel):
         if isinstance(value, str):
             return value.strip() or None
         return value
+
+    @model_validator(mode="after")
+    def _mail_in_needs_a_name(self) -> "SubmissionCreate":
+        if self.mail_in and not self.card_name:
+            raise ValueError("A card sent by post needs a name, so it can be matched when it arrives.")
+        return self
 
 
 class CardOut(BaseModel):
@@ -109,6 +118,7 @@ class SubmissionDetail(BaseModel):
     # Whether a check has been spent on this submission. Read from the
     # model's `charged` property (charged_at is not None).
     charged: bool = False
+    mail_in: bool = False
     card: CardOut | None
     scan_sides: list[str] = []
     confirmed_sides: list[str] = []

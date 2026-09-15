@@ -138,6 +138,17 @@ class ZGraderConfig(BaseSettings):
     # 0 disables the purge, for an operator who would rather keep the history.
     contact_message_retention_days: int = 365
 
+    # How many photo checks one account may have started but not yet had
+    # analysed. A draft costs nothing until analysis scores it, so without a
+    # cap an account could park unlimited photos on this box for free.
+    # Mail-in submissions and operators are exempt.
+    max_open_drafts: int = 3
+
+    # How long an untouched, never-analysed photo draft is kept before the
+    # worker deletes it and its photos. "Untouched" is the later of the
+    # submission's and its newest photo's updated_at. 0 keeps them forever.
+    draft_retention_days: int = 7
+
     # How many analyses may run inside API requests at once.
     #
     # `confirm-crop` runs the whole OpenCV pipeline synchronously in the
