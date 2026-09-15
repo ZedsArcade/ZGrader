@@ -153,7 +153,9 @@ def create_submission(
     db: Session = Depends(get_db),
 ) -> Submission:
     # Checked before anything is created, so a refused submission leaves no
-    # row, no folder and no half-state behind.
+    # row, no folder and no half-state behind. Nothing is spent here: a check
+    # is charged when an analysis first scores the card (see
+    # entitlements.charge_if_scored), so an abandoned draft costs nothing.
     quota = entitlements.get_quota(db, user)
     if not quota.can_submit:
         raise HTTPException(
@@ -178,11 +180,6 @@ def create_submission(
     )
     db.add(submission)
     db.flush()
-
-    # Spend the credit in the same transaction as the row it paid for, so a
-    # failure below can't leave the user charged for a submission that doesn't
-    # exist -- nor create one that was never paid for.
-    entitlements.consume_submission(db, user)
 
     db.add(
         Card(

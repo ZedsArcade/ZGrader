@@ -26,7 +26,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from zgrader import images
+from zgrader import entitlements, images
 from zgrader.analysis import pipeline, preprocessing
 from zgrader.email.notifications import send_report_published
 from zgrader.models import (
@@ -220,6 +220,11 @@ def _advance_submission(
         db.commit()
         logger.exception("Pipeline failed for %s", submission_code)
         return submission
+
+    # Here rather than in run_analysis (which knows nothing of billing, so
+    # dev_trigger stays free) or in a caller (both the API's confirm-crop and
+    # the worker end here, so they charge identically).
+    entitlements.charge_if_scored(db, submission)
 
     settings = db.query(Settings).first()
     if has_back and _effective_auto_publish(submission, settings):

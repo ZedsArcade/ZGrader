@@ -35,18 +35,27 @@ class SubmissionCreate(BaseModel):
     # a 500 where a 422 belongs -- and these strings also reach the report PDF,
     # the link-preview image and the public share page.
     game: str = Field(min_length=1, max_length=100)
-    card_name: str = Field(min_length=1, max_length=200)
+    # Optional: the photo-first page creates the draft from the photo, and the
+    # name is a label the customer may add later with PATCH .../card.
+    card_name: str | None = Field(default=None, max_length=200)
     set_name: str | None = Field(default=None, max_length=200)
     card_number: str | None = Field(default=None, max_length=50)
     foil: bool = False
     language: SubmissionLanguage = SubmissionLanguage.en
+
+    @field_validator("card_name", mode="before")
+    @classmethod
+    def _blank_name_is_none(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
 
 class CardOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     game: str
-    card_name: str
+    card_name: str | None
     set_name: str | None
     card_number: str | None
     foil: bool
@@ -97,6 +106,9 @@ class SubmissionDetail(BaseModel):
     created_at: datetime.datetime
     notes: str | None
     auto_publish: bool | None
+    # Whether a check has been spent on this submission. Read from the
+    # model's `charged` property (charged_at is not None).
+    charged: bool = False
     card: CardOut | None
     scan_sides: list[str] = []
     confirmed_sides: list[str] = []
