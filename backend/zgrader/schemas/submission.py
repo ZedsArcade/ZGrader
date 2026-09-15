@@ -191,3 +191,15 @@ class CenteringAdjustIn(BaseModel):
     right_px: float = Field(ge=0)
     top_px: float = Field(ge=0)
     bottom_px: float = Field(ge=0)
+
+
+class CardUpdate(BaseModel):
+    """Edits to a submission's card. Omitted fields are left alone; `null`
+    clears a label. Widths mirror models/card.py, as SubmissionCreate's do."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    card_name: str | None = Field(default=None, max_length=200)
+    set_name: str | None = Field(default=None, max_length=200)
+    card_number: str | None = Field(default=None, max_length=50)
+    foil: bool | None = None

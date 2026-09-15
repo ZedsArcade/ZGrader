@@ -36,6 +36,7 @@ from zgrader.storage import purge_submission_files
 from zgrader.schemas.admin import AutoPublishUpdate
 from zgrader.schemas.public_report import ShareStateOut
 from zgrader.schemas.submission import (
+    CardUpdate,
     CenteringAdjustIn,
     CropCheckOut,
     CropPointsIn,
@@ -84,6 +85,7 @@ _submission_image_limit = rate_limit("submission_image", limit=120, window_secon
 _report_download_limit = rate_limit("report_download", limit=20, window_seconds=900)
 _share_manage_limit = rate_limit("share_manage", limit=30, window_seconds=900)
 _submission_adjust_limit = rate_limit("submission_adjust", limit=60, window_seconds=300)
+_card_update_limit = rate_limit("card_update", limit=60, window_seconds=3600)
 _operator_publish_limit = rate_limit("operator_publish", limit=60, window_seconds=300)
 _REGION_KEY_RE = re.compile(r"^(front|back):(centering|corners|edges|surface):[a-z0-9_]+$")
 _SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff", ".tif": "image/tiff"}
@@ -372,6 +374,48 @@ async def upload_scan(
             checksum=sha256_file(file_path),
         )
     )
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
+@router.patch(
+    "/{code}/card", response_model=SubmissionDetail, dependencies=[Depends(_card_update_limit)]
+)
+def update_card(
+    code: str,
+    payload: CardUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Submission:
+    """Name, set and number are labels -- nothing measured depends on them --
+    so they edit in any status. Foil is part of the analysis
+    (assessment.CARD_IS_FOIL), so it is locked once analysis has run: changing
+    it afterwards would put a stale assessment beside a new declaration."""
+    submission = _get_owned_submission(code, user, db)
+    card = submission.card
+    if card is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This submission has no card")
+
+    fields = payload.model_fields_set
+    if (
+        "foil" in fields
+        and payload.foil is not None
+        and payload.foil != card.foil
+        and submission.status not in PRE_ANALYSIS_STATUSES
+    ):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Foil can only be changed before the card is analysed -- it changes the result.",
+        )
+
+    for name in ("card_name", "set_name", "card_number"):
+        if name in fields:
+            value = getattr(payload, name)
+            setattr(card, name, (value.strip() or None) if isinstance(value, str) else None)
+    if "foil" in fields and payload.foil is not None:
+        card.foil = payload.foil
+
     db.commit()
     db.refresh(submission)
     return submission
