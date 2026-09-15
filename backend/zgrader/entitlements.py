@@ -9,8 +9,9 @@ that stays wrong.
 
 Two properties are deliberate and worth not undoing:
 
-**Usage is counted, not derived.** `User.quota_used` is incremented when a
-submission is created and never decremented. The obvious alternative -- count
+**Usage is counted, not derived.** `User.quota_used` is incremented when an
+analysis first gives a submission a score (`charge_if_scored`) and never
+decremented. The obvious alternative -- count
 the user's submission rows -- refunds a credit the moment someone deletes a
 submission, and since deletion is allowed in any status that turns a spent
 quota into unlimited retries.
@@ -24,9 +25,10 @@ point that can be counted down to rather than a moving target.
 import dataclasses
 import datetime
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
-from zgrader.models import User
+from zgrader.models import AnalysisResult, AnalysisSide, AuditLog, Submission, User
 from zgrader.models.plan_entitlement import FREE_PLAN, PlanEntitlement
 from zgrader.models.subscription import LIVE_STATUSES, Subscription, SubscriptionStatus
 
@@ -201,7 +203,7 @@ def can_create_submission(db: Session, user: User) -> bool:
 
 
 def consume_submission(db: Session, user: User) -> None:
-    """Spend one credit. Call once per submission actually created.
+    """Spend one credit. Called only by `charge_if_scored`.
 
     Unlimited plans are a no-op, so the counter stays at zero rather than
     accumulating a number nothing reads -- and if a subscription later lapses,
@@ -216,3 +218,54 @@ def consume_submission(db: Session, user: User) -> None:
         user.quota_used = 0
     user.quota_used += 1
     db.flush()
+
+
+def charge_if_scored(db: Session, submission: Submission) -> bool:
+    """Spend one check on `submission` if analysis scored it and nothing has yet.
+
+    "Scored" is at least one combined result with a number. A pipeline error,
+    or a result where every category declined (a failed geometry fit), costs
+    nothing: the customer got no answer. Read from the database rather than
+    `submission.analysis_results`, which the pipeline's bulk deletes leave
+    stale.
+
+    The claim is a conditional UPDATE, so of two analyses finishing on one
+    submission -- the API and the worker are not serialised -- only one sees
+    a row change and only that one spends the check. Returns whether this
+    call charged. The caller owns the commit, which lands the charge in the
+    same transaction as the status change it accompanies.
+    """
+    scored = db.query(
+        db.query(AnalysisResult)
+        .filter(
+            AnalysisResult.submission_id == submission.id,
+            AnalysisResult.side == AnalysisSide.combined,
+            AnalysisResult.raw_score.isnot(None),
+        )
+        .exists()
+    ).scalar()
+    if not scored:
+        return False
+
+    claimed = db.execute(
+        update(Submission)
+        .where(Submission.id == submission.id, Submission.charged_at.is_(None))
+        .values(charged_at=_now())
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    if claimed != 1:
+        return False
+    db.expire(submission, ["charged_at"])
+
+    user = submission.user
+    consume_submission(db, user)
+    db.add(
+        AuditLog(
+            submission_id=submission.id,
+            user_id=user.id,
+            action="check_charged",
+            detail={"plan": active_plan(db, user)},
+        )
+    )
+    db.flush()
+    return True

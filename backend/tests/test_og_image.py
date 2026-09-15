@@ -34,7 +34,9 @@ from zgrader.models import (
 )
 
 
-def _submission(db_session, code="SUB-70001", language=SubmissionLanguage.en) -> Submission:
+def _submission(
+    db_session, code="SUB-70001", language=SubmissionLanguage.en, card_name="Charizard"
+) -> Submission:
     user = User(email=f"{code.lower()}@example.com", hashed_password="x", role=UserRole.client)
     db_session.add(user)
     db_session.flush()
@@ -50,7 +52,7 @@ def _submission(db_session, code="SUB-70001", language=SubmissionLanguage.en) ->
         Card(
             submission_id=submission.id,
             game="Pokemon",
-            card_name="Charizard",
+            card_name=card_name,
             set_name="Base Set",
             card_number="4",
             foil=True,
@@ -254,6 +256,24 @@ def test_the_font_can_draw_accented_spanish(db_session):
         "The resolved font cannot draw accented characters, so Spanish previews "
         "would render as boxes. Check zgrader/assets/fonts/."
     )
+
+
+@pytest.mark.parametrize("language", [SubmissionLanguage.en, SubmissionLanguage.es])
+def test_an_unnamed_card_renders_the_localized_untitled_label(db_session, language):
+    """Unnamed is the default for a photo check now, and this image is what a
+    Discord unfurl reads -- the fallback used to be the untranslated English
+    word "Card" regardless of the submission's language."""
+    submission = _submission(
+        db_session,
+        code=f"SUB-7300{language.value == 'es'}",
+        language=language,
+        card_name=None,
+    )
+
+    path = og_image.ensure(submission, "Card Care Center", config.reports_dir)
+
+    with Image.open(path) as image:
+        assert image.size == (1200, 630)
 
 
 def test_language_changes_the_fingerprint(db_session):

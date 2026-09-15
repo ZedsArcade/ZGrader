@@ -188,7 +188,9 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
         "card": {
             "game": card.game if card else None,
             "set_name": card.set_name if card else None,
-            "card_name": card.card_name if card else None,
+            # The photo-first page makes the name optional; a PDF must never
+            # print "None" where a card's name belongs.
+            "card_name": (card.card_name if card else None) or REPORT_STRINGS[language]["untitled_card"],
             "card_number": card.card_number if card else None,
             "foil": card.foil if card else False,
         },

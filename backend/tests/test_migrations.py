@@ -176,3 +176,48 @@ def test_the_billing_migration_leaves_the_constraints_billing_relies_on(scratch_
     assert not _query(
         scratch_database, "SELECT 1 FROM pg_type WHERE typname = 'subscription_status'"
     ), "the subscription_status enum survived the migration"
+
+
+def _execute(url: str, *statements: str) -> None:
+    engine = create_engine(url)
+    try:
+        with engine.begin() as conn:
+            for sql in statements:
+                conn.execute(text(sql))
+    finally:
+        engine.dispose()
+
+
+def test_existing_submissions_are_backfilled_as_already_charged(scratch_database):
+    """Every submission before this migration was charged when it was created.
+
+    Left NULL, the next re-analysis of any of them -- a late back photo, an
+    operator re-run -- would satisfy the new charge-on-score rule and bill the
+    customer a second time for a check they already paid for.
+    """
+    _alembic(scratch_database, "upgrade", "9e3b5d1f7a24")
+    _execute(
+        scratch_database,
+        "INSERT INTO users (id, email, is_verified, role, token_version, marketing_consent, "
+        "created_at, updated_at) VALUES ('00000000-0000-0000-0000-0000000000a1', "
+        "'backfill@example.com', true, 'client', 1, false, now(), now())",
+        "INSERT INTO submissions (id, submission_code, user_id, status, created_at, updated_at) "
+        "VALUES ('00000000-0000-0000-0000-0000000000b1', 'SUB-77777', "
+        "'00000000-0000-0000-0000-0000000000a1', 'published', "
+        "'2026-01-02T03:04:05+00', now())",
+    )
+
+    _alembic(scratch_database, "upgrade", "head")
+
+    assert _query(
+        scratch_database,
+        "SELECT charged_at = created_at FROM submissions WHERE submission_code = 'SUB-77777'",
+    ) is True
+    assert _query(
+        scratch_database, "SELECT mail_in FROM submissions WHERE submission_code = 'SUB-77777'"
+    ) is False
+    assert _query(
+        scratch_database,
+        "SELECT is_nullable FROM information_schema.columns "
+        "WHERE table_name = 'cards' AND column_name = 'card_name'",
+    ) == "YES"

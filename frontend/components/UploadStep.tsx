@@ -8,30 +8,27 @@ import { toastError } from "@/lib/toast";
 import { useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
-function ScanSlot({
-  side,
-  label,
-  hint,
-  token,
+/**
+ * The back photo, offered once the front has a result. The front goes through
+ * CheckFlow; this completes a check, and adding it never charges again.
+ */
+export default function UploadStep({
   code,
-  uploaded,
+  token,
+  scanSides,
   onUploaded,
 }: {
-  side: api.ScanSide;
-  label: string;
-  hint?: string;
-  token: string;
   code: string;
-  uploaded: boolean;
+  token: string;
+  scanSides: api.ScanSide[];
   onUploaded: (updated: api.SubmissionDetail) => void;
 }) {
   const t = useTranslations();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  // A side already in scan_sides (e.g. after a page refresh mid-crop-
-  // confirm) skips straight to the crop-adjust UI instead of re-showing the
-  // file picker.
-  const [awaitingCrop, setAwaitingCrop] = useState(uploaded);
+  // A back already uploaded (a refresh mid-crop) goes straight to the crop.
+  const [awaitingCrop, setAwaitingCrop] = useState(scanSides.includes("back"));
 
   async function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -39,7 +36,7 @@ function ScanSlot({
     if (!file) return;
     setUploading(true);
     try {
-      await api.uploadScan(token, code, side, file);
+      await api.uploadScan(token, code, "back", file);
       setAwaitingCrop(true);
     } catch (err) {
       toastError(err instanceof api.ApiError ? err.message : t.upload.uploadFailed);
@@ -48,100 +45,40 @@ function ScanSlot({
     }
   }
 
-  if (awaitingCrop) {
-    return (
-      <CropAdjustStep
-        token={token}
-        code={code}
-        side={side}
-        onConfirmed={(updated) => {
-          setAwaitingCrop(false);
-          onUploaded(updated);
-        }}
-      />
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border p-4">
-      <p className="text-sm font-semibold text-foreground">{label}</p>
-      {hint && <p className="text-sm text-muted">{hint}</p>}
-      {uploading ? (
-        <ProgressBar aria-label={t.upload.uploading} isIndeterminate className="w-full">
-          <ProgressBar.Track>
-            <ProgressBar.Fill />
-          </ProgressBar.Track>
-        </ProgressBar>
-      ) : (
-        <>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            capture
-            onChange={handleChange}
-            className="hidden"
-          />
-          <Button variant="outline" size="sm" onPress={() => inputRef.current?.click()}>
-            {t.upload.chooseFile}
-          </Button>
-        </>
-      )}
-    </div>
-  );
-}
-
-export default function UploadStep({
-  code,
-  token,
-  scanSides,
-  confirmedSides,
-  onUploaded,
-}: {
-  code: string;
-  token: string;
-  scanSides: api.ScanSide[];
-  confirmedSides: api.ScanSide[];
-  onUploaded: (updated: api.SubmissionDetail) => void;
-}) {
-  const t = useTranslations();
-  const frontDone = confirmedSides.includes("front");
-  const backDone = confirmedSides.includes("back");
-
-  if (frontDone && backDone) return null;
-
   return (
     <Card>
       <Card.Header>
-        <Card.Title>{frontDone ? t.upload.frontUploadedTitle : t.upload.title}</Card.Title>
-        <Card.Description>{frontDone ? t.upload.frontUploadedNote : t.upload.subtitle}</Card.Description>
-        {/* Only before the first photo. Once the front is in, the advice is
-            too late to act on and would read as a reproach. */}
-        {!frontDone && (
-          <p className="mt-2 text-sm text-muted">{t.upload.backgroundHint}</p>
-        )}
+        <Card.Title>{t.checkFlow.backTitle}</Card.Title>
+        <Card.Description>{t.checkFlow.backBody}</Card.Description>
       </Card.Header>
-      <Card.Content className={frontDone ? undefined : "grid gap-4 sm:grid-cols-2"}>
-        {!frontDone && (
-          <ScanSlot
-            side="front"
-            label={t.upload.frontLabel}
+      <Card.Content>
+        {awaitingCrop ? (
+          <CropAdjustStep
             token={token}
             code={code}
-            uploaded={scanSides.includes("front")}
-            onUploaded={onUploaded}
-          />
-        )}
-        {!backDone && (
-          <ScanSlot
             side="back"
-            label={t.upload.backLabel}
-            hint={frontDone ? undefined : t.upload.backHint}
-            token={token}
-            code={code}
-            uploaded={scanSides.includes("back")}
-            onUploaded={onUploaded}
+            onConfirmed={(updated) => {
+              setAwaitingCrop(false);
+              onUploaded(updated);
+            }}
           />
+        ) : uploading ? (
+          <ProgressBar aria-label={t.upload.uploading} isIndeterminate className="w-full">
+            <ProgressBar.Track>
+              <ProgressBar.Fill />
+            </ProgressBar.Track>
+          </ProgressBar>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} className="hidden" />
+            <input ref={libraryRef} type="file" accept="image/*" onChange={handleChange} className="hidden" />
+            <Button variant="outline" onPress={() => cameraRef.current?.click()}>
+              {t.checkFlow.takePhoto}
+            </Button>
+            <Button variant="outline" onPress={() => libraryRef.current?.click()}>
+              {t.checkFlow.choosePhoto}
+            </Button>
+          </div>
         )}
       </Card.Content>
     </Card>

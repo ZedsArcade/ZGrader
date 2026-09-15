@@ -68,6 +68,13 @@ services:
       # them. The privacy policy quotes this figure, so changing it here means
       # changing that page too. 0 keeps them indefinitely.
       ZGRADER_CONTACT_MESSAGE_RETENTION_DAYS: ${ZGRADER_CONTACT_MESSAGE_RETENTION_DAYS:-365}
+      # How many photo checks an account may have started but not yet had
+      # analysed. Drafts cost nothing until scored, so this is what stops
+      # them being used as free photo storage.
+      ZGRADER_MAX_OPEN_DRAFTS: ${ZGRADER_MAX_OPEN_DRAFTS:-3}
+      # Days an untouched, never-analysed photo draft is kept before the
+      # worker deletes it and its photos. 0 keeps them indefinitely.
+      ZGRADER_DRAFT_RETENTION_DAYS: ${ZGRADER_DRAFT_RETENTION_DAYS:-7}
       # How many analyses may run inside API requests at once. confirm-crop
       # runs the OpenCV pipeline in the request, so without this a burst of
       # submissions saturates the API and everything sharing the box with it.

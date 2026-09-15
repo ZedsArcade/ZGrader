@@ -53,6 +53,11 @@ class SubmissionLanguage(str, enum.Enum):
     es = "es"
 
 
+#: Statuses a submission is in before any analysis has run on it. The draft
+#: cap, the stale-draft sweep and the foil lock all mean exactly this set.
+PRE_ANALYSIS_STATUSES = (SubmissionStatus.created, SubmissionStatus.awaiting_scans)
+
+
 class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One Submission == one physical card's grading job.
 
@@ -122,6 +127,20 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     share_enabled_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # When a check was spent on this submission: the first time an analysis
+    # gave it a score. NULL means nothing has been charged -- a draft, a
+    # pipeline error, or a result where every category declined. Written only
+    # by entitlements.charge_if_scored, as a conditional UPDATE, so two
+    # analyses racing on one submission cannot charge twice.
+    charged_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # The card is coming by post and the operator will scan it. Such a
+    # submission has no photos for days by design, so the draft cap and the
+    # stale-draft sweep leave it alone.
+    mail_in: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
 
     __table_args__ = (
         # Partial, because most submissions are never shared and there is no
@@ -179,6 +198,10 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         no visible trace in the scorecard on its own.
         """
         return bool(self.dismissed_regions) or bool(self.centering_adjustments)
+
+    @property
+    def charged(self) -> bool:
+        return self.charged_at is not None
 
     @property
     def confirmed_sides(self) -> list[str]:
