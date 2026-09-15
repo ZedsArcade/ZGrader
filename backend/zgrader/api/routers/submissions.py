@@ -115,6 +115,21 @@ def _get_owned_submission(code: str, user: User, db: Session) -> Submission:
     return submission
 
 
+def _quota_exhausted(quota: entitlements.Quota) -> HTTPException:
+    return HTTPException(
+        status.HTTP_402_PAYMENT_REQUIRED,
+        {
+            "message": (
+                "You've used all your checks for this period. They reset automatically, "
+                "or a subscription removes the limit."
+            ),
+            "limit": quota.limit,
+            "used": quota.used,
+            "resets_at": quota.resets_at.isoformat() if quota.resets_at else None,
+        },
+    )
+
+
 @router.get("/quota", response_model=QuotaOut, dependencies=[Depends(_submission_read_limit)])
 def get_quota(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -158,18 +173,7 @@ def create_submission(
     # entitlements.charge_if_scored), so an abandoned draft costs nothing.
     quota = entitlements.get_quota(db, user)
     if not quota.can_submit:
-        raise HTTPException(
-            status.HTTP_402_PAYMENT_REQUIRED,
-            {
-                "message": (
-                    "You've used all your checks for this period. They reset automatically, "
-                    "or a subscription removes the limit."
-                ),
-                "limit": quota.limit,
-                "used": quota.used,
-                "resets_at": quota.resets_at.isoformat() if quota.resets_at else None,
-            },
-        )
+        raise _quota_exhausted(quota)
 
     code = _next_submission_code(db)
     submission = Submission(
@@ -489,6 +493,18 @@ def confirm_crop(
             status.HTTP_409_CONFLICT,
             f"Submission is '{submission.status.value}' -- crop can no longer be confirmed",
         )
+
+    # Before the crop is saved, not after: saved crop points make the front
+    # "confirmed", and the worker's poll analyses confirmed fronts without
+    # asking anyone -- so a refusal here that left them stored would be
+    # followed by a charge past the limit anyway. A charged submission is
+    # completing a check already paid for (typically adding its back).
+    if submission.charged_at is None:
+        quota = entitlements.get_quota(db, submission.user)
+        if not quota.can_submit:
+            db.commit()  # keep a rolled-forward window, as GET /quota does
+            raise _quota_exhausted(quota)
+
     scan = _get_scan(submission, side)
     _validate_points(payload, scan)
 
