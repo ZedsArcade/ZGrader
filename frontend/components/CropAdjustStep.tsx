@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import Button from "@/components/Button";
 import Skeleton from "@/components/Skeleton";
 import { toastError } from "@/lib/toast";
@@ -8,17 +16,53 @@ import { useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 type NormPoint = [number, number];
+type CornerKey = "topLeft" | "topRight" | "bottomRight" | "bottomLeft";
+
+/** How far the touch magnifier enlarges the photo, and its diameter. */
+const LOUPE_ZOOM = 3;
+const LOUPE_PX = 120;
+/** Gap between the finger and the magnifier, so the finger never covers it. */
+const LOUPE_GAP_PX = 24;
+/** Keyboard nudge as a fraction of the photo: fine, and with Shift held. */
+const NUDGE = 0.005;
+const NUDGE_LARGE = 0.02;
+
+/** Where a drag is, in normalised photo space plus the photo's on-screen size. */
+type Loupe = { x: number; y: number; width: number; height: number };
+
+/** Names a handle by where it sits relative to the others, so the label is
+ *  right whatever order the suggestion returned the points in. */
+function cornerKey(point: NormPoint, centre: NormPoint): CornerKey {
+  const top = point[1] < centre[1];
+  const left = point[0] < centre[0];
+  if (top) return left ? "topLeft" : "topRight";
+  return left ? "bottomLeft" : "bottomRight";
+}
 
 export default function CropAdjustStep({
   token,
   code,
   side,
   onConfirmed,
+  confirmLabel,
+  beforeConfirm,
+  onConfirmError,
+  children,
 }: {
   token: string;
   code: string;
   side: api.ScanSide;
   onConfirmed: (updated: api.SubmissionDetail) => void;
+  /** Replaces "Confirm crop" -- the check page says "Analyse card". */
+  confirmLabel?: string;
+  /** Runs before the crop check. Resolve false to stop; the caller has
+   *  already said why. */
+  beforeConfirm?: () => Promise<boolean>;
+  /** Return true when the caller has shown this refusal itself (the check
+   *  page shows a 402 as a panel), so no toast follows. */
+  onConfirmError?: (err: api.ApiError) => boolean;
+  /** Between the editor and the confirm button: foil, card details. */
+  children?: ReactNode;
 }) {
   const t = useTranslations();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -30,6 +74,7 @@ export default function CropAdjustStep({
   const [confirming, setConfirming] = useState(false);
   const [snapping, setSnapping] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [loupe, setLoupe] = useState<Loupe | null>(null);
   // Set when the crop check says the card's edges could not be found. Holding
   // the codes rather than a boolean lets the panel below reuse the same
   // wording the results page uses for the same condition.
@@ -74,12 +119,21 @@ export default function CropAdjustStep({
     return [x, y];
   }
 
-  function handlePointerDown(index: number, event: ReactPointerEvent<HTMLSpanElement>) {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragIndex.current = index;
+  /** Touch only: a mouse pointer is a pixel wide and hides nothing, a finger
+   *  hides exactly the corner being placed. */
+  function showLoupe(event: ReactPointerEvent<HTMLButtonElement>, point: NormPoint) {
+    if (event.pointerType !== "touch" || !wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    setLoupe({ x: point[0], y: point[1], width: rect.width, height: rect.height });
   }
 
-  function handlePointerMove(event: ReactPointerEvent<HTMLSpanElement>) {
+  function handlePointerDown(index: number, event: ReactPointerEvent<HTMLButtonElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragIndex.current = index;
+    if (points) showLoupe(event, points[index]);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
     if (dragIndex.current === null) return;
     const next = clientToNormalized(event.clientX, event.clientY);
     const index = dragIndex.current;
@@ -89,11 +143,37 @@ export default function CropAdjustStep({
       updated[index] = next;
       return updated;
     });
+    showLoupe(event, next);
   }
 
-  function handlePointerUp(event: ReactPointerEvent<HTMLSpanElement>) {
+  function handlePointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
     event.currentTarget.releasePointerCapture(event.pointerId);
     dragIndex.current = null;
+    setLoupe(null);
+  }
+
+  /** The handles were pointer-only; arrow keys make them usable without one. */
+  function handleKeyDown(index: number, event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const step = event.shiftKey ? NUDGE_LARGE : NUDGE;
+    const moves: Record<string, NormPoint> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    const move = moves[event.key];
+    if (!move) return;
+    event.preventDefault();
+    setPoints((prev) => {
+      if (!prev) return prev;
+      const updated = [...prev];
+      const [x, y] = updated[index];
+      updated[index] = [
+        Math.min(1, Math.max(0, x + move[0])),
+        Math.min(1, Math.max(0, y + move[1])),
+      ];
+      return updated;
+    });
   }
 
   function toPixels(pts: NormPoint[]): api.CropPoint[] {
@@ -151,11 +231,11 @@ export default function CropAdjustStep({
       const updated = await api.confirmCrop(token, code, side, toPixels(points));
       onConfirmed(updated);
     } catch (err) {
-      // Two refusals here are capacity, not failure, and both are recoverable
-      // by waiting -- so they get their own wording. The server's own message
-      // is accurate but generic; these say what to do next, which is the
-      // difference between "something broke" and "come back in a minute".
-      if (err instanceof api.ApiError && err.status === 503) {
+      if (err instanceof api.ApiError && onConfirmError?.(err)) {
+        // Shown by the caller.
+      } else if (err instanceof api.ApiError && err.status === 503) {
+        // Two refusals here are capacity, not failure, and both are
+        // recoverable by waiting -- so they get their own wording.
         toastError(t.cropAdjust.confirmBusy);
       } else if (err instanceof api.ApiError && err.status === 409) {
         toastError(t.cropAdjust.confirmAlreadyRunning);
@@ -170,11 +250,11 @@ export default function CropAdjustStep({
   /**
    * Check the crop before committing to it.
    *
-   * Confirming advances the submission, so a crop the pipeline cannot use
-   * costs the customer a credit and a wait to find out. Across 30 real
-   * photographs the fit fell back on a third of uncropped images, and 8 of
-   * those 10 failures were recovered by re-cropping alone -- so the common
-   * case is one they can fix right here, before paying for it.
+   * Confirming runs the analysis, so a crop the pipeline cannot use costs
+   * the customer a wait to find out. Across 30 real photographs the fit fell
+   * back on a third of uncropped images, and 8 of those 10 failures were
+   * recovered by re-cropping alone -- so the common case is one they can fix
+   * right here.
    *
    * The warning does not block. Two of the thirty could not be fitted at any
    * crop, and trapping someone behind a check they cannot satisfy is worse
@@ -183,6 +263,7 @@ export default function CropAdjustStep({
   async function handleConfirm() {
     if (!points || !dims) return;
     setBoundaryWarning(null);
+    if (beforeConfirm && !(await beforeConfirm())) return;
     setChecking(true);
     try {
       const check = await api.checkCrop(token, code, side, toPixels(points));
@@ -192,8 +273,7 @@ export default function CropAdjustStep({
       }
     } catch {
       // The check is an optimisation, not a gate. If it is unavailable the
-      // customer must still be able to submit -- failing closed here would
-      // turn a nice-to-have into an outage of the whole upload flow.
+      // customer must still be able to submit.
       toastError(t.cropAdjust.checkFailed);
     } finally {
       setChecking(false);
@@ -205,12 +285,34 @@ export default function CropAdjustStep({
     return <Skeleton className="aspect-[3/4] w-full rounded-xl" />;
   }
 
-  // Safe as an SVG polygon under the wrapper's non-uniform (photo aspect
-  // ratio vs. viewport) scaling -- unlike the draggable handles themselves,
-  // which are plain HTML spans positioned by percentage, not SVG circles,
-  // since circles distort into ellipses under anisotropic scaling (see
-  // AnnotatedPhoto.tsx, which establishes this same pattern).
+  // Safe as an SVG polygon under the wrapper's non-uniform scaling -- unlike
+  // the handles, which are HTML positioned by percentage, since circles
+  // distort into ellipses under anisotropic scaling (see AnnotatedPhoto.tsx).
   const polygonPoints = points.map(([x, y]) => `${x},${y}`).join(" ");
+  const centre: NormPoint = [
+    points.reduce((s, p) => s + p[0], 0) / points.length,
+    points.reduce((s, p) => s + p[1], 0) / points.length,
+  ];
+
+  let loupeStyle: CSSProperties | null = null;
+  if (loupe) {
+    const half = LOUPE_PX / 2;
+    const px = loupe.x * loupe.width;
+    const py = loupe.y * loupe.height;
+    // Above the finger, which is what hides the corner; below it only when
+    // there is no room above.
+    const above = py - LOUPE_PX - LOUPE_GAP_PX;
+    loupeStyle = {
+      width: LOUPE_PX,
+      height: LOUPE_PX,
+      left: px - half,
+      top: above >= 0 ? above : py + LOUPE_GAP_PX,
+      backgroundImage: `url(${photoUrl})`,
+      backgroundRepeat: "no-repeat",
+      backgroundSize: `${loupe.width * LOUPE_ZOOM}px ${loupe.height * LOUPE_ZOOM}px`,
+      backgroundPosition: `${half - px * LOUPE_ZOOM}px ${half - py * LOUPE_ZOOM}px`,
+    };
+  }
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
@@ -232,17 +334,17 @@ export default function CropAdjustStep({
           />
         </svg>
         {points.map(([x, y], i) => (
-          <span
+          <button
             key={i}
+            type="button"
+            aria-label={t.cropAdjust.handleLabel[cornerKey([x, y], centre)]}
             onPointerDown={(e) => handlePointerDown(i, e)}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            // 44px of transparent hit area around a 24px dot. 24 is the bare
-            // WCAG 2.5.8 minimum and was the entire target; this is a corner
-            // being dragged to within a millimetre on a phone, which is the
-            // hardest precision task in the product. The dot stays its old
-            // size because it marks the corner it is claiming.
-            className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center"
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            // 44px of transparent hit area around a 24px dot. The dot stays
+            // its size because it marks the corner it is claiming.
+            className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--neon-pink)]"
             style={{ left: `${x * 100}%`, top: `${y * 100}%`, cursor: "grab" }}
           >
             <span
@@ -250,9 +352,26 @@ export default function CropAdjustStep({
               className="h-6 w-6 rounded-full border-2 border-white shadow-md"
               style={{ backgroundColor: "var(--neon-pink)" }}
             />
-          </span>
+          </button>
         ))}
+        {loupeStyle && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute z-10 overflow-hidden rounded-full border-2 border-white shadow-lg"
+            style={loupeStyle}
+          >
+            <span
+              className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2"
+              style={{ backgroundColor: "var(--neon-pink)" }}
+            />
+            <span
+              className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2"
+              style={{ backgroundColor: "var(--neon-pink)" }}
+            />
+          </span>
+        )}
       </div>
+      <p className="text-xs text-muted">{t.cropAdjust.keyboardHint}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onPress={handleSnap} isDisabled={snapping || confirming}>
           {t.cropAdjust.snapButton}
@@ -264,7 +383,7 @@ export default function CropAdjustStep({
           onPress={() => nudgeRotate(-1)}
           isDisabled={confirming}
         >
-          ⟲
+          ⟲ 1°
         </Button>
         <Button
           variant="outline"
@@ -273,7 +392,7 @@ export default function CropAdjustStep({
           onPress={() => nudgeRotate(1)}
           isDisabled={confirming}
         >
-          ⟳
+          1° ⟳
         </Button>
       </div>
       {boundaryWarning && (
@@ -282,16 +401,12 @@ export default function CropAdjustStep({
           className="flex flex-col gap-3 rounded-lg border-l-4 border border-border p-3"
           style={{ borderLeftColor: "var(--grade-warn)" }}
         >
-          <p className="text-sm font-semibold text-foreground">
-            {t.cropAdjust.boundaryWarningTitle}
-          </p>
+          <p className="text-sm font-semibold text-foreground">{t.cropAdjust.boundaryWarningTitle}</p>
           {/* The explanation is the results page's own wording for this
               limitation, not a second phrasing of it. */}
           {boundaryWarning.map((codeName) => {
             const copy =
-              t.submissionDetail.limitation[
-                codeName as keyof typeof t.submissionDetail.limitation
-              ];
+              t.submissionDetail.limitation[codeName as keyof typeof t.submissionDetail.limitation];
             return copy ? (
               <p key={codeName} className="text-sm leading-relaxed text-muted">
                 {copy}
@@ -303,28 +418,21 @@ export default function CropAdjustStep({
             <Button variant="primary" size="sm" onPress={() => setBoundaryWarning(null)}>
               {t.cropAdjust.adjustInstead}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onPress={submitCrop}
-              isDisabled={confirming}
-            >
+            <Button variant="outline" size="sm" onPress={submitCrop} isDisabled={confirming}>
               {confirming ? t.cropAdjust.confirming : t.cropAdjust.submitAnyway}
             </Button>
           </div>
         </div>
       )}
 
+      {children}
+
       <Button
         variant="primary"
         onPress={handleConfirm}
         isDisabled={confirming || snapping || checking || boundaryWarning !== null}
       >
-        {checking
-          ? t.cropAdjust.checking
-          : confirming
-            ? t.cropAdjust.confirming
-            : t.cropAdjust.confirmButton}
+        {checking ? t.cropAdjust.checking : confirming ? t.cropAdjust.confirming : confirmLabel ?? t.cropAdjust.confirmButton}
       </Button>
     </div>
   );
