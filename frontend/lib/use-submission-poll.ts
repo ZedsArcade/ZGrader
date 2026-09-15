@@ -50,7 +50,10 @@ export function useSubmissionPoll(active: boolean, poll: () => Promise<void>): b
       } catch {
         // A failed read is retried on the next tick; nothing to show.
       } finally {
-        inFlight.current = false;
+        // Gated like schedule() below: a stale tick from a run this effect has
+        // already torn down must not clear a newer run's in-flight flag --
+        // the newer run's own cleanup already reset it once, for itself.
+        if (!cancelled) inFlight.current = false;
       }
       if (!cancelled) schedule();
     };
