@@ -218,8 +218,6 @@ _PUBLIC_KEYS = {
     "area_fraction", "length_mm", "low_confidence", "line_norm",
     # comparisons
     "company", "contention_note",
-    # centering_adjustments side keys: appear only when placements exist
-    "front", "back",
 }
 
 
@@ -283,17 +281,12 @@ def test_public_payload_key_allowlist(shared):
     than on a list of things somebody already worried about. When it breaks, the
     question to answer is "should a stranger see this?" -- and then to add the
     key here deliberately.
-
-    Uses subset checking so that features like placements (which add optional
-    side keys) are documented in _PUBLIC_KEYS without requiring them to always
-    be present. The core intent is still preserved: any key found in the payload
-    must be in the allowlist.
     """
     resp = client.get(f"/public/reports/{shared['token']}")
     keys: set = set()
     _walk(resp.json(), keys, set())
 
-    assert keys <= _PUBLIC_KEYS
+    assert keys == _PUBLIC_KEYS
 
 
 def test_unmeasurable_category_publishes_a_null_not_a_zero(shared):
@@ -341,7 +334,10 @@ def test_a_placed_centering_is_published_with_its_label(db_session):
     assert body["client_adjusted"] is True
     keys: set = set()
     _walk(body, keys, set())
-    assert keys <= _PUBLIC_KEYS
+    # "front"/"back" are the side names inside centering_adjustments, which is
+    # already published; the base fixture has no adjustment, so they are allowed
+    # here rather than in the exact allowlist.
+    assert keys <= _PUBLIC_KEYS | {"front", "back"}
 
 
 # --- 404, never 403 -----------------------------------------------------
