@@ -447,10 +447,14 @@ def run_analysis(db: Session, submission: Submission) -> None:
     rules_engine.evaluate(db, submission)
 
     # A re-analysis (e.g. a late back scan) rebuilds every row from scratch;
-    # re-apply any dismissals the client had already made so their
-    # adjustments aren't silently lost. Region ids are stable across
-    # re-analysis, so previously-dismissed keys still resolve.
-    if submission.dismissed_regions:
+    # re-apply any dismissals and centering adjustments/placements the client
+    # had already made so they aren't silently lost. Region ids are stable
+    # across re-analysis, so previously-dismissed keys still resolve, and a
+    # placement is re-scored against whatever the fresh side row says. Without
+    # this, a re-analysis silently dropped a stored placement: the combined
+    # centering row came back unmeasurable while centering_adjustments and
+    # client_adjusted stayed put, the report contradicting itself.
+    if submission.dismissed_regions or submission.centering_adjustments:
         db.expire(submission, ["analysis_results", "company_comparisons"])
         recompute.recompute_submission(db, submission)
 

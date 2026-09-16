@@ -7,14 +7,20 @@ everywhere as what it is.
 """
 
 import copy
+import hashlib
 
-from zgrader.analysis import assessment, centering, recompute, scoring
+import cv2
+
+from zgrader.analysis import assessment, centering, pipeline, recompute, scoring
 from zgrader.auth.security import hash_password
 from zgrader.models import (
     AnalysisCategory,
     AnalysisResult,
     AnalysisSide,
+    Card,
     GradingCompanyComparison,
+    ScanImage,
+    ScanSide,
     Submission,
     SubmissionLanguage,
     SubmissionStatus,
@@ -22,6 +28,7 @@ from zgrader.models import (
 )
 
 from tests.centering_rows import add_centering_rows, declined_side, scored_side, side_score
+from tests.fixtures.generate_samples import build_fixture
 
 
 def _declined(*limitations, px_per_mm=10.0):
@@ -257,3 +264,90 @@ def test_placed_side_needs_an_axis_with_both_lines_inside_the_card():
     zeros = {"left_px": 0, "right_px": 0, "top_px": 0, "bottom_px": 0}
     assert recompute.placed_side(declined_side(), zeros) is None
     assert recompute.placed_side(declined_side(), PLACED) is not None
+
+
+# --- a placement survives re-analysis --------------------------------------
+
+
+def _combined_centering_row(db_session, submission) -> AnalysisResult:
+    db_session.expire_all()
+    return (
+        db_session.query(AnalysisResult)
+        .filter_by(submission_id=submission.id, category=AnalysisCategory.centering, side=AnalysisSide.combined)
+        .one()
+    )
+
+
+def test_a_placement_survives_re_analysis(db_session, tmp_path):
+    """A late back scan, a re-confirmed crop -- anything that reruns the
+    pipeline -- must not silently drop a stored placement. Before the fix,
+    run_analysis only re-applied recompute when dismissed_regions was set, so
+    a rebuilt centering row came back unmeasurable while
+    centering_adjustments and client_adjusted stayed put: the report
+    contradicting itself."""
+    user = User(
+        email="plc-reanalysis@example.com",
+        hashed_password=hash_password("hunter2pass"),
+        is_verified=True,
+    )
+    db_session.add(user)
+    db_session.flush()
+    submission = Submission(
+        submission_code="SUB-PLC06",
+        user_id=user.id,
+        status=SubmissionStatus.draft_ready,
+        language=SubmissionLanguage.en,
+    )
+    db_session.add(submission)
+    db_session.flush()
+    db_session.add(Card(submission_id=submission.id, game="Pokemon", card_name="Full Art"))
+
+    # full_art_centered declines centering with centering_no_frame while the
+    # edge fit itself holds -- exactly the shape a placement is for.
+    image = build_fixture("full_art_centered")
+    height, width = image.shape[:2]
+    front_path = tmp_path / "scan_front.png"
+    cv2.imwrite(str(front_path), image)
+    db_session.add(
+        ScanImage(
+            submission_id=submission.id,
+            side=ScanSide.front,
+            file_path=str(front_path),
+            original_filename="scan_front.png",
+            dpi=600,
+            width_px=width,
+            height_px=height,
+            checksum=hashlib.sha256(front_path.read_bytes()).hexdigest(),
+        )
+    )
+    db_session.commit()
+
+    pipeline.run_analysis(db_session, submission)
+    db_session.commit()
+
+    front_row = (
+        db_session.query(AnalysisResult)
+        .filter_by(submission_id=submission.id, category=AnalysisCategory.centering, side=AnalysisSide.front)
+        .one()
+    )
+    ppm = front_row.measurements["card_geometry"]["px_per_mm"]
+
+    submission.centering_adjustments = {
+        "front": {
+            "left_px": 2.5 * ppm,
+            "right_px": 3.5 * ppm,
+            "top_px": 3.0 * ppm,
+            "bottom_px": 3.0 * ppm,
+        }
+    }
+    recompute.recompute_submission(db_session, submission)
+    db_session.commit()
+
+    assert _combined_centering_row(db_session, submission).raw_score is not None
+
+    pipeline.run_analysis(db_session, submission)
+    db_session.commit()
+
+    row = _combined_centering_row(db_session, submission)
+    assert row.raw_score is not None
+    assert assessment.CENTERING_CLIENT_PLACED in row.measurements["assessment"]["limitations"]
