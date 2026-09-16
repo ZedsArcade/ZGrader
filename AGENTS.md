@@ -172,6 +172,22 @@ shown to somebody deciding whether to buy the card.
 Before adding another client-editable measurement, ask what is drawn from it. Before adding another
 view of an existing one, ask whether it remaps.
 
+**A declined centering can now become a score, by hand.** Where centering declined with
+`centering_no_frame` on a trusted card outline (`centering.placement_eligible`), the customer can
+place the four lines themselves. It is stored in `centering_adjustments` like a nudge, and the
+per-side row keeps saying what was measured; `recompute.placed_side` scores it through the usual
+functions under `centering_client_placed` at confidence 0.4, and rebuilds the combined assessment,
+keeping the pipeline's own as `original_assessment` so clearing restores it exactly. A
+`geometry_unverified` side can never be placed, because its raster may be a desk. This is the first
+path that *un-declines* a category, and it reached the same surfaces declining did: recompute, the
+redraw, the PDF, the share page. Adjusting of either kind is allowed only in `draft_ready`, because the
+share page renders from the database and would otherwise change after publication with nobody
+reviewing it.
+
+Planning it also found that recompute never applied "the score follows the assessment": a
+front-declined card with a scored back took the back's number on any recompute. Fixed in the same
+change; `test_recompute_never_resurrects_a_score_the_front_declined` pins it.
+
 **The link-preview image gets the same guarantee from the other direction: its cache key is its
 state.** `analysis/og_image.py` renders `/r/{token}`'s `og:image` on demand and caches it as
 `og_{fingerprint}.jpg`, where the fingerprint hashes every input the picture is drawn from — the four
