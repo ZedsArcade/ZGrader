@@ -261,7 +261,7 @@ def recompute_submission(db: Session, submission: Submission) -> None:
 
 
 def redraw_centering_annotations(db: Session, submission: Submission) -> list[str]:
-    """Redraw each side's centering overlay from detected widths + adjustment.
+    """Redraw each side's centering overlay from detected widths, adjustment or placement.
 
     The stored AnalysisResult deliberately keeps holding what was *measured* --
     clearing an adjustment must restore the detected figures with no other trace
@@ -280,7 +280,7 @@ def redraw_centering_annotations(db: Session, submission: Submission) -> list[st
 
     Returns the paths rewritten, so callers can log or test what happened.
     """
-    from zgrader.analysis import annotate, pipeline, scale
+    from zgrader.analysis import annotate, centering, pipeline, scale
     from zgrader.models import AnalysisCategory, ScanSide
 
     adjustments = submission.centering_adjustments or {}
@@ -293,41 +293,62 @@ def redraw_centering_annotations(db: Session, submission: Submission) -> list[st
     for row in submission.analysis_results:
         if row.category != AnalysisCategory.centering or row.side == AnalysisSide.combined:
             continue
-        if not row.annotated_image_path or row.raw_score is None:
-            # Nothing was drawn for an unscored side -- build_regions and
-            # _annotate_category both decline together, and re-drawing here
-            # would assert a border that analysis refused to claim.
+        if not row.annotated_image_path:
+            continue
+        measurements = row.measurements or {}
+        # A declined side is drawn only when it can be placed. With a placement
+        # it shows the customer's lines; without one, the plain card -- which is
+        # what analysis saved -- so clearing a placement leaves nothing behind.
+        # Any other unscored side stays undrawn: build_regions and
+        # _annotate_category decline together, and a redraw here would assert a
+        # border analysis refused to claim.
+        placeable = row.raw_score is None and centering.placement_eligible(measurements)
+        if row.raw_score is None and not placeable:
             continue
 
         scan = scans.get(ScanSide(row.side.value))
-        measurements = row.measurements or {}
-        if scan is None or "left_px" not in measurements:
+        if scan is None or (not placeable and "left_px" not in measurements):
             continue
-
-        merged = dict(measurements)
-        merged.update(adjustments.get(row.side.value) or {})
-        # Ratios from the same function the score routes through, so the numbers
-        # printed on the drawing cannot disagree with the ones beside it.
-        ratios = centering.ratios_from_widths(
-            merged["left_px"], merged["right_px"], merged["top_px"], merged["bottom_px"]
-        )
-        merged["lr_ratio"] = ratios["lr_ratio"]
-        merged["tb_ratio"] = ratios["tb_ratio"]
 
         try:
             rectified = pipeline.load_deskewed_card(scan, width_mm, height_mm)
         except ValueError:
             # A scan that no longer rectifies must not stop a report being
-            # generated; the previous drawing stays, which is what it did
-            # before this function existed.
+            # generated; the previous drawing stays.
             continue
+
+        if placeable:
+            widths = centering.widths_from(adjustments.get(row.side.value))
+            if widths is None:
+                image = annotate.to_pil(rectified.image)
+            else:
+                merged = dict(zip(centering.WIDTH_KEYS, widths))
+                left, right, top, bottom = widths
+                ratios = centering.ratios_from_widths(
+                    left, right, top, bottom, have_lr=left + right > 0, have_tb=top + bottom > 0
+                )
+                # An axis the customer left at the card's edge has no split; the
+                # label then reads 50/50 for it, which the placed-by-hand note
+                # beside the score qualifies.
+                merged["lr_ratio"] = ratios["lr_ratio"] or [50.0, 50.0]
+                merged["tb_ratio"] = ratios["tb_ratio"] or [50.0, 50.0]
+                image = annotate.annotate_centering(rectified.image, merged)
+        else:
+            merged = dict(measurements)
+            merged.update(adjustments.get(row.side.value) or {})
+            # Ratios from the same function the score routes through, so the
+            # numbers printed on the drawing cannot disagree with the ones beside it.
+            ratios = centering.ratios_from_widths(
+                merged["left_px"], merged["right_px"], merged["top_px"], merged["bottom_px"]
+            )
+            merged["lr_ratio"] = ratios["lr_ratio"]
+            merged["tb_ratio"] = ratios["tb_ratio"]
+            image = annotate.annotate_centering(rectified.image, merged)
 
         # Written back to the path the row already holds, in whatever format
         # that path names -- a submission analysed before derived images became
         # JPEG keeps its PNG, because the row still points at it.
-        artifacts.save_to(
-            annotate.annotate_centering(rectified.image, merged), Path(row.annotated_image_path)
-        )
+        artifacts.save_to(image, Path(row.annotated_image_path))
         rewritten.append(row.annotated_image_path)
 
     return rewritten
