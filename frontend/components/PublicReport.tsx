@@ -251,6 +251,11 @@ export default function PublicReport({
                           {t.submissionDetail.lowerConfidence}
                         </Chip>
                       )}
+                      {limitationCodes.includes("centering_client_placed") && (
+                        <Chip color="danger" variant="soft" size="sm">
+                          {t.publicReport.placedChip}
+                        </Chip>
+                      )}
                     </div>
                     <div className="mt-1">
                       {unmeasurable ? (
