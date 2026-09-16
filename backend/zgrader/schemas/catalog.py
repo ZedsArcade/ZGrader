@@ -34,6 +34,12 @@ class BrandingOut(BaseModel):
     # Public because the results page needs it to bound the centering drag
     # handles. Not sensitive -- it is a limit, not a credential.
     centering_adjust_limit_mm: float
+    # Where a hand-placed centering line may sit (0 to max mm from the card's
+    # edge) and where an unfound side's line starts. Constants in
+    # analysis/scoring.py rather than settings, published so the page bounds
+    # its handles with the numbers the endpoint enforces.
+    centering_placement_max_mm: float
+    centering_placement_default_mm: float
     # The companies currently taking part in the comparison. Published so the
     # public copy can name exactly those, rather than hardcoding a list that
     # would start lying the moment an operator disables one.

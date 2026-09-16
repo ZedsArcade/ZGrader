@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from zgrader import billing, images
+from zgrader.analysis import scoring
 from zgrader.api.ratelimit import rate_limit
 from zgrader.api.routers.auth import CURRENT_TERMS_VERSION
 from zgrader.config import config
@@ -81,6 +82,14 @@ def get_pricing(db: Session = Depends(get_db)) -> PricingOut:
     )
 
 
+# BrandingOut fields that do not come from the Settings row.
+_NOT_FROM_SETTINGS = {
+    "grading_companies",
+    "centering_placement_max_mm",
+    "centering_placement_default_mm",
+}
+
+
 @router.get("/branding", response_model=BrandingOut, dependencies=[Depends(_catalog_limit)])
 def get_branding(db: Session = Depends(get_db)) -> BrandingOut:
     # Built field by field rather than returned as the ORM row: the company
@@ -90,9 +99,11 @@ def get_branding(db: Session = Depends(get_db)) -> BrandingOut:
         **{
             field: getattr(settings, field)
             for field in BrandingOut.model_fields
-            if field != "grading_companies"
+            if field not in _NOT_FROM_SETTINGS
         },
         grading_companies=_active_grading_companies(db),
+        centering_placement_max_mm=scoring.CENTERING_PLACEMENT_MAX_MM,
+        centering_placement_default_mm=scoring.CENTERING_PLACEMENT_DEFAULT_MM,
     )
 
 

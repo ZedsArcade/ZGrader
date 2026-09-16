@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from zgrader import entitlements, images, sharing
-from zgrader.analysis import artifacts, assessment, pipeline, preprocessing, recompute, scale
+from zgrader.analysis import artifacts, assessment, centering, pipeline, preprocessing, recompute, scale, scoring
 from zgrader.api import capacity
 from zgrader.api.deps import get_current_user, require_operator, require_verified_user
 from zgrader.api.ratelimit import rate_limit
@@ -813,6 +813,32 @@ def set_auto_publish_override(
     return submission
 
 
+def _require_draft_under_review(submission: Submission) -> None:
+    """Centering lines can only move while the draft is under review.
+
+    The public share page renders from the database, not the PDF, so an
+    adjustment after publication would change what a stranger sees with no
+    operator review, and leave the published PDF disagreeing with the page.
+    The same gate as toggle_region.
+    """
+    if submission.status != SubmissionStatus.draft_ready:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Submission is '{submission.status.value}' -- centering can only be adjusted while the draft is under review",
+        )
+
+
+def _centering_side_row(submission: Submission, side: str):
+    return next(
+        (
+            r
+            for r in submission.analysis_results
+            if r.category == AnalysisCategory.centering and r.side.value == side
+        ),
+        None,
+    )
+
+
 @router.post(
     "/{code}/centering-adjust",
     response_model=SubmissionDetail,
@@ -841,28 +867,27 @@ def adjust_centering(
     record of what was actually measured; `recompute_submission` derives the
     combined score from measurement plus adjustment, so clearing the
     adjustment restores the detected figures exactly.
+
+    On a side the pipeline declined for want of a printed frame, this places the
+    lines instead (`centering.placement_eligible`): there is no detected line to
+    bound against, so each line must sit within CENTERING_PLACEMENT_MAX_MM of the
+    card's edge, and the result is scored and labelled as placed by hand.
     """
     submission = _get_owned_submission(code, user, db)
+    _require_draft_under_review(submission)
 
-    side_row = next(
-        (
-            r
-            for r in submission.analysis_results
-            if r.category == AnalysisCategory.centering and r.side.value == payload.side
-        ),
-        None,
-    )
+    side_row = _centering_side_row(submission, payload.side)
     if side_row is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, f"No centering analysis for the {payload.side}"
         )
 
     measured = side_row.measurements or {}
-    # An unmeasurable side has no detected line to nudge *from*, so there is
-    # nothing to bound the movement against and nothing to rescore. Refusing
-    # is the honest answer -- accepting would let a client invent a centering
-    # reading for a side the pipeline explicitly declined to give one for.
-    if side_row.raw_score is None:
+    placing = side_row.raw_score is None and centering.placement_eligible(measured)
+    # An unscored side that is not placeable -- above all one whose card edges
+    # were never found -- has nothing trustworthy to put lines on. Accepting
+    # would invent centering for a card the pipeline could not locate.
+    if side_row.raw_score is None and not placing:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "Centering could not be measured on this side, so its lines cannot be adjusted.",
@@ -882,54 +907,119 @@ def adjust_centering(
             status.HTTP_409_CONFLICT, "This submission has no recorded scale to bound the move against."
         )
 
-    limit_px = limit_mm * px_per_mm
     proposed = {
         "left_px": payload.left_px,
         "right_px": payload.right_px,
         "top_px": payload.top_px,
         "bottom_px": payload.bottom_px,
     }
-    for key, value in proposed.items():
-        detected = measured.get(key)
-        if detected is None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT, f"No detected {key} to adjust from on this side."
-            )
-        if abs(value - float(detected)) > limit_px + 1e-6:
+    rounded = {k: round(v, 1) for k, v in proposed.items()}
+
+    if placing:
+        max_mm = scoring.CENTERING_PLACEMENT_MAX_MM
+        for key, value in proposed.items():
+            if value > max_mm * px_per_mm + 1e-6:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    f"{key} is further than {max_mm:g}mm from the card's edge.",
+                )
+        if recompute.placed_side(measured, rounded) is None:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
-                f"{key} moved further than the {limit_mm:g}mm allowed.",
+                "Place at least one pair of opposite lines inside the card's edge.",
             )
+        detected_rounded = None
+        cleared = False
+    else:
+        limit_px = limit_mm * px_per_mm
+        for key, value in proposed.items():
+            detected = measured.get(key)
+            if detected is None:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT, f"No detected {key} to adjust from on this side."
+                )
+            if abs(value - float(detected)) > limit_px + 1e-6:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    f"{key} moved further than the {limit_mm:g}mm allowed.",
+                )
+        detected_rounded = {k: round(float(measured[k]), 1) for k in proposed}
+        # Putting every line back where detection had it is not an adjustment,
+        # so it clears rather than stores one -- see DELETE below for the
+        # explicit form, which is the only one a placement has.
+        cleared = rounded == detected_rounded
 
     adjustments = dict(submission.centering_adjustments or {})
-    rounded = {k: round(v, 1) for k, v in proposed.items()}
-    detected_rounded = {k: round(float(measured[k]), 1) for k in proposed}
-    # Putting every line back where detection had it is not an adjustment, so
-    # it clears rather than stores one. Without this there is no way to undo:
-    # the UI's "back to detected" would move the lines on screen while the
-    # server kept scoring the old nudge, and `client_adjusted` would keep the
-    # report watermarked as client-adjusted over an assessment identical to
-    # the one the pipeline produced by itself.
-    cleared = rounded == detected_rounded
     if cleared:
         adjustments.pop(payload.side, None)
     else:
         adjustments[payload.side] = rounded
-    # Assigned as a new dict, and NULL rather than {} when nothing is left, so
-    # `client_adjusted` (which is a plain truthiness check) reads False again.
+    # NULL rather than {} when nothing is left, so `client_adjusted` (a plain
+    # truthiness check) reads False again.
     submission.centering_adjustments = adjustments or None
 
+    action = (
+        "centering_placed"
+        if placing
+        else "centering_adjust_cleared" if cleared else "centering_adjusted"
+    )
     db.add(
         AuditLog(
             submission_id=submission.id,
             user_id=user.id,
-            action="centering_adjust_cleared" if cleared else "centering_adjusted",
-            detail={"side": payload.side, "detected": detected_rounded, "adjusted": None if cleared else rounded},
+            action=action,
+            detail={
+                "side": payload.side,
+                "detected": detected_rounded,
+                "adjusted": None if cleared else rounded,
+            },
         )
     )
     db.flush()
 
     recompute.recompute_submission(db, submission)
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
+@router.delete(
+    "/{code}/centering-adjust/{side}",
+    response_model=SubmissionDetail,
+    dependencies=[Depends(_submission_adjust_limit)],
+)
+def clear_centering_adjustment(
+    code: str,
+    side: Literal["front", "back"],
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Submission:
+    """Remove one side's centering adjustment or placement, and rescore.
+
+    A placement has no detected lines to move back to, so "put every line where
+    it was" cannot clear it the way it clears a nudge; this is the explicit way,
+    and it works for both. Clearing a side with nothing stored changes nothing.
+    """
+    submission = _get_owned_submission(code, user, db)
+    _require_draft_under_review(submission)
+
+    adjustments = dict(submission.centering_adjustments or {})
+    if side in adjustments:
+        adjustments.pop(side)
+        submission.centering_adjustments = adjustments or None
+        side_row = _centering_side_row(submission, side)
+        was_placement = side_row is not None and side_row.raw_score is None
+        db.add(
+            AuditLog(
+                submission_id=submission.id,
+                user_id=user.id,
+                action="centering_placement_cleared" if was_placement else "centering_adjust_cleared",
+                detail={"side": side},
+            )
+        )
+        db.flush()
+        recompute.recompute_submission(db, submission)
+
     db.commit()
     db.refresh(submission)
     return submission
