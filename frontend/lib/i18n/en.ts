@@ -202,6 +202,10 @@ export const en = {
     processingDescription: "This usually only takes a moment.",
     photoTitle: "Analyzed photo",
     adjustedChip: "Adjusted",
+    // Beside a centering score whose lines the customer placed by hand.
+    placedChip: "placed by you",
+    placeLinesLink: "Place the lines yourself",
+    adjustLinesLink: "Adjust your lines",
     originalScorePrefix: "was",
     adjustedBannerTitle: "You've adjusted this assessment",
     adjustedBannerBody:
@@ -383,6 +387,21 @@ export const en = {
     applied: "Centering rescored from the lines you set.",
     applyFailed: "Couldn't apply that adjustment.",
     reset: "Back to detected",
+    placeToggle: "Place centering lines",
+    placeInstructions:
+      "No printed border was found on this side, so place each line yourself: drag it onto the inner edge of the card's printed border. A magnifier appears while you drag, and you can tap a line to nudge it precisely. The score is worked out when you apply, and the report says the lines were placed by hand.",
+    placeApply: "Apply and score",
+    placeApplied: "Centering scored from the lines you placed.",
+    placeReset: "Back to the starting lines",
+    clear: "Clear my lines",
+    cleared: "Your centering lines were cleared.",
+    clearFailed: "Couldn't clear the lines.",
+    nudge: {
+      up: "Move up 0.1mm",
+      down: "Move down 0.1mm",
+      left: "Move left 0.1mm",
+      right: "Move right 0.1mm",
+    },
     handleLabel: {
       left_px: "Left border line",
       right_px: "Right border line",
@@ -837,6 +856,8 @@ export const en = {
     // guessing tokens the one bit the 404 exists to withhold.
     notFoundBody:
       "It may have been turned off by the person who shared it, replaced with a new link, or never have existed. Ask them for a current one.",
+    // The owner placed the centering lines; a stranger is reading this.
+    placedChip: "placed by owner",
   },
   contact: {
     title: "Get in touch",

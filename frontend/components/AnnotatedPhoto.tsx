@@ -39,11 +39,6 @@ const COLLAPSED_COUNT = 3;
 // Which panels the viewer folded away, remembered per submission side.
 const COLLAPSE_STORAGE_PREFIX = "zgrader_collapsed_regions:";
 
-// Stand-in for a side with no measurable centering, so the adjust hook can be
-// called unconditionally. Never reaches the server: `canAdjust` is false, so
-// the control that would submit it is not rendered.
-const NO_WIDTHS = { left_px: 0, right_px: 0, top_px: 0, bottom_px: 0 };
-
 export default function AnnotatedPhoto({
   token,
   code,
@@ -91,9 +86,8 @@ export default function AnnotatedPhoto({
     token,
     code,
     side,
-    detected: centering?.detected ?? NO_WIDTHS,
+    handles: centering,
     applied: centeringApplied,
-    pxPerMm: centering?.pxPerMm ?? 0,
     raster,
     onAdjusted: onAdjusted ?? (() => {}),
   });

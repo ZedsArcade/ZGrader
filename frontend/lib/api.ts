@@ -266,6 +266,11 @@ export interface PublicContact {
   social_whatsapp: string | null;
   /** How far a client may drag a centering line, in mm. 0 disables it. */
   centering_adjust_limit_mm: number;
+  /** How far from the card's edge a hand-placed centering line may sit, in mm,
+   *  when detection found no printed border. Enforced by the server too. */
+  centering_placement_max_mm: number;
+  /** Where a placed line starts on a side detection found nothing on, in mm. */
+  centering_placement_default_mm: number;
 }
 
 export interface Branding extends PublicContact {
@@ -1038,5 +1043,18 @@ export async function adjustCentering(
     method: "POST",
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify({ side, ...widths }),
+  });
+}
+
+/** Remove one side's centering adjustment or placement and rescore. The only
+ *  way to clear a placement: it has no detected lines to move back to. */
+export async function clearCentering(
+  token: string,
+  code: string,
+  side: ScanSide
+): Promise<SubmissionDetail> {
+  return request(`/submissions/${code}/centering-adjust/${side}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
   });
 }

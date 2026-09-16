@@ -183,6 +183,9 @@ export const es: Dictionary = {
     processingDescription: "Esto normalmente solo toma un momento.",
     photoTitle: "Foto analizada",
     adjustedChip: "Ajustado",
+    placedChip: "colocado por usted",
+    placeLinesLink: "Coloque usted las líneas",
+    adjustLinesLink: "Ajustar sus líneas",
     originalScorePrefix: "era",
     adjustedBannerTitle: "Ha ajustado esta evaluación",
     adjustedBannerBody:
@@ -364,6 +367,21 @@ export const es: Dictionary = {
     applied: "Centrado recalculado con las líneas que ha fijado.",
     applyFailed: "No se pudo aplicar ese ajuste.",
     reset: "Volver a lo detectado",
+    placeToggle: "Colocar líneas de centrado",
+    placeInstructions:
+      "No se encontró un borde impreso en este lado, así que coloque usted cada línea: arrástrela hasta el filo interior del borde impreso de la carta. Aparece una lupa mientras arrastra, y puede tocar una línea para moverla con precisión. La puntuación se calcula al aplicar, y el informe indica que las líneas se colocaron a mano.",
+    placeApply: "Aplicar y puntuar",
+    placeApplied: "Centrado puntuado con las líneas que ha colocado.",
+    placeReset: "Volver a las líneas iniciales",
+    clear: "Borrar mis líneas",
+    cleared: "Se borraron sus líneas de centrado.",
+    clearFailed: "No se pudieron borrar las líneas.",
+    nudge: {
+      up: "Subir 0,1 mm",
+      down: "Bajar 0,1 mm",
+      left: "Mover a la izquierda 0,1 mm",
+      right: "Mover a la derecha 0,1 mm",
+    },
     handleLabel: {
       left_px: "Línea del borde izquierdo",
       right_px: "Línea del borde derecho",
@@ -785,6 +803,7 @@ export const es: Dictionary = {
     notFoundTitle: "Este enlace no está disponible",
     notFoundBody:
       "Puede que quien lo compartió lo haya desactivado, lo haya reemplazado por uno nuevo, o que nunca haya existido. Pídale un enlace actualizado.",
+    placedChip: "colocado por el propietario",
   },
   contact: {
     title: "Contacto",
