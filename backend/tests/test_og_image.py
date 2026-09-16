@@ -263,3 +263,41 @@ def test_language_changes_the_fingerprint(db_session):
     es = _submission(db_session, code="SUB-72002", language=SubmissionLanguage.es)
 
     assert og_image.fingerprint(en) != og_image.fingerprint(es)
+
+
+def test_a_placement_moves_the_fingerprint_and_clearing_it_moves_it_back(db_session):
+    """Placement changes the combined score through recompute, not only the
+    stored adjustment -- so the reverse direction has to be checked through
+    recompute too."""
+    from zgrader.analysis import recompute
+    from tests.centering_rows import add_centering_rows, declined_side
+
+    user = User(email="sub-70090@example.com", hashed_password="x", role=UserRole.client)
+    db_session.add(user)
+    db_session.flush()
+    submission = Submission(
+        submission_code="SUB-70090",
+        user_id=user.id,
+        status=SubmissionStatus.draft_ready,
+        language=SubmissionLanguage.en,
+    )
+    db_session.add(submission)
+    db_session.flush()
+    db_session.add(Card(submission_id=submission.id, game="Pokemon", card_name="Snorlax"))
+    add_centering_rows(db_session, submission, declined_side())
+    db_session.commit()
+    db_session.refresh(submission)
+    original = og_image.fingerprint(submission)
+
+    submission.centering_adjustments = {
+        "front": {"left_px": 30.0, "right_px": 30.0, "top_px": 25.0, "bottom_px": 35.0}
+    }
+    recompute.recompute_submission(db_session, submission)
+    db_session.commit()
+    assert og_image.fingerprint(submission) != original
+
+    submission.centering_adjustments = None
+    recompute.recompute_submission(db_session, submission)
+    db_session.commit()
+    db_session.refresh(submission)
+    assert og_image.fingerprint(submission) == original
