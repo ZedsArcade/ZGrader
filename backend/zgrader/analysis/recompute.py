@@ -32,6 +32,34 @@ def _parse_dismissed(dismissed_regions: list | None) -> dict[tuple[str, str], se
     return parsed
 
 
+def placed_side(side_measurements: dict, adjustment: dict | None) -> tuple[float, float, dict] | None:
+    """Score, worse-side percentage and assessment for a side whose centering
+    lines the customer placed by hand; None if this side is not a placement.
+
+    A placement exists only where the pipeline declined for want of a printed
+    frame on a trusted card outline (`centering.placement_eligible`). The widths
+    are scored through the same functions as a measurement, and the assessment
+    says plainly that nobody measured them.
+    """
+    widths = centering.widths_from(adjustment)
+    if widths is None or not centering.placement_eligible(side_measurements):
+        return None
+    left, right, top, bottom = widths
+    ratios = centering.ratios_from_widths(
+        left, right, top, bottom, have_lr=left + right > 0, have_tb=top + bottom > 0
+    )
+    if ratios["measured_axes"] == 0:
+        return None
+    worse = float(ratios["worse_side_pct"])
+    score = round(centering.score_from_worse_pct(worse), 2)
+    block = assessment.measured(
+        score,
+        assessment.CONFIDENCE_CENTERING_CLIENT_PLACED,
+        (assessment.CENTERING_CLIENT_PLACED,),
+    ).as_dict()
+    return score, worse, block
+
+
 def _adjusted_side_score(
     category: str,
     side_measurements: dict,
@@ -47,6 +75,14 @@ def _adjusted_side_score(
     used to be reported as 10.0 here, which manufactured a perfect score out
     of nothing.
     """
+    # A placement turns a declined centering side into a reading, so it has to
+    # be checked before the guard below, which exists to keep every *other*
+    # declined state declined -- including ones nobody has written yet.
+    if category == "centering":
+        placed = placed_side(side_measurements, centering_adjustment)
+        if placed is not None:
+            return placed[0], placed[1]
+
     # A side the pipeline declined to score cannot have a score re-derived for
     # it. This is generic rather than per-category on purpose: every time a
     # category has gained the ability to decline -- corners below the
@@ -159,15 +195,20 @@ def recompute_submission(db: Session, submission: Submission) -> None:
 
         scores_by_side: dict[str, float] = {}
         worse_by_side: dict[str, float] = {}
+        # The assessment in force per side: a placement's, or what was stored.
+        effective: dict[str, dict | None] = {}
         for side in ("front", "back"):
             side_m = measurements.get(side)
             if side_m is None:
                 continue
+            adjustment = adjustments.get(side) if category == "centering" else None
+            placed = placed_side(side_m, adjustment) if category == "centering" else None
+            effective[side] = placed[2] if placed else side_m.get("assessment")
             score, worse = _adjusted_side_score(
                 category,
                 side_m,
                 dismissed.get((side, category), set()),
-                adjustments.get(side) if category == "centering" else None,
+                adjustment,
             )
             if score is None:
                 score = stored_side_scores.get((side, category))
@@ -178,16 +219,37 @@ def recompute_submission(db: Session, submission: Submission) -> None:
             if worse is not None:
                 worse_by_side[side] = float(worse)
 
+        if category == "centering":
+            # A placement can turn a declined side into a reading, so the
+            # combined assessment is rebuilt from what is in force. The
+            # pipeline's own is kept the first time this runs -- rows analysed
+            # before placement existed have none -- so clearing restores it.
+            measurements.setdefault("original_assessment", measurements.get("assessment"))
+            measurements["assessment"] = assessment.combine_assessments(
+                effective.get("front"), effective.get("back")
+            )
+
         combined = scoring.combine_sides_by_name(scores_by_side)
-        if combined is None:
+        state = (measurements.get("assessment") or {}).get("state")
+        if state is not None and state != assessment.MEASURED:
+            # The score follows the assessment, as in pipeline._persist_combined.
+            # Without this a front-declined card with a scored back took the
+            # back's number on every recompute -- the SUB-00011 contradiction.
+            combined = None
+        elif combined is None:
+            # Nothing derivable and nothing saying otherwise: leave the row.
             continue
 
         row.raw_score = combined
-        if category == "centering" and worse_by_side:
-            combined_worse = scoring.combine_sides_by_name(worse_by_side)
-            if combined_worse is not None:
-                measurements["worse_side_pct"] = round(combined_worse, 1)
-                row.measurements = measurements  # reassign so SQLAlchemy tracks the JSONB change
+        if category == "centering":
+            if combined is None:
+                # No reading, so nothing for the rules engine to compare.
+                measurements.pop("worse_side_pct", None)
+            elif worse_by_side:
+                combined_worse = scoring.combine_sides_by_name(worse_by_side)
+                if combined_worse is not None:
+                    measurements["worse_side_pct"] = round(combined_worse, 1)
+            row.measurements = measurements  # reassign so SQLAlchemy tracks the JSONB change
 
     db.flush()
 
