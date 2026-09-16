@@ -154,6 +154,8 @@ export const es: Dictionary = {
         "No hay un borde impreso claro con el que medir: normal en cartas de ilustración completa.",
       centering_partial_frame:
         "Se encontró borde impreso en algunos lados pero no en todos, así que esto se apoya en menos filos de lo habitual.",
+      centering_client_placed:
+        "No se encontró un borde impreso, así que estas líneas de centrado se colocaron a mano en lugar de medirse.",
       edges_partial: "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
       edges_thin_border:
         "El borde de esta carta es demasiado estrecho para muestrear cartón limpio junto al filo, así que esos lados se juzgaron solo por la rectitud del corte.",

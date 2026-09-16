@@ -193,6 +193,11 @@ LIMITATION_LABELS = {
             "A printed border was found on some sides of this card but not all of them, "
             "so the centering figures rest on fewer edges than usual."
         ),
+        "centering_client_placed": (
+            "No printed border could be found on this card, so the centering lines were "
+            "placed by hand rather than measured. The centering figures describe where "
+            "those lines were put."
+        ),
         "edges_partial": "Some edges could not be sampled and were left out of this score.",
         "edges_thin_border": (
             "This card's printed border is too narrow to sample clean card beside the cut "
@@ -267,6 +272,11 @@ LIMITATION_LABELS = {
         "centering_partial_frame": (
             "Se encontró un borde impreso en algunos lados de esta carta pero no en todos, "
             "así que las cifras de centrado se apoyan en menos filos de lo habitual."
+        ),
+        "centering_client_placed": (
+            "No se pudo encontrar un borde impreso en esta carta, así que las líneas de "
+            "centrado se colocaron a mano en lugar de medirse. Las cifras de centrado "
+            "describen dónde se pusieron esas líneas."
         ),
         "edges_partial": "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
         "edges_thin_border": (

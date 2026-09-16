@@ -219,76 +219,6 @@ def _combine_score(front_score: float | None, back_score: float | None) -> float
     return scoring.combine_front_back(front_score, back_score)
 
 
-def _combine_assessments(front: dict | None, back: dict | None) -> dict | None:
-    """Merge two sides' assessments pessimistically, but not destructively.
-
-    Lowest confidence and the union of limitations: a category is only as
-    trustworthy as its weaker face, and a limitation that applied to one side
-    applied to the card the customer sent. Averaging confidence would let a
-    clean back talk up an unreadable front, which is the mistake the 70/30
-    score weighting exists to avoid.
-
-    **The front decides whether there is a reading at all**, and the two sides
-    are deliberately not symmetric here. A readable front with an unreadable
-    back is a narrower reading of the card; an unreadable front with a clean
-    back is not a reading at all. A card back is a near-symmetric printed
-    design that is almost always well centred and rarely handled, so scoring
-    off the back alone would flatter the card on exactly the face nobody
-    buys it for -- the same reason the score weighting is 70/30 rather than
-    even.
-
-    So: unmeasurable if the front is, whatever the back says. Otherwise the
-    front carries it, and a declining back costs confidence and adds
-    COMBINED_SINGLE_SIDE rather than voiding the result.
-
-    That second half is the fix to a real contradiction. It used to be
-    unmeasurable if *either* side was, which disagreed with
-    combine_front_back -- that keeps the measurable side's score at full
-    weight, so the row ended up saying `unmeasurable` while still carrying a
-    number. It also disagreed with the front-only case, which returns the
-    front's block unchanged a few lines above and is reported `measured`:
-    uploading a poor back made the result worse than uploading no back at all.
-    """
-    blocks = [b for b in (front, back) if b]
-    if not blocks:
-        return None
-    if len(blocks) == 1:
-        return dict(blocks[0])
-
-    limitations = set().union(*(set(b["limitations"]) for b in blocks))
-    measured = [b for b in blocks if b["state"] == assessment.MEASURED]
-
-    # `front` is always present in practice -- _persist_combined has a front
-    # result for every category -- so this is the "front could not be read"
-    # branch, and no clean back rescues it.
-    if front is None or front["state"] != assessment.MEASURED or not measured:
-        return {
-            "state": assessment.UNMEASURABLE,
-            "confidence": 0.0,
-            "score_low": None,
-            "score_high": None,
-            "limitations": sorted(limitations),
-        }
-
-    confidence = min(b["confidence"] for b in measured)
-    if len(measured) < len(blocks):
-        limitations.add(assessment.COMBINED_SINGLE_SIDE)
-        confidence *= assessment.CONFIDENCE_SINGLE_SIDE_FACTOR
-
-    # Interval spans only the sides that produced one -- a side with no
-    # reading has no bounds to contribute, and treating its absence as a wide
-    # interval would be inventing uncertainty rather than reporting it.
-    lows = [b["score_low"] for b in measured if b["score_low"] is not None]
-    highs = [b["score_high"] for b in measured if b["score_high"] is not None]
-    return {
-        "state": assessment.MEASURED,
-        "confidence": round(confidence, 2),
-        "score_low": min(lows) if lows else None,
-        "score_high": max(highs) if highs else None,
-        "limitations": sorted(limitations),
-    }
-
-
 def _persist_combined(
     db: Session,
     submission: Submission,
@@ -335,7 +265,7 @@ def _persist_combined(
         # front/back nesting. The pessimistic merge is the point: a category
         # is only as trustworthy as its weaker side, and a limitation that
         # applied to either face applied to the card.
-        measurements["assessment"] = _combine_assessments(
+        measurements["assessment"] = assessment.combine_assessments(
             front_result["measurements"].get("assessment"),
             back_result["measurements"].get("assessment") if back_result else None,
         )

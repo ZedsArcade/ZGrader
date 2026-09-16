@@ -166,6 +166,8 @@ export const en = {
         "No clear printed border to measure against — normal on full-art cards.",
       centering_partial_frame:
         "A printed border was found on some sides but not all, so this rests on fewer edges than usual.",
+      centering_client_placed:
+        "No printed border could be found, so these centering lines were placed by hand rather than measured.",
       edges_partial: "Some edges couldn't be sampled and were left out of this score.",
       edges_thin_border:
         "This card's border is too narrow to sample clean card beside the cut, so those edges were judged on the straightness of the cut alone.",
