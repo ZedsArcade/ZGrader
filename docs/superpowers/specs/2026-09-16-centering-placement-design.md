@@ -231,7 +231,7 @@ Backend (pytest, `zgrader_test`):
   in the manner of `test_corners_decline_end_to_end.py`.
 - `test_rate_limit_coverage.py` covers the new DELETE route.
 
-Frontend:
+Frontend (there is no unit-test runner in this repo; adding one is out of scope):
 
 - `npx tsc --noEmit` and `npx next build`.
 - In the browser pane against a **local** stack on `zgrader_test` data — never the production tunnel on
