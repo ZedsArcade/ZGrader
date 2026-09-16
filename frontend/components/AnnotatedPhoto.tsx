@@ -335,6 +335,13 @@ export default function AnnotatedPhoto({
                 variant="outline"
                 size="sm"
                 onPress={() => {
+                  // Closing without clearing a matching hash would leave the
+                  // link inert on a second click -- no hashchange fires when
+                  // the hash is already set, so the adjuster would only
+                  // scroll instead of reopening.
+                  if (adjusting && window.location.hash === `#place-centering-${side}`) {
+                    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+                  }
                   setAdjusting((a) => !a);
                   setSelected(null);
                 }}
