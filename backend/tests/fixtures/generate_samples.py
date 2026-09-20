@@ -67,7 +67,7 @@ _CORNER_SHADOW_FLOOR = 0.15
 #: stops inside the card -- the committed form of the failure
 #: `real_scans/shadowed_photo.jpg` shows, where a shadow cost about 5mm of the
 #: bottom edge and the fit reported no problem at all.
-_BOTTOM_SHADOW_FLOOR = 0.30
+_BOTTOM_SHADOW_FLOOR = 0.40
 #: Where the shadow starts, as a fraction of the card's height. Below the
 #: artwork, so the card still reads as a card to the aspect check.
 _BOTTOM_SHADOW_START = 0.55
@@ -277,10 +277,10 @@ def make_card_scan(
 
     if shadow_bottom_band:
         # A soft ramp from full brightness at `_BOTTOM_SHADOW_START` down to
-        # `_BOTTOM_SHADOW_FLOOR` at the bottom of the frame, applied to the
-        # whole canvas so the card and the backing below it darken together --
-        # which is what a shadow falling across a desk actually does, and why
-        # one threshold cannot separate them any more.
+        # `_BOTTOM_SHADOW_FLOOR` at the bottom of the card, driving the card's
+        # own lower rows toward the level of the black backing it will be
+        # composited onto below -- which is why one threshold can no longer
+        # separate the two once they are placed on the canvas together.
         height = card.shape[0]
         rows = np.arange(height, dtype=np.float32) / max(1, height - 1)
         ramp = np.clip((rows - _BOTTOM_SHADOW_START) / max(1e-6, 1.0 - _BOTTOM_SHADOW_START), 0.0, 1.0)

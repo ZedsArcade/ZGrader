@@ -21,21 +21,26 @@ POKEMON_MM = card_size_mm("pokemon_front")
 
 
 def true_card_quad(name: str) -> np.ndarray:
-    """The card's real corners in a fixture, from the fixture's own geometry
+    """The card's real corners in a fixture, from the generator's own layout
     rather than from a detection that may be the thing under test.
 
-    `make_card_scan` centres the card on an 8% margin, so the corners are a
-    fixed fraction of the canvas.
+    `make_card_scan` centres the card on a uniform margin of
+    `int(min(card_w, card_h) * 0.08)` -- 8% of the *shorter card* dimension on
+    every side, not 8% of each canvas axis. Computing it per axis puts the
+    bottom edge ~2.8mm high on a portrait card, which is a ground truth that
+    would quietly flatter every "within 0.5mm" assertion built on it.
     """
-    image = build_fixture(name)
-    h, w = image.shape[:2]
-    margin_x, margin_y = w * 0.08, h * 0.08
+    from tests.fixtures.generate_samples import _mm_to_px
+
+    width_mm, height_mm = card_size_mm(name)
+    card_w, card_h = _mm_to_px(width_mm), _mm_to_px(height_mm)
+    margin = int(min(card_w, card_h) * 0.08)
     return np.array(
         [
-            [margin_x, margin_y],
-            [w - margin_x, margin_y],
-            [w - margin_x, h - margin_y],
-            [margin_x, h - margin_y],
+            [margin, margin],
+            [margin + card_w, margin],
+            [margin + card_w, margin + card_h],
+            [margin, margin + card_h],
         ],
         dtype=np.float64,
     )
