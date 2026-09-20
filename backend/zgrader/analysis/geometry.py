@@ -628,6 +628,19 @@ def refit_geometry_near_crop(
     agrees with to within `trigger_mm` is returned untouched, so an untouched
     crop (which is the detected box) and a crop traced slightly inside the card
     both leave the measured geometry exactly as it was.
+
+    The re-search only ever fires **outward**. Each `SideFit.normal` points
+    into the card (see `fit_card_geometry`), so `signed_distance` is positive
+    on the card's own side of the fitted line and negative beyond it, toward
+    the background. A crop point with a *negative* signed distance is claiming
+    more card than the fit found -- the shadow-hides-the-edge case this exists
+    for -- and is evidence the fit landed on the wrong step. A crop point with
+    a *positive* signed distance is claiming less card than the fit found: a
+    tighter crop than the fit's own edge, which is not evidence against an
+    edge the fit already measured from the image. AGENTS.md's invariant is
+    that a crop inside the card must never trim the measured edge inward, so
+    that side is left exactly as fitted -- no re-search, and it is not
+    `unresolved` either, since nothing about it was in question.
     """
     ordered = _order_quad(crop_quad)
     centre = ordered.mean(axis=0)
@@ -641,8 +654,15 @@ def refit_geometry_near_crop(
         start, end = ordered[i], ordered[j]
         ts = np.array([CORNER_MARGIN_FRACTION, 0.5, 1.0 - CORNER_MARGIN_FRACTION])
         samples = start + ts[:, None] * (end - start)
-        disagreement_mm = float(np.max(np.abs(sides[name].signed_distance(samples)))) / px_per_mm
-        if disagreement_mm <= trigger_mm:
+        signed = sides[name].signed_distance(samples)
+        worst_idx = int(np.argmax(np.abs(signed)))
+        worst = float(signed[worst_idx])
+        disagreement_mm = abs(worst) / px_per_mm
+        # worst > 0 means the crop's largest disagreement lies on the card's
+        # own side of the fitted line -- inward -- which is never grounds to
+        # re-search (see the docstring). Only worst < 0, the crop reaching
+        # past the fitted line toward the background, is searched.
+        if disagreement_mm <= trigger_mm or worst > 0:
             continue
 
         found = _fit_side_near_line(value, start, end, centre, band_mm * px_per_mm)
@@ -673,14 +693,36 @@ def refit_geometry_near_crop(
         point = _intersect(sides[a], sides[b])
         if point is None:
             # Two adjacent sides that no longer meet is a fit gone wrong, not a
-            # corner: report both as unresolved rather than inventing an apex.
+            # corner: discard the whole refit rather than half of it, and
+            # report every side that was searched -- successfully or not --
+            # as unresolved, since none of their search results are being
+            # used.
             return CropRefit(
-                geometry=fitted, moved=moved, unresolved=tuple(sorted(set(unresolved) | {a, b}))
+                geometry=fitted,
+                moved={},
+                unresolved=tuple(sorted(set(unresolved) | set(moved.keys()))),
             )
         apexes.append(point)
 
+    # A fit can be individually sane per side and still produce a nonsense
+    # quad (the same reasoning `fit_card_geometry` guards with) -- here
+    # doubly so, since only one or two sides may have moved while the others
+    # anchor the intersection. Guard the re-intersected apexes against the
+    # *pre-refit* fit, not the crop: a crop is what triggered the search, not
+    # what the result is allowed to agree with.
+    pre_refit_apexes = _order_quad(fitted.apexes)
+    pre_refit_centre = pre_refit_apexes.mean(axis=0)
+    span = float(np.max(np.linalg.norm(pre_refit_apexes - pre_refit_centre, axis=1)))
+    new_apexes = _order_quad(np.array(apexes, dtype=np.float64))
+    if np.max(np.linalg.norm(new_apexes - pre_refit_apexes, axis=1)) > 0.25 * span:
+        return CropRefit(
+            geometry=fitted,
+            moved={},
+            unresolved=tuple(sorted(set(unresolved) | set(moved.keys()))),
+        )
+
     refitted = CardGeometry(
-        apexes=_order_quad(np.array(apexes, dtype=np.float64)),
+        apexes=new_apexes,
         sides=sides,
         # Still "ransac": every side here came from a line fitted to the image.
         method=fitted.method,

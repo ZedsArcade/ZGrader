@@ -92,6 +92,39 @@ def _bottom_offset_mm(fit, truth, px_per_mm) -> float:
     return float(abs(fit.sides["bottom"].signed_distance(midpoint[None])[0])) / px_per_mm
 
 
+def _crop_inset_from_sides(fit, inset_mm: float, px_per_mm: float) -> np.ndarray:
+    """A crop built by moving each of `fit`'s own fitted sides inward by
+    `inset_mm`, along that side's own inward normal, then re-intersecting for
+    the corners -- the same shape of construction `fixture_drift.sloppy_crop`
+    uses. Every side really does move by the stated amount this way; scaling
+    the whole quad about its centre instead attenuates the displacement by the
+    diagonal's cosine, which is the bug this replaces.
+
+    `side.normal` already points into the card (`fit_card_geometry`), so
+    adding to `offset` moves the line in the direction of `normal` -- inward.
+    """
+    inset_px = inset_mm * px_per_mm
+    side_corners = {
+        "top_left": ("top", "left"),
+        "top_right": ("top", "right"),
+        "bottom_right": ("bottom", "right"),
+        "bottom_left": ("bottom", "left"),
+    }
+    lines = {name: (side.normal, side.offset + inset_px) for name, side in fit.sides.items()}
+    points = []
+    for a, b in side_corners.values():
+        na, oa = lines[a]
+        nb, ob = lines[b]
+        points.append(np.linalg.solve(np.stack([na, nb]), np.array([oa, ob])))
+    return geometry._order_quad(np.array(points, dtype=np.float64))
+
+
+def _quad_size_mm(apexes: np.ndarray, px_per_mm: float) -> tuple[float, float]:
+    width = (np.linalg.norm(apexes[1] - apexes[0]) + np.linalg.norm(apexes[2] - apexes[3])) / 2
+    height = (np.linalg.norm(apexes[3] - apexes[0]) + np.linalg.norm(apexes[2] - apexes[1])) / 2
+    return width / px_per_mm, height / px_per_mm
+
+
 def test_a_side_the_crop_agrees_with_is_left_alone():
     """The common case: an untouched crop is the detected box, so every side is
     already where the crop says. Nothing may move -- this is the guard that a
@@ -108,17 +141,42 @@ def test_a_side_the_crop_agrees_with_is_left_alone():
 
 
 def test_a_crop_just_inside_the_card_does_not_move_the_fit():
-    """Half a millimetre in is well under the trigger: the crop is a hint, and
-    a hint that tight must not pull the measured edge inward."""
+    """Half a millimetre in, on every side, is well under the trigger: the
+    crop is a hint, and a hint that tight must not pull the measured edge
+    inward. Built with `_crop_inset_from_sides` rather than scaling the quad
+    about its centre, which insets a corner far less than a side and would
+    prove the gate at the wrong magnitude."""
     image = build_fixture("pokemon_front")
     fit, px_per_mm = _fitted(image)
-    centre = fit.apexes.mean(axis=0)
-    crop = centre + (fit.apexes - centre) * (1.0 - (0.5 * px_per_mm) / np.linalg.norm(fit.apexes[0] - centre))
+    crop = _crop_inset_from_sides(fit, 0.5, px_per_mm)
 
     refit = geometry.refit_geometry_near_crop(image, fit, crop, px_per_mm)
 
     assert refit.moved == {}
+    assert refit.unresolved == ()
     assert np.allclose(refit.geometry.apexes, fit.apexes)
+
+
+def test_a_crop_inset_a_real_4mm_on_every_side_does_not_pull_the_fit_inward():
+    """The invariant, not just the gate: 4mm is five times over the trigger by
+    distance alone, but the disagreement is inward on every side -- the crop
+    claiming *less* card than the fit found -- and an inward disagreement is
+    never grounds to re-search. Before the direction check, this dragged every
+    side onto printed structure and shrank a 63x88mm card to roughly
+    63x77mm."""
+    image = build_fixture("pokemon_front")
+    fit, px_per_mm = _fitted(image)
+    crop = _crop_inset_from_sides(fit, 4.0, px_per_mm)
+
+    refit = geometry.refit_geometry_near_crop(image, fit, crop, px_per_mm)
+
+    assert refit.moved == {}
+    assert refit.unresolved == ()
+    assert np.allclose(refit.geometry.apexes, fit.apexes)
+
+    width_mm, height_mm = _quad_size_mm(refit.geometry.apexes, px_per_mm)
+    assert abs(width_mm - 63.0) < 0.5
+    assert abs(height_mm - 88.0) < 0.5
 
 
 def test_a_crop_on_the_true_edge_recovers_a_side_the_shadow_hid():

@@ -98,7 +98,14 @@ fitted geometry's px/mm. The side's disagreement is the largest of the three.
   an untouched suggested crop and an operator-ingest crop are the detected box, which sits on the fit; a
   customer's crop half a millimetre inside the card is also under the trigger, so **the rule that a crop
   cannot trim damage out of the image is preserved exactly.**
-- **Disagreement > trigger:** the side is re-searched near the crop edge:
+- **Disagreement > trigger, and outward** — the crop claims *more* card than the fit found (the shadow
+  case this spec exists for): the side is re-searched near the crop edge. The re-search fires only in this
+  direction. A crop that disagrees *inward* — claiming *less* card than the fit found — is never
+  re-searched and the fitted side stands untouched, even past the trigger: the crop is a hint about where
+  to look, not a measurement, and AGENTS.md's invariant is that a crop inside the card must never trim the
+  measured edge inward. (A round-1 implementation searched both directions and re-fit every side of a card
+  onto printed border structure when the crop was traced 4mm inside it, shrinking a 63×88mm card to
+  roughly 63×77mm — this restriction is what closes that.) Re-search itself:
   1. `SUBPIXEL_SAMPLES` sample positions along the crop edge, excluding the corner margins, as `_refine_side`
      does along a fitted side;
   2. at each, the HSV value profile along the crop edge's normal, over ±`CROP_REFIT_BAND_MM`;
@@ -209,3 +216,7 @@ transition entry in AGENTS.md.
   help uncropped and untouched-crop photos too, but it changes the fit for every photograph and needs its
   own measurement round. This spec only acts when the customer has said where the edge is.
 - Guidance in the capture copy about shadows; worth doing, and separate.
+- Finding a card's edge *inside* a sleeve or toploader by tightening the crop past it. The re-search fires
+  only where the crop claims more card than the fit found (outward), never where it claims less (inward),
+  because a crop inside the card must never pull the measured edge inward; a crop tightened inside the
+  fit's own edge leaves that side exactly as the fit measured it, so this case stays as it is today.
