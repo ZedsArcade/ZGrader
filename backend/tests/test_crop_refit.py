@@ -15,6 +15,7 @@ import json
 
 import cv2
 import numpy as np
+import pytest
 
 from tests.fixtures.generate_samples import build_fixture, card_size_mm
 from zgrader.analysis import preprocessing
@@ -312,5 +313,16 @@ def test_the_refit_survives_a_crop_away_from_the_image_origin():
     bottom = float(np.mean(np.array(guided.geometry["apexes"])[2:4, 1]))
     assert abs(float(truth[2][1]) - bottom) / guided.px_per_mm < 0.5
     assert "bottom" in guided.geometry["refit_sides"]
+
+    unpadded = preprocessing.rectify(
+        build_fixture("capture_shadowed_bottom"), *POKEMON_MM, roi_quad=true_card_quad("capture_shadowed_bottom")
+    )
     missing = float(np.mean(guided.mask == 0))
-    assert missing < 0.05, f"{missing:.1%} of the raster reads as missing card"
+    unpadded_missing = float(np.mean(unpadded.mask == 0))
+    # The recovered strip is outside the material mask by design (the mask is
+    # still the shadow-truncated contour -- spec 3.4), so what matters here is
+    # that padding the canvas changes nothing: a crop offset applied with the
+    # wrong sign displaced the mask by twice the region-of-interest origin and
+    # left 7-100% of the raster missing.
+    assert missing == pytest.approx(unpadded_missing, abs=0.02)
+    assert missing < 0.15, f"{missing:.1%} of the raster reads as missing card"
