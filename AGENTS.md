@@ -176,13 +176,27 @@ view of an existing one, ask whether it remaps.
 `centering_no_frame` on a trusted card outline (`centering.placement_eligible`), the customer can
 place the four lines themselves. It is stored in `centering_adjustments` like a nudge, and the
 per-side row keeps saying what was measured; `recompute.placed_side` scores it through the usual
-functions under `centering_client_placed` at confidence 0.4, and rebuilds the combined assessment,
-keeping the pipeline's own as `original_assessment` so clearing restores it exactly. A
+functions under `centering_client_placed` at confidence 0.4, and rebuilds the combined assessment.
+Clearing an adjustment restores the pipeline's own assessment by re-deriving it from the per-side
+rows, the same way any other recompute does -- not by reading it back. `original_assessment` sits
+beside the combined row only as a record of what the pipeline first produced; nothing reads it. A
 `geometry_unverified` side can never be placed, because its raster may be a desk. This is the first
 path that *un-declines* a category, and it reached the same surfaces declining did: recompute, the
 redraw, the PDF, the share page. Adjusting of either kind is allowed only in `draft_ready`, because the
 share page renders from the database and would otherwise change after publication with nobody
 reviewing it.
+
+A re-analysis rebuilds every per-side row from scratch, so a stored adjustment or placement is
+revalidated against the *fresh* row before anything re-applies, through
+`recompute.check_centering_adjustment` -- the same check the endpoint runs on a proposed move,
+now asked about a stored one. A placement a fresh detection now covers survives as a nudge if it
+is within the cap; a nudge on a side that now declined survives as a placement if it is within the
+8mm placement bound; anything that fits neither is dropped and the drop is audited as
+`centering_adjustment_dropped`, so a re-analysis can never leave a 2.22-at-confidence-0.4 placement
+silently reappearing as a 2.22-at-confidence-0.9 detected reading nobody labelled. The nudge cap
+is not enforced during this revalidation when `centering_adjust_limit_mm` is 0 -- the kill switch
+governs *new* adjustments, and its own comment already says it breaks nothing already stored; the
+placement bound, eligibility and scale are enforced regardless.
 
 Planning it also found that recompute never applied "the score follows the assessment": a
 front-declined card with a scored back took the back's number on any recompute. Fixed in the same
