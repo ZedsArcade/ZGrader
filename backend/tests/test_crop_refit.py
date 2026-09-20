@@ -11,6 +11,8 @@ The photograph is not committable (the repo is public), so this fixture is the
 committed form of the same failure.
 """
 
+import json
+
 import cv2
 import numpy as np
 
@@ -233,3 +235,82 @@ def test_the_refit_is_deterministic():
     second = geometry.refit_geometry_near_crop(image, fit, truth, px_per_mm)
 
     assert np.array_equal(first.geometry.apexes, second.geometry.apexes)
+
+
+from zgrader.analysis import assessment
+
+
+def test_rectify_recovers_the_hidden_edge_when_the_crop_says_where_it_is():
+    image = build_fixture("capture_shadowed_bottom")
+    truth = true_card_quad("capture_shadowed_bottom")
+
+    uncropped = preprocessing.rectify(image, *POKEMON_MM)
+    guided = preprocessing.rectify(image, *POKEMON_MM, roi_quad=truth)
+
+    px_per_mm = guided.px_per_mm
+    bottom_before = float(np.mean(np.array(uncropped.geometry["apexes"])[2:4, 1]))
+    bottom_after = float(np.mean(np.array(guided.geometry["apexes"])[2:4, 1]))
+    true_bottom = float(truth[2][1])
+
+    assert (true_bottom - bottom_before) / px_per_mm > 3.0, "fixture no longer hides the edge"
+    assert abs(true_bottom - bottom_after) / px_per_mm < 0.5
+    assert guided.geometry["method"] == "ransac"
+    assert "bottom" in guided.geometry["refit_sides"]
+    assert assessment.GEOMETRY_UNVERIFIED not in guided.limitations
+    assert assessment.GEOMETRY_CROP_DISAGREEMENT not in guided.limitations
+
+    # `refit.moved`'s values are numpy.float64; this block is persisted as
+    # JSONB, and the stdlib encoder rejects a NumPy scalar outright. A test
+    # that only reads the dict in memory would not catch that -- exercise the
+    # actual serialisation the persistence path performs.
+    json.dumps(guided.geometry)
+
+
+def test_an_untouched_crop_changes_nothing_at_all():
+    """The path every production submission takes today: the crop is the
+    detected box. The refit must be invisible there, byte for byte."""
+    image = build_fixture("pokemon_front")
+    uncropped = preprocessing.rectify(image, *POKEMON_MM)
+    crop = np.array(uncropped.geometry["apexes"], dtype=np.float64)
+
+    cropped = preprocessing.rectify(image, *POKEMON_MM, roi_quad=crop)
+
+    assert cropped.geometry["apexes"] == uncropped.geometry["apexes"]
+    assert "refit_sides" not in cropped.geometry
+    assert list(cropped.limitations) == list(uncropped.limitations)
+
+
+def test_a_crop_over_background_declines_rather_than_taking_the_crop_s_word():
+    image = build_fixture("pokemon_front")
+    uncropped = preprocessing.rectify(image, *POKEMON_MM)
+    crop = np.array(uncropped.geometry["apexes"], dtype=np.float64)
+    crop[2][1] += 6.0 * uncropped.px_per_mm
+    crop[3][1] += 6.0 * uncropped.px_per_mm
+
+    guided = preprocessing.rectify(image, *POKEMON_MM, roi_quad=crop)
+
+    assert guided.geometry["method"] == "user_crop"
+    assert assessment.GEOMETRY_UNVERIFIED in guided.limitations
+    assert assessment.GEOMETRY_CROP_DISAGREEMENT in guided.limitations
+    assert guided.geometry["crop_disagreement_sides"] == ["bottom"]
+
+
+def test_the_refit_survives_a_crop_away_from_the_image_origin():
+    """The fit runs in the region of interest's coordinates and the crop
+    arrives in the image's, so the offset has to be taken off before they are
+    compared. That offset has been applied with the wrong sign here before, and
+    no fixture can show it without padding: an unpadded fixture's ROI origin
+    clips to (0, 0), where both signs agree.
+    """
+    padded = cv2.copyMakeBorder(
+        build_fixture("capture_shadowed_bottom"), 400, 0, 300, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0)
+    )
+    truth = true_card_quad("capture_shadowed_bottom") + np.array([300.0, 400.0])
+
+    guided = preprocessing.rectify(padded, *POKEMON_MM, roi_quad=truth)
+
+    bottom = float(np.mean(np.array(guided.geometry["apexes"])[2:4, 1]))
+    assert abs(float(truth[2][1]) - bottom) / guided.px_per_mm < 0.5
+    assert "bottom" in guided.geometry["refit_sides"]
+    missing = float(np.mean(guided.mask == 0))
+    assert missing < 0.05, f"{missing:.1%} of the raster reads as missing card"

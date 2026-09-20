@@ -68,6 +68,9 @@ CAPTURE_MODEST_RESOLUTION = "capture_modest_resolution"
 GEOMETRY_UNVERIFIED = "geometry_unverified"
 #: What was measured is not the shape of a card, so its scale is wrong.
 GEOMETRY_ASPECT_MISMATCH = "geometry_aspect_mismatch"
+#: The customer's crop disagreed with a fitted edge and no edge could be found
+#: near where they put it, so the crop is all there is for that side.
+GEOMETRY_CROP_DISAGREEMENT = "geometry_crop_disagreement"
 #: The card is foil or holo, which every detector here reads less reliably.
 CARD_IS_FOIL = "card_is_foil"
 #: One side could not be read, so the combined figure rests on the other alone.
@@ -88,6 +91,7 @@ ALL_LIMITATION_CODES = (
     CAPTURE_MODEST_RESOLUTION,
     GEOMETRY_UNVERIFIED,
     GEOMETRY_ASPECT_MISMATCH,
+    GEOMETRY_CROP_DISAGREEMENT,
     CARD_IS_FOIL,
     COMBINED_SINGLE_SIDE,
 )

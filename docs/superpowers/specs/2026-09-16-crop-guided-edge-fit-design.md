@@ -121,12 +121,15 @@ fitted geometry's px/mm. The side's disagreement is the largest of the three.
   block records `refit_sides: {"bottom": {"disagreement_mm": 6.2, "moved_mm": 5.9}}` so the result says
   what happened.
 
-- **Re-search fails** (too few usable peaks, or no straight line through them): the side falls back to the
-  crop edge, and the result carries `geometry_unverified` plus a new code
-  `assessment.GEOMETRY_CROP_DISAGREEMENT = "geometry_crop_disagreement"`, with the side named in the
-  geometry block. `geometry_unverified` is already in `DISQUALIFYING_LIMITATIONS`, so every
-  boundary-dependent category declines through the existing path (§3.4). The new code exists for the copy,
-  not the gate.
+- **Re-search fails** (too few usable peaks, or no straight line through them): `refit_geometry_near_crop`
+  itself does not fall back to anything — that side is simply reported `unresolved`, and it is the caller
+  (`preprocessing.rectify`) that decides what an unresolved side means. Rectify discards the *whole* fit
+  rather than keeping the other sides and inventing this one: the result falls back to `method: "user_crop"`
+  built from the entire `roi_quad`, carrying `geometry_unverified` plus a new code
+  `assessment.GEOMETRY_CROP_DISAGREEMENT = "geometry_crop_disagreement"`, with every unresolved side named
+  in the geometry block's `crop_disagreement_sides`. `geometry_unverified` is already in
+  `DISQUALIFYING_LIMITATIONS`, so every boundary-dependent category declines through the existing path
+  (§3.4). The new code exists for the copy, not the gate.
 
 ### 3.3 The constants
 
