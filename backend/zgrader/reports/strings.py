@@ -230,6 +230,11 @@ LIMITATION_LABELS = {
             "The measured area is not the shape of a card, which means the millimetre "
             "figures on this report are scaled wrong on at least one axis."
         ),
+        "geometry_crop_disagreement": (
+            "The crop supplied with this scan disagreed with the card edge found in the "
+            "image, and no edge could be found where the crop said one was -- so that side "
+            "rests on the crop itself rather than on anything measured."
+        ),
         "combined_single_side": (
             "Only one face of the card could be read for this category, so the figure "
             "here rests on that face alone rather than on both. It is a narrower view "
@@ -305,6 +310,11 @@ LIMITATION_LABELS = {
         "geometry_aspect_mismatch": (
             "El área medida no tiene la forma de una carta, lo que significa que las "
             "cifras en milímetros de este informe están mal escaladas en al menos un eje."
+        ),
+        "geometry_crop_disagreement": (
+            "El recorte enviado con este escaneo no coincide con el filo de la carta "
+            "encontrado en la imagen, y no se pudo encontrar ningún filo donde el recorte "
+            "indicaba -- así que ese lado se apoya en el recorte y no en algo medido."
         ),
         "combined_single_side": (
             "Solo se pudo leer una cara de la carta para esta categoría, así que esta "

@@ -294,6 +294,7 @@ def test_a_crop_over_background_declines_rather_than_taking_the_crop_s_word():
     assert assessment.GEOMETRY_UNVERIFIED in guided.limitations
     assert assessment.GEOMETRY_CROP_DISAGREEMENT in guided.limitations
     assert guided.geometry["crop_disagreement_sides"] == ["bottom"]
+    json.dumps(guided.geometry)
 
 
 def test_the_refit_survives_a_crop_away_from_the_image_origin():
