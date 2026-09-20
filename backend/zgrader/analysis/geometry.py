@@ -498,3 +498,191 @@ def fit_card_geometry(
         return None
 
     return CardGeometry(apexes=_order_quad(apexes), sides=sides, method="ransac")
+
+
+# --- Crop-guided refit -------------------------------------------------------
+# The customer's crop is a region of interest, not the card's geometry -- a
+# crop half a millimetre inside the card must not trim the damage out of the
+# image, which is why `rectify` fits the edges itself. But when the two
+# disagree by *millimetres*, the crop is evidence the fit landed on the wrong
+# step: on `real_scans/shadowed_photo.jpg` a shadow put the lower card on the
+# background side of one threshold and the outline stopped about 5mm inside
+# the cut, with a crop traced on the true edges changing the apexes by zero
+# pixels. So a side that disagrees is searched for again near where the
+# customer put it -- in the image, never taken from the crop.
+
+#: How far a fitted side may sit from the crop line before that side is
+#: searched again, in millimetres. ARBITRARY until measured: above the slop of
+#: a crop traced by finger on a phone, below the shortfall observed on the real
+#: photograph.
+CROP_REFIT_TRIGGER_MM = 2.0
+
+#: How far either side of the crop line that search looks, in millimetres.
+#: ARBITRARY: wide enough for a crop a couple of millimetres off the edge,
+#: narrow enough that a band around a crop *on* the edge cannot reach a printed
+#: border line a few millimetres inside the cut.
+CROP_REFIT_BAND_MM = 3.0
+
+#: Which two ordered crop corners bound each side (top-left, top-right,
+#: bottom-right, bottom-left), matching `_split_sides`.
+_CROP_SIDE_CORNERS = {"top": (0, 1), "right": (1, 2), "bottom": (3, 2), "left": (0, 3)}
+
+
+@dataclasses.dataclass(frozen=True)
+class CropRefit:
+    """The geometry after the crop was allowed to argue with it."""
+
+    geometry: CardGeometry
+    #: Per side that was re-searched: how far it disagreed with the crop and
+    #: how far the line actually moved, both in millimetres.
+    moved: dict[str, dict[str, float]]
+    #: Sides that disagreed and whose re-search found no edge to move to. The
+    #: caller treats these as "the fit cannot be trusted here" -- there is no
+    #: half-trusted geometry.
+    unresolved: tuple[str, ...]
+
+
+def _fit_side_near_line(
+    value: np.ndarray,
+    start: np.ndarray,
+    end: np.ndarray,
+    centre: np.ndarray,
+    band_px: float,
+) -> SideFit | None:
+    """Re-find one card edge within `band_px` of the segment start->end.
+
+    Takes the **outermost** qualifying gradient peak along each normal, not the
+    strongest. Moving outward from the card, the last strong step is the
+    card-to-background transition; a printed border or a text box inside the
+    card can be stronger than a shadowed edge, and taking the strongest is how
+    `border.py`'s rays lose to a printed box.
+    """
+    normal = _unit_normal(start, end)
+    if normal is None:
+        return None
+    offset = float(normal @ start)
+    # Point the normal into the card, so a tap index runs outside -> inside.
+    if (centre @ normal - offset) < 0:
+        normal, offset = -normal, -offset
+
+    ts = np.linspace(CORNER_MARGIN_FRACTION, 1.0 - CORNER_MARGIN_FRACTION, SUBPIXEL_SAMPLES)
+    bases = start + ts[:, None] * (end - start)
+    taps = np.arange(-band_px, band_px + SUBPIXEL_STEP_PX, SUBPIXEL_STEP_PX)
+    xs = bases[:, 0][:, None] + taps[None, :] * normal[0]
+    ys = bases[:, 1][:, None] + taps[None, :] * normal[1]
+    gradient = np.abs(np.gradient(_sample_bilinear(value, xs, ys), axis=1))
+
+    # A qualifying peak is a local maximum above the response floor, with a
+    # neighbour on each side so the parabola has something to fit.
+    qualifies = np.zeros_like(gradient, dtype=bool)
+    qualifies[:, 1:-1] = (
+        (gradient[:, 1:-1] >= gradient[:, :-2])
+        & (gradient[:, 1:-1] >= gradient[:, 2:])
+        & (gradient[:, 1:-1] >= MIN_GRADIENT_RESPONSE)
+    )
+    usable = qualifies.any(axis=1)
+    if usable.sum() < MIN_REFINED_FRACTION * SUBPIXEL_SAMPLES:
+        return None
+
+    peak = np.argmax(qualifies, axis=1)  # first True is the outermost tap
+    safe_peak = np.clip(peak, 1, gradient.shape[1] - 2)
+    idx = np.arange(len(peak))
+    sub = _parabola_vertex(
+        gradient[idx, safe_peak - 1], gradient[idx, safe_peak], gradient[idx, safe_peak + 1]
+    )
+    along_normal = taps[safe_peak] + sub * SUBPIXEL_STEP_PX
+    points = (bases + along_normal[:, None] * normal[None, :])[usable]
+
+    fit_normal, fit_offset, mask = fit_line_ransac(points)
+    if mask.sum() < MIN_REFINED_FRACTION * len(points):
+        return None
+    fit_normal, fit_offset = _fit_total_least_squares(points[mask])
+    if (centre @ fit_normal - fit_offset) < 0:
+        fit_normal, fit_offset = -fit_normal, -fit_offset
+    residuals = points[mask] @ fit_normal - fit_offset
+    return SideFit(
+        normal=fit_normal,
+        offset=fit_offset,
+        inlier_count=int(mask.sum()),
+        total_points=len(points),
+        refined=True,
+        roughness_px=float(np.std(residuals)),
+        max_excursion_px=float(np.max(np.abs(residuals))),
+        bow_px=_bow(residuals),
+    )
+
+
+def refit_geometry_near_crop(
+    image: np.ndarray,
+    fitted: CardGeometry,
+    crop_quad: np.ndarray,
+    px_per_mm: float,
+    *,
+    trigger_mm: float = CROP_REFIT_TRIGGER_MM,
+    band_mm: float = CROP_REFIT_BAND_MM,
+) -> CropRefit:
+    """Let the customer's crop argue with the fit, one side at a time.
+
+    `crop_quad` must be in the same coordinates as `image` and `fitted` -- the
+    caller subtracts any region-of-interest offset first. A side the crop
+    agrees with to within `trigger_mm` is returned untouched, so an untouched
+    crop (which is the detected box) and a crop traced slightly inside the card
+    both leave the measured geometry exactly as it was.
+    """
+    ordered = _order_quad(crop_quad)
+    centre = ordered.mean(axis=0)
+    value = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)[:, :, 2]
+
+    sides = dict(fitted.sides)
+    moved: dict[str, dict[str, float]] = {}
+    unresolved: list[str] = []
+
+    for name, (i, j) in _CROP_SIDE_CORNERS.items():
+        start, end = ordered[i], ordered[j]
+        ts = np.array([CORNER_MARGIN_FRACTION, 0.5, 1.0 - CORNER_MARGIN_FRACTION])
+        samples = start + ts[:, None] * (end - start)
+        disagreement_mm = float(np.max(np.abs(sides[name].signed_distance(samples)))) / px_per_mm
+        if disagreement_mm <= trigger_mm:
+            continue
+
+        found = _fit_side_near_line(value, start, end, centre, band_mm * px_per_mm)
+        if found is None:
+            unresolved.append(name)
+            continue
+
+        midpoint = ((start + end) / 2)[None]
+        before = float(sides[name].signed_distance(midpoint)[0])
+        after = float(found.signed_distance(midpoint)[0])
+        sides[name] = found
+        moved[name] = {
+            "disagreement_mm": round(disagreement_mm, 2),
+            "moved_mm": round(abs(before - after) / px_per_mm, 2),
+        }
+
+    if not moved:
+        return CropRefit(geometry=fitted, moved={}, unresolved=tuple(sorted(unresolved)))
+
+    corners = {
+        "top_left": ("top", "left"),
+        "top_right": ("top", "right"),
+        "bottom_right": ("bottom", "right"),
+        "bottom_left": ("bottom", "left"),
+    }
+    apexes = []
+    for _corner, (a, b) in corners.items():
+        point = _intersect(sides[a], sides[b])
+        if point is None:
+            # Two adjacent sides that no longer meet is a fit gone wrong, not a
+            # corner: report both as unresolved rather than inventing an apex.
+            return CropRefit(
+                geometry=fitted, moved=moved, unresolved=tuple(sorted(set(unresolved) | {a, b}))
+            )
+        apexes.append(point)
+
+    refitted = CardGeometry(
+        apexes=_order_quad(np.array(apexes, dtype=np.float64)),
+        sides=sides,
+        # Still "ransac": every side here came from a line fitted to the image.
+        method=fitted.method,
+    )
+    return CropRefit(geometry=refitted, moved=moved, unresolved=tuple(sorted(unresolved)))
