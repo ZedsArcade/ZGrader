@@ -26,6 +26,7 @@ numbers are for eyeballing, not asserting. See that directory's README.
 import argparse
 import json
 import sys
+import zlib
 from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -95,23 +96,42 @@ def sloppy_crop(quad: np.ndarray, px_per_mm: float, seed: int) -> np.ndarray:
 
     A crop traced by finger on a phone is never on the edge to the millimetre,
     and the refit must not pull a good fit off its edge when the crop is merely
-    imprecise. Seeded per photograph so a rerun reports the same number.
+    imprecise. Each *side* is moved along its own outward normal and the
+    corners are re-intersected, so every side really does move by its drawn
+    amount -- moving the corners instead attenuates the displacement by the
+    diagonal's cosine and lets two draws cancel on the side they share.
     """
     ordered = np.asarray(quad, dtype=np.float64).reshape(4, 2)
     rng = np.random.default_rng(seed)
     centre = ordered.mean(axis=0)
-    moved = ordered.copy()
-    # Corner i belongs to two sides; each side's offset moves both of its ends
-    # along the outward direction from the quad's centre, which keeps the shape
-    # a quadrilateral rather than shearing it.
-    for i in range(4):
-        outward = ordered[i] - centre
-        norm = float(np.linalg.norm(outward))
-        if norm < 1e-6:
-            continue
-        magnitude = rng.uniform(1.0, 2.0) * px_per_mm * rng.choice([-1.0, 1.0])
-        moved[i] = ordered[i] + (outward / norm) * magnitude
-    return moved
+    # Ordered corners are top-left, top-right, bottom-right, bottom-left.
+    side_corners = {"top": (0, 1), "right": (1, 2), "bottom": (3, 2), "left": (0, 3)}
+
+    lines = {}
+    for name, (i, j) in side_corners.items():
+        direction = ordered[j] - ordered[i]
+        length = float(np.hypot(*direction))
+        if length < 1e-6:
+            return ordered
+        normal = np.array([-direction[1], direction[0]]) / length
+        offset = float(normal @ ordered[i])
+        if (centre @ normal - offset) > 0:  # point the normal outward
+            normal, offset = -normal, -offset
+        shift = float(rng.uniform(1.0, 2.0) * px_per_mm * rng.choice([-1.0, 1.0]))
+        lines[name] = (normal, offset + shift)
+
+    def _corner(a: str, b: str) -> np.ndarray:
+        (na, oa), (nb, ob) = lines[a], lines[b]
+        matrix = np.stack([na, nb])
+        if abs(float(np.linalg.det(matrix))) < 1e-9:
+            return ordered[0]
+        return np.linalg.solve(matrix, np.array([oa, ob]))
+
+    return np.array(
+        [_corner("top", "left"), _corner("top", "right"),
+         _corner("bottom", "right"), _corner("bottom", "left")],
+        dtype=np.float64,
+    )
 
 
 def measure_real_scans(sloppy: bool = False) -> dict[str, dict[str, dict[str, float]]]:
@@ -129,6 +149,7 @@ def measure_real_scans(sloppy: bool = False) -> dict[str, dict[str, dict[str, fl
         if path.suffix.lower() not in (".png", ".jpg", ".jpeg", ".tif", ".tiff"):
             continue
         if path.stem.endswith(_TRACED_SUFFIX):
+            print(f"  - skipped {path.name} (traced overlay)", file=sys.stderr)
             continue
         image = cv2.imread(str(path))
         if image is None:
@@ -140,7 +161,11 @@ def measure_real_scans(sloppy: bool = False) -> dict[str, dict[str, dict[str, fl
                 "uncropped": measure_image(image, *_DEFAULT_CARD_MM),
                 "cropped": measure_image(image, *_DEFAULT_CARD_MM, roi_quad=crop),
             }
-            traced = traced_crop(path)
+            try:
+                traced = traced_crop(path)
+            except Exception as exc:  # noqa: BLE001 -- a malformed sidecar must not drop this photo
+                print(f"  ! {path.name}: bad crop.json: {type(exc).__name__}: {exc}", file=sys.stderr)
+                traced = None
             if traced is not None:
                 measurements["traced"] = measure_image(
                     image, *_DEFAULT_CARD_MM, roi_quad=traced
@@ -150,7 +175,7 @@ def measure_real_scans(sloppy: bool = False) -> dict[str, dict[str, dict[str, fl
                 measurements["sloppy"] = measure_image(
                     image,
                     *_DEFAULT_CARD_MM,
-                    roi_quad=sloppy_crop(crop, px_per_mm, seed=abs(hash(path.stem)) % (2**32)),
+                    roi_quad=sloppy_crop(crop, px_per_mm, seed=zlib.crc32(path.stem.encode())),
                 )
             results[path.stem] = measurements
         except Exception as exc:  # noqa: BLE001 -- one bad photo must not stop the run
@@ -234,7 +259,7 @@ def main() -> int:
                     value = metrics.get(key)
                     return f"{value:5.2f}" if value is not None else "   --"
 
-                tag = name if label == "uncropped" else "  (cropped)"
+                tag = name if label == "uncropped" else f"  ({label})"
                 print(
                     f"  {tag:28} cen {_score('centering.raw_score')}"
                     f"  cor {_score('corners.raw_score')}"
