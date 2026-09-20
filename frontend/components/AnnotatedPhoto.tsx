@@ -83,8 +83,10 @@ export default function AnnotatedPhoto({
   const [selected, setSelected] = useState<LineKey | null>(null);
 
   // `centering` is null when this side has no scorable centering result, but
-  // the hook still has to run every render -- so it is fed zeroes and the
-  // control is gated on `canAdjust` instead. Hooks cannot be conditional.
+  // the hook still has to run every render -- hooks cannot be conditional --
+  // so it takes `handles: null` and falls back to zero widths internally
+  // (`NO_WIDTHS` in use-centering-adjust.ts). Adjusting itself is gated on
+  // `canAdjust` below.
   const centering = centeringHandles(results);
   const adjust = useCenteringAdjust({
     token,
@@ -425,8 +427,13 @@ export default function AnnotatedPhoto({
             Suppressed when a centering region exists, which happens exactly
             when the score is flagged: that region already draws this boundary
             and carries the severity, note and dismissal with it. Drawing both
-            would double the frame. */}
-        {photoUrl && !adjusting && showMarkers && canAdjust && raster && !hasCenteringRegion && appliedWidths && (
+            would double the frame.
+
+            Gated on `centering !== null` rather than `canAdjust`: these lines
+            are read-only, so a published report (where `onAdjusted` is
+            undefined and adjusting is refused server-side) still shows them --
+            only the adjuster itself needs `canAdjust`. */}
+        {photoUrl && !adjusting && showMarkers && centering !== null && raster && !hasCenteringRegion && appliedWidths && (
           <CenteringLines
             widths={appliedWidths}
             raster={raster}

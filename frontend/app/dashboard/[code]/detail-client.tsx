@@ -154,7 +154,7 @@ function Detail({ code }: { code: string }) {
             token={token!}
             locale={locale}
             onToggleRegion={handleToggleRegion}
-            onAdjusted={setSubmission}
+            onAdjusted={submission.status === "draft_ready" ? setSubmission : undefined}
           />
           <SharePanel
             code={code}

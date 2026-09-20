@@ -168,14 +168,27 @@ export function useCenteringAdjust({
   const mode: CenteringMode = handles?.mode ?? "nudge";
   const pxPerMm = handles?.pxPerMm ?? 0;
   const detected = handles?.detected ?? NO_WIDTHS;
-  const start = handles ? startingWidths(handles, placeDefaultMm) : NO_WIDTHS;
+  const limitPx = Math.max(0, limitMm) * pxPerMm;
+  const placeMaxPx = Math.max(0, placeMaxMm) * pxPerMm;
+  const rawStart = handles ? startingWidths(handles, placeDefaultMm) : NO_WIDTHS;
+  // A side's indicative_estimate can read past the placement bound --
+  // border.MAX_SEARCH_MM is wider than CENTERING_PLACEMENT_MAX_MM -- so an
+  // untouched starting line must be clamped here, or Apply refuses a line
+  // the customer never touched.
+  const start: Widths =
+    mode === "place" && placeMaxPx > 0
+      ? {
+          left_px: Math.min(rawStart.left_px, placeMaxPx),
+          right_px: Math.min(rawStart.right_px, placeMaxPx),
+          top_px: Math.min(rawStart.top_px, placeMaxPx),
+          bottom_px: Math.min(rawStart.bottom_px, placeMaxPx),
+        }
+      : rawStart;
 
   const [widths, setWidths] = useState<Widths>(applied ?? start);
   const [applying, setApplying] = useState(false);
   const [clearing, setClearing] = useState(false);
 
-  const limitPx = Math.max(0, limitMm) * pxPerMm;
-  const placeMaxPx = Math.max(0, placeMaxMm) * pxPerMm;
   // The operator's limit is the kill switch for both modes.
   const enabled = limitMm > 0 && pxPerMm > 0 && raster !== null;
 
