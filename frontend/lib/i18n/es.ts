@@ -156,6 +156,8 @@ export const es: Dictionary = {
         "Se encontró borde impreso en algunos lados pero no en todos, así que esto se apoya en menos filos de lo habitual.",
       centering_client_placed:
         "No se encontró un borde impreso, así que estas líneas de centrado se colocaron a mano en lugar de medirse.",
+      geometry_crop_disagreement:
+        "Su recorte y el filo de la carta que encontramos no coinciden, y no hay ningún filo donde el recorte indica: ese lado se apoya en su recorte y no en una medición. Arrastre ese lado hasta el filo de la carta y vuelva a comprobarlo.",
       edges_partial: "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
       edges_thin_border:
         "El borde de esta carta es demasiado estrecho para muestrear cartón limpio junto al filo, así que esos lados se juzgaron solo por la rectitud del corte.",
