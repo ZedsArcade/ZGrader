@@ -60,6 +60,95 @@ def placed_side(side_measurements: dict, adjustment: dict | None) -> tuple[float
     return score, worse, block
 
 
+#: Bounds tolerance, in raster pixels, on both the placement bound and the
+#: nudge cap. A line the client dragged to a bound gets rounded to 0.1px on
+#: the way to the server, and a same-side coordinate can differ by a
+#: sub-pixel amount from what the browser computed the bound to be; either
+#: refusing a legitimately-at-the-bound line on that account is the bug this
+#: guards against (final review Minor 1). It replaces an earlier 1e-6, which
+#: was tight enough to do exactly that.
+_BOUNDS_TOLERANCE_PX = 0.05
+
+
+def check_centering_adjustment(
+    side_measurements: dict,
+    scored: bool,
+    widths: dict,
+    limit_mm: float,
+    *,
+    enforce_nudge_cap: bool = True,
+) -> tuple[str | None, str | None]:
+    """("place" | "nudge", None) when the widths are allowed, or (None, reason).
+
+    The one check shared by the centering-adjust endpoint, which asks about a
+    proposed move against the row it already has, and by re-analysis, which
+    asks about a *stored* adjustment against the freshly persisted row --
+    the same question from two callers, so the two can no longer drift apart
+    the way the endpoint's bounds check and this module's aggregation already
+    had once each.
+
+    `scored` names which question is being asked: a scored side can only be
+    nudged, a declined one can only be placed and only where
+    `centering.placement_eligible` agrees, and it also folds in the "no scale
+    to bound against" refusal. `widths` is the four raw widths in raster
+    pixels, keyed like `centering.WIDTH_KEYS`.
+
+    `reason` is a short machine code an endpoint maps to its own HTTP status
+    and message. Where the failure names one line, the key is appended after
+    a colon, e.g. "beyond_nudge_cap:left_px" -- the caller decides how much of
+    that to surface.
+
+    The kill switch (`limit_mm <= 0` disabling adjustment outright) is
+    deliberately not checked here: the endpoint means it as "refuse anything
+    new", but re-analysis revalidating what is already stored means it as
+    "the cap no longer applies" (`enforce_nudge_cap=False`) rather than "drop
+    everything", per the settings comment on `centering_adjust_limit_mm`.
+    """
+    m = side_measurements or {}
+    if scored:
+        mode = "nudge"
+    elif centering.placement_eligible(m):
+        mode = "place"
+    else:
+        return None, "not_measurable"
+
+    px_per_mm = float((m.get("card_geometry") or {}).get("px_per_mm") or 0)
+    if px_per_mm <= 0:
+        return None, "no_scale"
+
+    if mode == "place":
+        max_px = scoring.CENTERING_PLACEMENT_MAX_MM * px_per_mm
+        for key in centering.WIDTH_KEYS:
+            value = widths.get(key)
+            if value is None or float(value) > max_px + _BOUNDS_TOLERANCE_PX:
+                return None, f"beyond_placement_bound:{key}"
+        parsed = centering.widths_from(widths)
+        if parsed is None:
+            return None, "no_axis"
+        left, right, top, bottom = parsed
+        ratios = centering.ratios_from_widths(
+            left, right, top, bottom, have_lr=left + right > 0, have_tb=top + bottom > 0
+        )
+        if ratios["measured_axes"] == 0:
+            return None, "no_axis"
+        return "place", None
+
+    # Nudge: bounded from where detection put each line, which must itself
+    # exist on the fresh row for every key before a distance to it means
+    # anything.
+    for key in centering.WIDTH_KEYS:
+        if m.get(key) is None:
+            return None, f"no_detected_width:{key}"
+    if enforce_nudge_cap:
+        limit_px = limit_mm * px_per_mm
+        for key in centering.WIDTH_KEYS:
+            value = widths.get(key)
+            detected = float(m[key])
+            if value is None or abs(float(value) - detected) > limit_px + _BOUNDS_TOLERANCE_PX:
+                return None, f"beyond_nudge_cap:{key}"
+    return "nudge", None
+
+
 def _adjusted_side_score(
     category: str,
     side_measurements: dict,

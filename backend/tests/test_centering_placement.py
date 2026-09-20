@@ -17,6 +17,7 @@ from zgrader.models import (
     AnalysisCategory,
     AnalysisResult,
     AnalysisSide,
+    AuditLog,
     Card,
     GradingCompanyComparison,
     ScanImage,
@@ -351,3 +352,201 @@ def test_a_placement_survives_re_analysis(db_session, tmp_path):
     row = _combined_centering_row(db_session, submission)
     assert row.raw_score is not None
     assert assessment.CENTERING_CLIENT_PLACED in row.measurements["assessment"]["limitations"]
+
+
+# --- revalidating a stored adjustment against a fresh row (final review 1) -
+
+
+def _dropped_audit_rows(db_session, submission) -> list[AuditLog]:
+    return (
+        db_session.query(AuditLog)
+        .filter_by(submission_id=submission.id, action="centering_adjustment_dropped")
+        .all()
+    )
+
+
+def _replace_front_with_scored(db_session, submission, **widths) -> None:
+    """Simulate what a real re-analysis does to the per-side/combined rows:
+    delete the old centering rows and add freshly scored ones."""
+    db_session.query(AnalysisResult).filter_by(
+        submission_id=submission.id, category=AnalysisCategory.centering
+    ).delete()
+    add_centering_rows(db_session, submission, scored_side(**widths))
+    db_session.commit()
+    db_session.refresh(submission)
+
+
+def test_revalidation_drops_a_placement_beyond_the_new_detections_nudge_cap(db_session):
+    """A placement is checked against the row it was made on -- eligibility and
+    the 8mm placement bound. If re-analysis replaces that row with a scored
+    one, the same widths have to pass the *nudge* cap instead, or they would
+    flow through the nudge branch of _adjusted_side_score uncapped and with
+    no centering_client_placed label: the exact bug reproduced in the review
+    (2.22 at confidence 0.4, labelled, became 2.22 at confidence 0.9,
+    unlabelled)."""
+    submission = _with_rows(db_session, "SUB-PLC07", declined_side())
+    # Bottom 8mm, top 1mm -- both inside the 8mm placement bound.
+    placement = {"left_px": 30.0, "right_px": 30.0, "top_px": 10.0, "bottom_px": 80.0}
+    _set_adjustment(db_session, submission, "front", placement)
+    assert _combined(db_session, submission).raw_score is not None
+
+    # The fresh detection reads all four widths at 3mm (30px @ 10px/mm) --
+    # 5mm and 2mm away from the stored placement, both beyond the 4mm default
+    # nudge cap.
+    _replace_front_with_scored(db_session, submission, left=30.0, right=30.0, top=30.0, bottom=30.0)
+
+    pipeline._revalidate_centering_adjustments(db_session, submission)
+    db_session.commit()
+    recompute.recompute_submission(db_session, submission)
+    db_session.commit()
+
+    assert (submission.centering_adjustments or {}).get("front") is None
+    dropped = _dropped_audit_rows(db_session, submission)
+    assert len(dropped) == 1
+    assert dropped[0].detail["side"] == "front"
+    assert dropped[0].user_id is None
+
+    row = _combined(db_session, submission)
+    expected = side_score(scored_side(left=30.0, right=30.0, top=30.0, bottom=30.0))
+    assert float(row.raw_score) == expected
+    block = row.measurements["assessment"]
+    # The plain scored reading, not a detected-looking 2.22 at confidence 0.9
+    # with nothing marking it as ever having been placed.
+    assert assessment.CENTERING_CLIENT_PLACED not in block["limitations"]
+    assert block["confidence"] == assessment.CONFIDENCE_CENTERING_CLEAN_FRAME
+
+
+def test_revalidation_keeps_a_placement_within_the_new_detections_nudge_cap(db_session):
+    """The companion case: the same flow, but the placement sits within 4mm of
+    the freshly detected 3mm lines, so it survives -- now as a nudge -- and
+    nothing is dropped or audited."""
+    submission = _with_rows(db_session, "SUB-PLC08", declined_side())
+    # 1mm and 2mm from the eventual 3mm detection -- inside the 4mm cap.
+    placement = {"left_px": 30.0, "right_px": 30.0, "top_px": 20.0, "bottom_px": 50.0}
+    _set_adjustment(db_session, submission, "front", placement)
+
+    _replace_front_with_scored(db_session, submission, left=30.0, right=30.0, top=30.0, bottom=30.0)
+
+    pipeline._revalidate_centering_adjustments(db_session, submission)
+    db_session.commit()
+    recompute.recompute_submission(db_session, submission)
+    db_session.commit()
+
+    assert (submission.centering_adjustments or {}).get("front") == placement
+    assert _dropped_audit_rows(db_session, submission) == []
+
+    row = _combined(db_session, submission)
+    assert row.raw_score is not None
+    block = row.measurements["assessment"]
+    assert assessment.CENTERING_CLIENT_PLACED not in block["limitations"]
+    assert block["confidence"] == assessment.CONFIDENCE_CENTERING_CLEAN_FRAME
+
+
+# --- check_centering_adjustment: the shared check itself -------------------
+
+
+def test_check_centering_adjustment_not_measurable():
+    measured = _declined(assessment.GEOMETRY_UNVERIFIED)
+    assert recompute.check_centering_adjustment(measured, False, PLACED, 4.0) == (None, "not_measurable")
+
+
+def test_check_centering_adjustment_no_scale():
+    """Reachable on the nudge path -- `placement_eligible` already folds a
+    scale check into its own answer, so a declined side without one is
+    "not_measurable" before this check ever runs (see the test above)."""
+    measured = dict(scored_side())
+    measured["card_geometry"] = {"px_per_mm": 0}
+    assert recompute.check_centering_adjustment(measured, True, PLACED, 4.0) == (None, "no_scale")
+
+
+def test_check_centering_adjustment_place_within_bound_is_allowed():
+    measured = _declined(assessment.CENTERING_NO_FRAME)
+    assert recompute.check_centering_adjustment(measured, False, PLACED, 4.0) == ("place", None)
+
+
+def test_check_centering_adjustment_beyond_placement_bound():
+    measured = _declined(assessment.CENTERING_NO_FRAME)  # px_per_mm=10
+    widths = {"left_px": 90.0, "right_px": 30.0, "top_px": 25.0, "bottom_px": 35.0}
+    mode, reason = recompute.check_centering_adjustment(measured, False, widths, 4.0)
+    assert mode is None
+    assert reason == "beyond_placement_bound:left_px"
+
+
+def test_check_centering_adjustment_placement_bound_tolerance():
+    """0.05px tolerance either side of the 8mm bound (final review Minor 1)."""
+    measured = _declined(assessment.CENTERING_NO_FRAME)  # px_per_mm=10 -> 80px bound
+    at_bound = {"left_px": 80.04, "right_px": 30.0, "top_px": 25.0, "bottom_px": 35.0}
+    assert recompute.check_centering_adjustment(measured, False, at_bound, 4.0) == ("place", None)
+
+    beyond = {"left_px": 80.06, "right_px": 30.0, "top_px": 25.0, "bottom_px": 35.0}
+    mode, reason = recompute.check_centering_adjustment(measured, False, beyond, 4.0)
+    assert mode is None
+    assert reason == "beyond_placement_bound:left_px"
+
+
+def test_check_centering_adjustment_no_axis():
+    measured = _declined(assessment.CENTERING_NO_FRAME)
+    zeros = {"left_px": 0, "right_px": 0, "top_px": 0, "bottom_px": 0}
+    assert recompute.check_centering_adjustment(measured, False, zeros, 4.0) == (None, "no_axis")
+
+
+def test_check_centering_adjustment_nudge_within_cap_is_allowed():
+    measured = scored_side()  # left=30, right=34, top=30, bottom=30, px_per_mm=10
+    widths = {"left_px": 30.0, "right_px": 34.0, "top_px": 30.0, "bottom_px": 30.0}
+    assert recompute.check_centering_adjustment(measured, True, widths, 4.0) == ("nudge", None)
+
+
+def test_check_centering_adjustment_no_detected_width():
+    measured = scored_side()
+    del measured["right_px"]
+    mode, reason = recompute.check_centering_adjustment(measured, True, PLACED, 4.0)
+    assert mode is None
+    assert reason == "no_detected_width:right_px"
+
+
+def test_check_centering_adjustment_beyond_nudge_cap():
+    measured = scored_side()  # bottom detected at 30px, px_per_mm=10 -> 4mm cap = 40px
+    widths = {"left_px": 30.0, "right_px": 34.0, "top_px": 30.0, "bottom_px": 30.0 + 50.0}
+    mode, reason = recompute.check_centering_adjustment(measured, True, widths, 4.0)
+    assert mode is None
+    assert reason == "beyond_nudge_cap:bottom_px"
+
+
+def test_check_centering_adjustment_nudge_cap_tolerance():
+    measured = scored_side()
+    limit_px = 4.0 * 10.0
+    at_cap = {"left_px": 30.0, "right_px": 34.0, "top_px": 30.0, "bottom_px": 30.0 + limit_px + 0.04}
+    assert recompute.check_centering_adjustment(measured, True, at_cap, 4.0) == ("nudge", None)
+
+    beyond_cap = {"left_px": 30.0, "right_px": 34.0, "top_px": 30.0, "bottom_px": 30.0 + limit_px + 0.06}
+    mode, reason = recompute.check_centering_adjustment(measured, True, beyond_cap, 4.0)
+    assert mode is None
+    assert reason == "beyond_nudge_cap:bottom_px"
+
+
+def test_check_centering_adjustment_enforce_nudge_cap_false_keeps_a_beyond_cap_nudge():
+    measured = scored_side()
+    widths = {"left_px": 30.0, "right_px": 34.0, "top_px": 30.0, "bottom_px": 30.0 + 500.0}
+    assert recompute.check_centering_adjustment(measured, True, widths, 4.0, enforce_nudge_cap=False) == (
+        "nudge",
+        None,
+    )
+
+
+# --- spec test: a placed front combines with a scored back (final review 4) -
+
+
+def test_a_placed_front_combines_with_a_scored_back(db_session):
+    back = scored_side()
+    submission = _with_rows(db_session, "SUB-PLC09", declined_side(), back)
+
+    _set_adjustment(db_session, submission, "front", PLACED)
+
+    row = _combined(db_session, submission)
+    block = row.measurements["assessment"]
+    assert block["state"] == "measured"
+    assert assessment.CENTERING_CLIENT_PLACED in block["limitations"]
+    assert block["confidence"] == assessment.CONFIDENCE_CENTERING_CLIENT_PLACED
+    assert float(row.raw_score) == scoring.combine_sides_by_name(
+        {"front": _placed_score()[0], "back": side_score(back)}
+    )

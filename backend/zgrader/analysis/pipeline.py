@@ -35,12 +35,14 @@ from zgrader.models import (
     AnalysisCategory,
     AnalysisResult,
     AnalysisSide,
+    AuditLog,
     GradingCompanyComparison,
     ScanImage,
     ScanSide,
     Submission,
     SubmissionStatus,
 )
+from zgrader.models.settings import get_or_create_settings
 
 
 class PipelineError(Exception):
@@ -331,6 +333,77 @@ def load_deskewed_card(
     return preprocessing.rectify(image, width_mm, height_mm, roi_quad=roi)
 
 
+def _revalidate_centering_adjustments(db: Session, submission: Submission) -> None:
+    """Drop any stored centering adjustment or placement that no longer fits
+    the freshly persisted per-side centering rows, auditing each drop.
+
+    A re-analysis rebuilds every per-side row from scratch, and a stored
+    adjustment was validated against the *previous* one -- the border may now
+    be detected where it wasn't, or lost where it was. Revalidating through
+    `recompute.check_centering_adjustment`, the same check the endpoint runs
+    on a proposed move, means a placement a fresh detection now covers
+    survives as a nudge, and a nudge on a side that now declined survives as
+    a placement, each within its own bound; only a widths set that fits
+    neither mode is dropped. Without this, re-analysis could leave a
+    placement's widths read back through the nudge branch of
+    `recompute._adjusted_side_score` uncapped and unlabelled -- a 4mm cap
+    ignored on a reading nobody flagged as placed by hand.
+
+    The nudge cap is not enforced here when `centering_adjust_limit_mm` is 0:
+    the kill switch means "refuse anything new," not "invalidate everything
+    already stored" (see the setting's own comment). The placement bound,
+    eligibility and scale are always enforced -- those aren't the kill
+    switch's business.
+    """
+    adjustments = submission.centering_adjustments or {}
+    if not adjustments:
+        return
+
+    settings = get_or_create_settings(db)
+    limit_mm = float(settings.centering_adjust_limit_mm or 0)
+    rows = {
+        row.side.value: row
+        for row in submission.analysis_results
+        if row.category == AnalysisCategory.centering and row.side != AnalysisSide.combined
+    }
+
+    remaining = dict(adjustments)
+    for side, widths in adjustments.items():
+        row = rows.get(side)
+        if row is None:
+            remaining.pop(side, None)
+            db.add(
+                AuditLog(
+                    submission_id=submission.id,
+                    user_id=None,
+                    action="centering_adjustment_dropped",
+                    detail={"side": side, "reason": "no_row"},
+                )
+            )
+            continue
+        _mode, reason = recompute.check_centering_adjustment(
+            row.measurements or {},
+            row.raw_score is not None,
+            widths,
+            limit_mm,
+            enforce_nudge_cap=limit_mm > 0,
+        )
+        if reason is not None:
+            remaining.pop(side, None)
+            db.add(
+                AuditLog(
+                    submission_id=submission.id,
+                    user_id=None,
+                    action="centering_adjustment_dropped",
+                    detail={"side": side, "reason": reason},
+                )
+            )
+
+    # A new dict, so SQLAlchemy tracks the JSONB change even when nothing was
+    # dropped and the contents happen to compare equal.
+    submission.centering_adjustments = remaining or None
+
+
 def run_analysis(db: Session, submission: Submission) -> None:
     """Run the full pipeline for a submission whose front/back ScanImage
     rows are already populated. Persists AnalysisResult and
@@ -449,11 +522,14 @@ def run_analysis(db: Session, submission: Submission) -> None:
     # A re-analysis (e.g. a late back scan) rebuilds every row from scratch;
     # re-apply any dismissals and centering adjustments/placements the client
     # had already made so they aren't silently lost. Region ids are stable
-    # across re-analysis, so previously-dismissed keys still resolve, and a
-    # placement is re-scored against whatever the fresh side row says. Without
-    # this, a re-analysis silently dropped a stored placement: the combined
-    # centering row came back unmeasurable while centering_adjustments and
-    # client_adjusted stayed put, the report contradicting itself.
+    # across re-analysis, so previously-dismissed keys still resolve. Centering
+    # adjustments are revalidated against the fresh per-side rows first --
+    # `_revalidate_centering_adjustments` -- and anything that no longer fits
+    # either bound is dropped and audited rather than re-scored against a row
+    # it was never checked against. Without this, a re-analysis could turn a
+    # capped, labelled placement into an uncapped, unlabelled detected reading:
+    # the combined row is derived below.
+    _revalidate_centering_adjustments(db, submission)
     if submission.dismissed_regions or submission.centering_adjustments:
         db.expire(submission, ["analysis_results", "company_comparisons"])
         recompute.recompute_submission(db, submission)

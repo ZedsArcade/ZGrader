@@ -883,11 +883,14 @@ def adjust_centering(
         )
 
     measured = side_row.measurements or {}
-    placing = side_row.raw_score is None and centering.placement_eligible(measured)
+    scored = side_row.raw_score is not None
+    placing = not scored and centering.placement_eligible(measured)
     # An unscored side that is not placeable -- above all one whose card edges
     # were never found -- has nothing trustworthy to put lines on. Accepting
-    # would invent centering for a card the pipeline could not locate.
-    if side_row.raw_score is None and not placing:
+    # would invent centering for a card the pipeline could not locate. Checked
+    # ahead of the kill switch so "nothing to adjust" and "adjusting is off"
+    # cannot be confused for each other.
+    if not scored and not placing:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "Centering could not be measured on this side, so its lines cannot be adjusted.",
@@ -900,13 +903,6 @@ def adjust_centering(
             status.HTTP_403_FORBIDDEN, "Adjusting the centering lines is currently disabled."
         )
 
-    geometry = measured.get("card_geometry") or {}
-    px_per_mm = float(geometry.get("px_per_mm") or 0)
-    if px_per_mm <= 0:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "This submission has no recorded scale to bound the move against."
-        )
-
     proposed = {
         "left_px": payload.left_px,
         "right_px": payload.right_px,
@@ -915,34 +911,45 @@ def adjust_centering(
     }
     rounded = {k: round(v, 1) for k, v in proposed.items()}
 
-    if placing:
-        max_mm = scoring.CENTERING_PLACEMENT_MAX_MM
-        for key, value in proposed.items():
-            if value > max_mm * px_per_mm + 1e-6:
-                raise HTTPException(
-                    status.HTTP_400_BAD_REQUEST,
-                    f"{key} is further than {max_mm:g}mm from the card's edge.",
-                )
-        if recompute.placed_side(measured, rounded) is None:
+    mode, reason = recompute.check_centering_adjustment(measured, scored, rounded, limit_mm)
+    if mode is None:
+        code_, _, key = (reason or "").partition(":")
+        if code_ == "no_scale":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "This submission has no recorded scale to bound the move against.",
+            )
+        if code_ == "no_detected_width":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, f"No detected {key} to adjust from on this side."
+            )
+        if code_ == "beyond_placement_bound":
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"{key} is further than {scoring.CENTERING_PLACEMENT_MAX_MM:g}mm from the card's edge.",
+            )
+        if code_ == "no_axis":
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 "Place at least one pair of opposite lines inside the card's edge.",
             )
+        if code_ == "beyond_nudge_cap":
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"{key} moved further than the {limit_mm:g}mm allowed."
+            )
+        # not_measurable is already handled above, before the kill switch; a
+        # fresh instance here (or any other code) means the row changed under
+        # us between the two checks, which the same message covers honestly.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Centering could not be measured on this side, so its lines cannot be adjusted.",
+        )
+    placing = mode == "place"
+
+    if placing:
         detected_rounded = None
         cleared = False
     else:
-        limit_px = limit_mm * px_per_mm
-        for key, value in proposed.items():
-            detected = measured.get(key)
-            if detected is None:
-                raise HTTPException(
-                    status.HTTP_409_CONFLICT, f"No detected {key} to adjust from on this side."
-                )
-            if abs(value - float(detected)) > limit_px + 1e-6:
-                raise HTTPException(
-                    status.HTTP_400_BAD_REQUEST,
-                    f"{key} moved further than the {limit_mm:g}mm allowed.",
-                )
         detected_rounded = {k: round(float(measured[k]), 1) for k in proposed}
         # Putting every line back where detection had it is not an adjustment,
         # so it clears rather than stores one -- see DELETE below for the
@@ -999,6 +1006,11 @@ def clear_centering_adjustment(
     A placement has no detected lines to move back to, so "put every line where
     it was" cannot clear it the way it clears a nudge; this is the explicit way,
     and it works for both. Clearing a side with nothing stored changes nothing.
+
+    Deliberately does not check the kill switch (`centering_adjust_limit_mm`):
+    a customer can still withdraw a claim they made earlier even while
+    adjusting is currently disabled, and refusing that would trap them with a
+    number they no longer stand behind.
     """
     submission = _get_owned_submission(code, user, db)
     _require_draft_under_review(submission)
