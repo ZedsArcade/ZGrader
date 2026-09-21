@@ -182,6 +182,159 @@ def test_a_crop_inset_a_real_4mm_on_every_side_does_not_pull_the_fit_inward():
     assert abs(height_mm - 88.0) < 0.5
 
 
+def _textured_backing(name: str, sigma: float = 18.0) -> np.ndarray:
+    """A fixture with seeded noise added to its backing only.
+
+    Every committed fixture sits on a flat fill whose gradient is exactly zero,
+    so `MIN_GRADIENT_RESPONSE` rejects the whole background and a search that
+    strays into it merely finds nothing. A desk, a cutting mat or a sleeve does
+    not behave like that: it clears that floor along the entire band, and the
+    re-search's "outermost peak above the floor" then found the outer limit of
+    its own search rather than a card edge. This is the shape of card the flat
+    fills cannot express, built in the test rather than by changing a fixture
+    every other baseline depends on.
+
+    sigma=18 puts the backdrop's own gradient at a median of 5.0 and a 90th
+    percentile of 16.5, sampled the way `_fit_side_near_line` samples it --
+    comfortably over the 4.0 floor, which
+    `test_the_textured_backing_really_does_clear_the_response_floor` pins so
+    this cannot quietly become a test of a flat fill again.
+    """
+    image = build_fixture(name).copy()
+    card = np.zeros(image.shape[:2], dtype=np.uint8)
+    cv2.fillPoly(card, [true_card_quad(name).round().astype(np.int32)], 255)
+    rng = np.random.default_rng(20260920)
+    noisy = image.astype(np.float64) + np.where(
+        card[:, :, None] == 0, rng.normal(0.0, sigma, image.shape), 0.0
+    )
+    return np.clip(noisy, 0, 255).astype(np.uint8)
+
+
+def _backing_gradient(image: np.ndarray, name: str) -> np.ndarray:
+    """The gradient the re-search would see walking down the backing, above the
+    card's top edge, in the same channel and at the same step it uses."""
+    truth = true_card_quad(name)
+    value = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)[:, :, 2]
+    ys = np.arange(5.0, float(truth[0][1]) - 20.0, geometry.SUBPIXEL_STEP_PX)
+    xs = np.full_like(ys, float(truth[0][0]) + 200.0)
+    return np.abs(np.gradient(geometry._sample_bilinear(value, xs, ys)))
+
+
+def _side_move_mm(before, after, px_per_mm: float) -> dict[str, float]:
+    """Per side, how far outward the line moved, in millimetres, measured at
+    the side's own midpoint. `normal` points into the card, so a line that
+    moved outward has a lower `signed_distance` at a fixed point."""
+    moves = {}
+    for corners, name in (
+        ((0, 1), "top"), ((1, 2), "right"), ((3, 2), "bottom"), ((0, 3), "left")
+    ):
+        i, j = corners
+        midpoint = ((before.apexes[i] + before.apexes[j]) / 2)[None]
+        was = float(before.sides[name].signed_distance(midpoint)[0])
+        now = float(after.sides[name].signed_distance(midpoint)[0])
+        moves[name] = (was - now) / px_per_mm
+    return moves
+
+
+def test_the_textured_backing_really_does_clear_the_response_floor():
+    """Without this the texture tests below would pass for the wrong reason --
+    a flat fill declines every peak, so a rule that never fires looks like a
+    rule that fires correctly."""
+    gradient = _backing_gradient(_textured_backing("pokemon_front"), "pokemon_front")
+    assert float(np.median(gradient)) >= geometry.MIN_GRADIENT_RESPONSE, (
+        f"the backing's median gradient is {np.median(gradient):.2f}, under the "
+        f"{geometry.MIN_GRADIENT_RESPONSE} floor -- this is a flat fill again"
+    )
+    plain = _backing_gradient(build_fixture("pokemon_front"), "pokemon_front")
+    assert float(np.max(plain)) < geometry.MIN_GRADIENT_RESPONSE, (
+        "the committed fixture's backing is no longer flat, so this test no "
+        "longer says anything about the difference"
+    )
+
+
+@pytest.mark.parametrize("proud_mm", [2.5, 3.0])
+def test_a_proud_crop_on_a_textured_backing_cannot_grow_the_card(proud_mm):
+    """The escalated finding, in committed form.
+
+    A crop a couple of millimetres proud of the card on every side is ordinary
+    slop from a crop traced by finger. On a textured backing the re-search used
+    to answer it by taking the outermost gradient peak above the absolute
+    floor, which on a desk is simply the outermost *tap*: measured on real
+    photographs, all four sides moved out together by roughly
+    `band - proud`, growing the card by 17% in px/mm with `limitations` empty,
+    and uniform outward growth preserves aspect so `MAX_ASPECT_DEVIATION` could
+    not see it either. Here the same rule grows a 63x88mm card to 72.9x97.9mm.
+
+    A peak now has to stand at `CROP_REFIT_PEAK_FRACTION` of the strongest step
+    along its own normal, which backdrop texture does not.
+    """
+    image = _textured_backing("pokemon_front")
+    fit, px_per_mm = _fitted(image)
+    crop = _crop_inset_from_sides(fit, -proud_mm, px_per_mm)
+
+    refit = geometry.refit_geometry_near_crop(image, fit, crop, px_per_mm)
+
+    assert refit.unresolved == (), "a side with a findable edge must not decline"
+    width_mm, height_mm = _quad_size_mm(refit.geometry.apexes, px_per_mm)
+    assert abs(width_mm - 63.0) < 0.5, f"card grew to {width_mm:.2f}mm wide"
+    assert abs(height_mm - 88.0) < 0.5, f"card grew to {height_mm:.2f}mm tall"
+    moves = _side_move_mm(fit, refit.geometry, px_per_mm)
+    assert max(moves.values()) < 0.5, f"a side moved outward: {moves}"
+
+
+def test_the_search_band_stays_inside_the_region_of_interest():
+    """`rectify` hands the re-search only the pixels inside the expanded crop,
+    so a band wider than that expansion searches off the end of its own image
+    and reads clipped edge pixels as a profile. The margin is a fraction of the
+    crop, so the tightest real case is the smallest card dimension."""
+    smallest_card_mm = 63.0
+    margin_mm = smallest_card_mm * preprocessing.ROI_MARGIN_FRACTION
+    assert geometry.CROP_REFIT_BAND_MM < margin_mm, (
+        f"a {geometry.CROP_REFIT_BAND_MM}mm band does not fit inside the "
+        f"{margin_mm:.1f}mm the region of interest is expanded by"
+    )
+
+
+def test_the_two_ways_of_finding_nothing_are_told_apart():
+    """`_fit_side_near_line` reports *why* it came back empty, and the two
+    reasons are different facts about the image -- flat background against a
+    busy one. Collapsing them is what made an ordinary sloppy crop throw away
+    a perfectly good fit."""
+    # `value` is the single-channel V plane `refit_geometry_near_crop` builds.
+    flat = np.full((400, 400), 40, dtype=np.uint8)
+    start, end = np.array([50.0, 200.0]), np.array([350.0, 200.0])
+    centre = np.array([200.0, 320.0])
+
+    _fit, reason = geometry._fit_side_near_line(flat, start, end, centre, 40.0)
+    assert reason == geometry._NO_EDGE
+
+    rng = np.random.default_rng(7)
+    noisy = rng.integers(0, 255, (400, 400), dtype=np.uint8)
+    _fit, reason = geometry._fit_side_near_line(noisy, start, end, centre, 40.0)
+    assert reason == geometry._NO_CONSENSUS
+
+
+def test_a_side_the_search_cannot_place_keeps_its_fitted_line(monkeypatch):
+    """Peaks near the crop line that do not lie on a line say nothing about
+    the fit: the re-search has produced nothing better than the edge already
+    measured from the image, so that edge stands and the card is not thrown
+    away. Declining here instead cost 22 of 37 real photographs on a crop
+    2.5-3.0mm proud -- ordinary slop -- which is the whole reason the reason
+    codes exist."""
+    image = build_fixture("capture_shadowed_bottom")
+    truth = true_card_quad("capture_shadowed_bottom")
+    fit, px_per_mm = _fitted(image)
+    monkeypatch.setattr(
+        geometry, "_fit_side_near_line", lambda *a, **k: (None, geometry._NO_CONSENSUS)
+    )
+
+    refit = geometry.refit_geometry_near_crop(image, fit, truth, px_per_mm)
+
+    assert refit.unresolved == ()
+    assert refit.moved == {}
+    assert np.allclose(refit.geometry.apexes, fit.apexes)
+
+
 def test_a_crop_on_the_true_edge_recovers_a_side_the_shadow_hid():
     """The whole point. The fit stops inside the card; the crop says where the
     edge is; the re-search finds it there rather than taking the crop's word."""
