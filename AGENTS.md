@@ -72,6 +72,59 @@ region-of-interest hint and nothing more. It used to be the geometry itself, whi
 number a function of where four handles were dragged: a crop half a millimetre inside the card
 removed the damage from the image before any detector saw it.
 
+That stands, with one addition the crop earned by being right. When a fitted side sits more than
+`geometry.CROP_REFIT_TRIGGER_MM` (2.0) from the customer's crop line, and the crop is claiming
+*more* card than the fit found, that side is searched for again within
+`geometry.CROP_REFIT_BAND_MM` (4.0) of the line. The search runs in the image and takes the
+**outermost** gradient peak that stands at `geometry.CROP_REFIT_PEAK_FRACTION` (0.65) of the
+strongest step along its own normal. It never takes the crop itself. The crop is evidence about
+where to look; the edge still comes from pixels. A side whose search finds nothing edge-shaped
+at all falls back to the crop. It carries `GEOMETRY_UNVERIFIED` with `GEOMETRY_CROP_DISAGREEMENT`
+beside it, so every boundary-dependent category declines through the path that already existed.
+
+It was earned on `real_scans/shadowed_photo.jpg`. A shadow across the lower card put that part
+of it on the background side of the threshold. The fitted bottom stopped 3.7–7.4mm inside the
+cut (it is tilted against it), and a crop traced on the true edges changed the fitted apexes by
+**zero pixels**. With the re-search both bottom apexes land within 0.06mm of the true edge,
+measured independently by profiling L* down five columns, and aspect deviation falls from 0.058
+to 0.005. Two things are worth keeping. A shape threshold cannot catch this failure: correctly
+fitted angled photographs read up to 0.073 aspect deviation and that photograph reads 0.058,
+inside the band, so do not reach for one. And the harness could not see it either:
+`fixture_drift.crop_like_a_customer` returns the *fit's own apexes*, so its "customer crop" can
+never correct the fit. Real photographs may now carry a hand-traced crop in `<name>.crop.json`
+(uncommitted, like the photographs), which the harness measures as a third path. `--sloppy`
+perturbs each crop by 1–2mm per side.
+
+**The first version of the search grew cards on any textured backdrop, and the flat fixtures
+could not show it.** It took the outermost peak above `MIN_GRADIENT_RESPONSE`, an *absolute*
+floor that was set for a ±6px refinement window. A desk, a mat or a sleeve clears it all along
+the band. So on a crop 2.5–3mm proud of the card, which is ordinary finger slop, the search found
+the outer limit of *its own band*. All four sides moved out together, cards grew 17% in px/mm,
+and `limitations` stayed empty. Uniform growth keeps the aspect ratio, so `MAX_ASPECT_DEVIATION`
+could not catch it. Every synthetic backing is a flat fill with a gradient of exactly zero, where
+the floor rejects everything, so the synthetic suite passed. The relative test fixes it: across
+70 proud-crop runs on real photographs, the number that move a side out by more than 0.5mm falls
+from 70 to 2. Those two are one photograph whose *uncropped* top edge is fitted 2.1mm inside the
+cut, so the search is correcting it. The fraction sits in the middle of a measured plateau.
+At 0.45 and below, a strong feature outside the card wins again. At 0.8 and above, the shadowed
+photograph's own cut, a weak step next to a strong shadow boundary, stops qualifying and the
+side it exists for goes unresolved. `tests/test_crop_refit.py` adds seeded noise to a fixture's
+backing to carry this case, and checks that the noise really clears the floor. Without that
+check the test could quietly pass against a flat fill again.
+
+**"Found nothing" has two meanings, and only one of them declines.** Suppose no normal in the band
+has a real edge on it at all. Then the crop is pointing at background, and the side is
+unresolved. Now suppose the edges are there but do not form a line, which comes from glare, a
+busy backdrop or a low-contrast cut. Then the search has nothing better than the fitted side,
+and that side stands untouched. Declining on the second case threw away 22 of 37 real
+photographs that fitted perfectly well when the crop was only 2.5–3mm proud. A crop that fails
+to corroborate the fit is not evidence against it.
+
+The material mask is still the filled `detect_boundary` contour, so on a re-fitted side the mask and
+the geometry disagree and `corners._corner_readable` declines those corners. That is the honest
+outcome and it is deliberate: rebuilding the mask from the re-fitted lines would erase real corner
+damage on that side.
+
 **When the fit falls back, every category declines rather than scoring.** The result carries
 `GEOMETRY_UNVERIFIED` and `assessment.apply_external_limitations` strips the score outright — see
 `assessment.DISQUALIFYING_LIMITATIONS`. It used to halve confidence instead, which was not enough:
