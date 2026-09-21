@@ -2,7 +2,8 @@
 
 On a real photograph (`real_scans/shadowed_photo.jpg`) a shadow across the
 lower half of the card puts that part of it on the background side of the
-detector's threshold, so the outline stops about 5mm short of the cut. The
+detector's threshold, so the fitted bottom stops 3.7-7.4mm short of the cut
+(it is tilted against it). The
 customer's crop said where the edge was and the pipeline threw it away: with a
 crop traced on the true edges, the fitted apexes came back identical to the
 pixel.
@@ -265,8 +266,12 @@ def test_a_proud_crop_on_a_textured_backing_cannot_grow_the_card(proud_mm):
     and uniform outward growth preserves aspect so `MAX_ASPECT_DEVIATION` could
     not see it either. Here the same rule grows a 63x88mm card to 72.9x97.9mm.
 
-    A peak now has to stand at `CROP_REFIT_PEAK_FRACTION` of the strongest step
-    along its own normal, which backdrop texture does not.
+    Two stages now stand in the way. A peak has to stand at
+    `CROP_REFIT_PEAK_FRACTION` of the strongest step along its own normal, which
+    narrows the candidates, and the survivors have to agree on a line, which
+    scattered texture does not. This test proves that pair against
+    *unstructured* noise only. A straight feature on the backing, such as a mat
+    grid line, beats both; AGENTS.md records it as characterised and unfixed.
     """
     image = _textured_backing("pokemon_front")
     fit, px_per_mm = _fitted(image)
@@ -286,8 +291,15 @@ def test_the_search_band_stays_inside_the_region_of_interest():
     """`rectify` hands the re-search only the pixels inside the expanded crop,
     so a band wider than that expansion searches off the end of its own image
     and reads clipped edge pixels as a profile. The margin is a fraction of the
-    crop, so the tightest real case is the smallest card dimension."""
-    smallest_card_mm = 63.0
+    crop on each axis, so the tightest real case is the smallest dimension of
+    any card the service is seeded with. Today that is Yu-Gi-Oh's 59mm width,
+    a 5.9mm margin. Read from the seed rather than written down, so a
+    narrower game added later tightens this test by itself."""
+    from zgrader.seed.card_dimensions_seed import CARD_DIMENSIONS_SEED
+
+    smallest_card_mm = min(
+        min(row["width_mm"], row["height_mm"]) for row in CARD_DIMENSIONS_SEED
+    )
     margin_mm = smallest_card_mm * preprocessing.ROI_MARGIN_FRACTION
     assert geometry.CROP_REFIT_BAND_MM < margin_mm, (
         f"a {geometry.CROP_REFIT_BAND_MM}mm band does not fit inside the "

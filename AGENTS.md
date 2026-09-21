@@ -102,15 +102,30 @@ the band. So on a crop 2.5–3mm proud of the card, which is ordinary finger slo
 the outer limit of *its own band*. All four sides moved out together, cards grew 17% in px/mm,
 and `limitations` stayed empty. Uniform growth keeps the aspect ratio, so `MAX_ASPECT_DEVIATION`
 could not catch it. Every synthetic backing is a flat fill with a gradient of exactly zero, where
-the floor rejects everything, so the synthetic suite passed. The relative test fixes it: across
-70 proud-crop runs on real photographs, the number that move a side out by more than 0.5mm falls
-from 70 to 2. Those two are one photograph whose *uncropped* top edge is fitted 2.1mm inside the
-cut, so the search is correcting it. The fraction sits in the middle of a measured plateau.
-At 0.45 and below, a strong feature outside the card wins again. At 0.8 and above, the shadowed
-photograph's own cut, a weak step next to a strong shadow boundary, stops qualifying and the
-side it exists for goes unresolved. `tests/test_crop_refit.py` adds seeded noise to a fixture's
-backing to carry this case, and checks that the noise really clears the floor. Without that
-check the test could quietly pass against a flat fill again.
+the floor rejects everything, so the synthetic suite passed.
+
+What protects against it now is two stages, and the second one does more of the work. The
+relative fraction only *narrows the candidates*: it keeps the outermost peak comparable to the
+strongest step, instead of the outermost scrap of texture. The RANSAC consensus gate is what
+rejects *unstructured* texture. On `12_FrontView` at 2.5mm proud, the surviving peak still lands
+on the backdrop on about half the normals. Three of that photo's four sides return
+`_NO_CONSENSUS` and keep their fit; the fourth is found and moves 0.00mm. Together the two stages
+take 72 measured proud-crop runs, on the 37 real photographs that fit, from 72 moving a side out
+by more than 0.5mm to 2. Those two are `Kabutop_Back`, where the uncropped fit is the wrong one.
+Its right and left sides sit 2.45mm and 2.86mm inside the cut and its top is tilted, because a
+thin red rectangle has been **drawn on that image** inside the card. The re-search puts the top
+back on the cut, but a correction onto an annotated image is weak evidence.
+
+The fraction sits in the middle of a measured plateau. At 0.45 and below, a strong feature
+outside the card wins again. At 0.8 and above, the shadowed photograph's own cut, a weak step
+next to a strong shadow boundary, stops qualifying, and the side the refit exists for goes
+unresolved. **Neither stage stops structured texture.** A straight backdrop feature inside the
+band clears the fraction and forms a perfect line, so it is taken for the cut. That case is
+listed under the characterised-but-unfixed issues below.
+
+`tests/test_crop_refit.py` adds seeded noise to a fixture's backing to carry the unstructured
+case, and checks that the noise really clears the floor. Without that check the test could
+quietly pass against a flat fill again.
 
 **"Found nothing" has two meanings, and only one of them declines.** Suppose no normal in the band
 has a real edge on it at all. Then the crop is pointing at background, and the side is
@@ -118,7 +133,8 @@ unresolved. Now suppose the edges are there but do not form a line, which comes 
 busy backdrop or a low-contrast cut. Then the search has nothing better than the fitted side,
 and that side stands untouched. Declining on the second case threw away 22 of 37 real
 photographs that fitted perfectly well when the crop was only 2.5–3mm proud. A crop that fails
-to corroborate the fit is not evidence against it.
+to corroborate the fit is not evidence against it. There is a cost, and it is recorded below:
+when the fit is the wrong one and the search scatters, the wrong side stands with no limitation.
 
 The material mask is still the filled `detect_boundary` contour, so on a re-fitted side the mask and
 the geometry disagree and `corners._corner_readable` declines those corners. That is the honest
@@ -900,6 +916,26 @@ it, so the next attempt starts from where the last one stopped.
   from it — also exempts the shadow fixture and the real bite, so it is not the fix. A fix needs a signal that
   separates a real cut from an artefact. `test_loss_reaching_along_the_edge_declines_rather_than_scoring` pins the
   current limit.
+- **A straight backdrop feature inside the crop re-search band is taken for the cut.** The relative fraction and
+  the consensus gate reject scattered texture, but a straight line satisfies both. Take the textured test fixture
+  (backing V about 14) and add a line at V=90 3mm outside the card. A crop 2.5mm proud then grows the card to
+  **66.03×88.02mm**, and a crop 3.0mm proud grows it to **63.00×91.05mm**, both with `unresolved=()` and no
+  limitation. Plausible real versions are a cutting-mat grid line, a playmat border and a sleeve edge. Nothing in a
+  single normal's profile separates a straight feature from a cut. A fix needs a signal from outside the profile,
+  such as which side of the line is backdrop-coloured, or agreement with the card's physical size.
+- **When the fit is wrong and the re-search scatters, the wrong side stands silently.** Take `Kabutop_Back` with a
+  crop 2.5mm proud. Its left side is fitted 2.86mm inside the cut, onto a red rectangle drawn on that image. The
+  re-search splits about 50/50 between the cut (tap ≈ −3) and the drawn line (tap ≈ +27). It returns
+  `_NO_CONSENSUS`, and the wrong left side stands with `limitations == ()`. At 3.0mm proud the same side clears
+  consensus only narrowly, 54 of 96 normals. The same mechanism covers a real cut weaker than about 0.65× of a
+  printed border or shadow boundary inside the band. On `shadowed_photo` at 0.65 the cut qualifies on only 85% of
+  normals, so that photograph is recovered with less margin than its 0.06mm result suggests. This is the price of
+  keeping the fit on `_NO_CONSENSUS`, which saves 22 of 37 good fits on ordinary sloppy crops. Declining instead
+  would trade those back.
+- **`_NO_EDGE` depends on the backdrop, not the crop.** A whole-image crop declines 4 of 14 well-fitted
+  smooth-backdrop photographs (`3_FrontView`, `4_FrontGlareShot`, `1_SideAngle`, `2_AngleView`), because a flat
+  backdrop carries no edge near the crop line. Textured-backdrop photographs keep the fit, because their texture
+  counts as "something there".
 
 ## Known-open, deliberately
 

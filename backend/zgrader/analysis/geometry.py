@@ -506,9 +506,9 @@ def fit_card_geometry(
 # image, which is why `rectify` fits the edges itself. But when the two
 # disagree by *millimetres*, the crop is evidence the fit landed on the wrong
 # step: on `real_scans/shadowed_photo.jpg` a shadow put the lower card on the
-# background side of one threshold and the outline stopped about 5mm inside
-# the cut, with a crop traced on the true edges changing the apexes by zero
-# pixels. So a side that disagrees is searched for again near where the
+# background side of one threshold and the fitted bottom stopped 3.7-7.4mm
+# inside the cut (it is tilted against it), with a crop traced on the true
+# edges changing the apexes by zero pixels. So a side that disagrees is searched for again near where the
 # customer put it -- in the image, never taken from the crop.
 
 #: How far a fitted side may sit from the crop line before that side is
@@ -534,27 +534,46 @@ CROP_REFIT_TRIGGER_MM = 2.0
 #: known exactly, so every side is a labelled example. At band 3.0 the
 #: 3.0mm-proud case puts the edge exactly on the limit and 21 of 148 sides lose
 #: it altogether, against 1 of 148 at band 4.0 and 5.0. End to end at
-#: `CROP_REFIT_PEAK_FRACTION`, band 3.0 leaves 4 of 70 runs moving a side
-#: outward by more than 0.5mm and band 5.0 leaves 4 (up to 6.97mm), against 2
-#: at 3.5, 4.0 and 4.5 -- and those two are the same photograph, correcting an
-#: edge the uncropped fit had wrong. 4.0 is the middle of that plateau.
+#: `CROP_REFIT_PEAK_FRACTION`, band 3.0 leaves 4 of 72 measured runs moving a
+#: side outward by more than 0.5mm and band 5.0 leaves 4 (up to 6.97mm),
+#: against 2 at 3.5, 4.0 and 4.5 -- and those two are the same photograph,
+#: whose uncropped fit was wrong (see `CROP_REFIT_PEAK_FRACTION`). 4.0 is the
+#: middle of that plateau.
 #:
 #: The upper bound is structural rather than empirical: the band must stay
 #: under the region-of-interest margin `rectify` expands the crop by
-#: (`preprocessing.ROI_MARGIN_FRACTION`, 10% of the crop, about 6.3mm across a
-#: 63mm card), or the search runs off the pixels it was given.
+#: (`preprocessing.ROI_MARGIN_FRACTION`, 10% of the crop -- 5.9mm across the
+#: narrowest seeded card, Yu-Gi-Oh's 59mm), or the search runs off the pixels
+#: it was given.
 CROP_REFIT_BAND_MM = 4.0
 
 #: A peak qualifies only if it stands at this fraction of the strongest
-#: gradient along its own normal. DERIVED, and the thing that stops a textured
-#: backdrop winning. `MIN_GRADIENT_RESPONSE` alone is an absolute floor set for
-#: a +/-6px refinement window, and a desk, a cutting mat or a sleeve clears it
-#: all along a 4mm band -- so "the outermost peak above the floor" stopped
-#: being the card's edge and became the outer limit of the search itself.
+#: gradient along its own normal. DERIVED. `MIN_GRADIENT_RESPONSE` alone is an
+#: absolute floor set for a +/-6px refinement window, and a desk, a cutting mat
+#: or a sleeve clears it all along a 4mm band -- so "the outermost peak above
+#: the floor" stopped being the card's edge and became the outer limit of the
+#: search itself.
+#:
+#: Be precise about what this buys, because it is less than it looks. It
+#: *narrows the candidates*: the outermost peak comparable to the strongest
+#: step, rather than the outermost scrap of texture. On textured backing the
+#: survivor is still scattered across the backdrop on many normals --
+#: `12_FrontView` at 2.5mm proud scatters on about half of them -- and what
+#: rejects *unstructured* texture is the consensus gate that follows: scattered
+#: points do not make a line, the side returns `_NO_CONSENSUS`, and the fit
+#: stands (three of that photograph's four sides end that way; the fourth is
+#: found and moves 0.00mm). Neither test stops *structured* texture. A straight
+#: backdrop feature inside the band -- a cutting-mat grid line, a playmat
+#: border, a sleeve edge -- clears the fraction and makes a perfect line: one
+#: 3mm outside the card on the textured test fixture grows it to 66.03x88.02mm
+#: at 2.5mm proud and 63.00x91.05mm at 3.0mm, with nothing unresolved. That is
+#: recorded in AGENTS.md as characterised and unfixed.
 #:
 #: Swept end to end, at band 4.0, against all three things this has to be true
-#: of at once -- 70 proud-crop runs on real photographs, the real photograph
-#: the feature exists for, and the synthetic fixture:
+#: of at once -- 74 proud-crop runs on the 37 real photographs that fit (72
+#: measured; the other 2 are one photograph whose card leaves the frame, and
+#: decline at every setting), the real photograph the feature exists for, and
+#: the synthetic fixture:
 #:
 #:     fraction  runs moving a side out >0.5mm   shadowed_photo recovered?
 #:     floor only (0.0)   72 of 72, up to 7.43mm   yes
@@ -566,10 +585,13 @@ CROP_REFIT_BAND_MM = 4.0
 #:     0.80                3, up to 2.12mm         NO -- side never resolves
 #:     0.90                3, up to 2.11mm         NO
 #:
-#: and in every row the two remaining >0.5mm runs are one photograph
-#: (`Kabutop_Back`) whose uncropped top edge is fitted 2.1mm inside the cut, so
-#: the re-search is correcting it, not inflating it -- confirmed by eye against
-#: the image.
+#: and in every row the two remaining >0.5mm runs are one photograph,
+#: `Kabutop_Back`, whose uncropped fit is wrong: its right and left sides sit
+#: 2.45mm and 2.86mm inside the cut and its top is tilted, because a thin red
+#: rectangle has been *drawn on that image* inside the card and the threshold
+#: locks onto it. The re-search moves the top back onto the cut, confirmed by
+#: eye -- but a correction onto an annotated image is weaker evidence than one
+#: onto a real capture, and should be read that way.
 #:
 #: The plateau is 0.55-0.75 and 0.65 is its centre, which is where this sits:
 #: below it a strong feature a few millimetres outside the card wins, above it
@@ -601,8 +623,10 @@ CROP_REFIT_OUTER_GUARD_TAPS = 2
 #: bottom-right, bottom-left), matching `_split_sides`.
 _CROP_SIDE_CORNERS = {"top": (0, 1), "right": (1, 2), "bottom": (3, 2), "left": (0, 3)}
 
-#: Why a re-search came back without a line. The two are not the same thing and
-#: the caller must not treat them alike -- see `_fit_side_near_line`.
+#: Why a re-search came back the way it did. The two empty reasons are not the
+#: same thing and the caller must not treat them alike -- see
+#: `_fit_side_near_line`.
+_FOUND = "found"
 _NO_EDGE = "no_edge"
 _NO_CONSENSUS = "no_consensus"
 
@@ -632,8 +656,9 @@ def _fit_side_near_line(
 ) -> tuple[SideFit | None, str]:
     """Re-find one card edge within `band_px` of the segment start->end.
 
-    Returns `(fit, reason)`. The two ways of coming back empty are different
-    facts about the image and the caller must not treat them alike:
+    Returns `(fit, reason)`, where `reason` is `_FOUND` when `fit` is a line.
+    The two ways of coming back empty are different facts about the image and
+    the caller must not treat them alike:
 
     * `_NO_EDGE` -- fewer than half the normals carry any gradient worth the
       name. There is nothing edge-shaped anywhere near the crop line; the crop
@@ -659,14 +684,23 @@ def _fit_side_near_line(
     within 0.5mm of the known edge on 3-4% of 296 sides and was wrong by up to
     6.95mm, growing whole cards by 17% in px/mm while `limitations` stayed
     empty. A peak now also has to stand at `CROP_REFIT_PEAK_FRACTION` of the
-    strongest step along its own normal -- a relative test, because what
-    separates a cut from backdrop texture is contrast against the rest of that
-    profile, not an absolute number. End to end that takes the same 70 runs
-    from all of them moving a side outward by more than 0.5mm (up to 7.43mm) to
-    two, both of them one photograph whose uncropped fit was the thing that was
-    wrong. The synthetic fixtures cannot express any of this: their backing is
-    a flat fill whose gradient is exactly zero, so the floor rejected
-    everything and the side merely unresolved.
+    strongest step along its own normal. End to end, the 72 measured
+    proud-crop runs go from all of them moving a side outward by more than
+    0.5mm (up to 7.43mm) to two, both on one photograph whose uncropped fit
+    was wrong.
+
+    The protection comes from two stages, and the second does more of the work
+    than the first. The fraction *narrows the candidates*. The RANSAC consensus
+    gate below is what rejects *unstructured* texture: the surviving peaks
+    still land on the backdrop on many normals, but scattered points make no
+    line, so the side returns `_NO_CONSENSUS` and the fit stands. Neither stage
+    rejects *structured* texture. A straight backdrop feature inside the band,
+    such as a mat grid line, a playmat border or a sleeve edge, qualifies and
+    makes a clean line, and it is taken for the cut. That case is recorded
+    in AGENTS.md as characterised and unfixed. The synthetic fixtures cannot
+    express any of this: their backing is a flat fill whose gradient is
+    exactly zero, so the floor rejected everything and the side merely
+    unresolved.
     """
     normal = _unit_normal(start, end)
     if normal is None:
@@ -736,7 +770,7 @@ def _fit_side_near_line(
             max_excursion_px=float(np.max(np.abs(residuals))),
             bow_px=_bow(residuals),
         ),
-        "found",
+        _FOUND,
     )
 
 
@@ -814,7 +848,10 @@ def refit_geometry_near_crop(
             # merely fails to corroborate the fit is not evidence against it;
             # AGENTS.md's invariant is that the geometry comes from the fitted
             # edges, and this is what that means when the re-search is
-            # inconclusive.
+            # inconclusive. The price is known and recorded in AGENTS.md: when
+            # the *fit* is the wrong one and the re-search scatters between
+            # the cut and the line the fit took, the wrong side stands with no
+            # limitation raised.
             continue
 
         midpoint = ((start + end) / 2)[None]
