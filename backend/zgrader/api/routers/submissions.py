@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from zgrader import entitlements, images, sharing
 from zgrader.analysis import artifacts, assessment, centering, pipeline, preprocessing, recompute, scale, scoring
@@ -16,9 +16,10 @@ from zgrader.config import config
 from zgrader.db import get_db
 from zgrader.email.notifications import send_report_published, send_submission_received
 from zgrader.models.settings import get_or_create_settings
-from zgrader.models.submission import submission_code_seq
+from zgrader.models.submission import PRE_ANALYSIS_STATUSES, submission_code_seq
 from zgrader.models import (
     AnalysisCategory,
+    AnalysisSide,
     AuditLog,
     Card,
     ReportStatus,
@@ -36,6 +37,7 @@ from zgrader.storage import purge_submission_files
 from zgrader.schemas.admin import AutoPublishUpdate
 from zgrader.schemas.public_report import ShareStateOut
 from zgrader.schemas.submission import (
+    CardUpdate,
     CenteringAdjustIn,
     CropCheckOut,
     CropPointsIn,
@@ -84,6 +86,7 @@ _submission_image_limit = rate_limit("submission_image", limit=120, window_secon
 _report_download_limit = rate_limit("report_download", limit=20, window_seconds=900)
 _share_manage_limit = rate_limit("share_manage", limit=30, window_seconds=900)
 _submission_adjust_limit = rate_limit("submission_adjust", limit=60, window_seconds=300)
+_card_update_limit = rate_limit("card_update", limit=60, window_seconds=3600)
 _operator_publish_limit = rate_limit("operator_publish", limit=60, window_seconds=300)
 _REGION_KEY_RE = re.compile(r"^(front|back):(centering|corners|edges|surface):[a-z0-9_]+$")
 _SUFFIX_TO_MEDIA_TYPE = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff", ".tif": "image/tiff"}
@@ -113,6 +116,21 @@ def _get_owned_submission(code: str, user: User, db: Session) -> Submission:
     if user.role != UserRole.operator and submission.user_id != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not your submission")
     return submission
+
+
+def _quota_exhausted(quota: entitlements.Quota) -> HTTPException:
+    return HTTPException(
+        status.HTTP_402_PAYMENT_REQUIRED,
+        {
+            "message": (
+                "You've used all your checks for this period. They reset automatically, "
+                "or a subscription removes the limit."
+            ),
+            "limit": quota.limit,
+            "used": quota.used,
+            "resets_at": quota.resets_at.isoformat() if quota.resets_at else None,
+        },
+    )
 
 
 @router.get("/quota", response_model=QuotaOut, dependencies=[Depends(_submission_read_limit)])
@@ -153,21 +171,38 @@ def create_submission(
     db: Session = Depends(get_db),
 ) -> Submission:
     # Checked before anything is created, so a refused submission leaves no
-    # row, no folder and no half-state behind.
+    # row, no folder and no half-state behind. Nothing is spent here: a check
+    # is charged when an analysis first scores the card (see
+    # entitlements.charge_if_scored), so an abandoned draft costs nothing.
     quota = entitlements.get_quota(db, user)
     if not quota.can_submit:
-        raise HTTPException(
-            status.HTTP_402_PAYMENT_REQUIRED,
-            {
-                "message": (
-                    "You've used all your checks for this period. They reset automatically, "
-                    "or a subscription removes the limit."
-                ),
-                "limit": quota.limit,
-                "used": quota.used,
-                "resets_at": quota.resets_at.isoformat() if quota.resets_at else None,
-            },
+        raise _quota_exhausted(quota)
+
+    # Drafts are free until analysis scores them, so they need a ceiling of
+    # their own. Mail-in submissions are waiting on the post, not on the
+    # customer, and operators create on others' behalf.
+    if not payload.mail_in and user.role != UserRole.operator:
+        open_drafts = (
+            db.query(Submission)
+            .filter(
+                Submission.user_id == user.id,
+                Submission.mail_in.is_(False),
+                Submission.charged_at.is_(None),
+                Submission.status.in_(PRE_ANALYSIS_STATUSES),
+            )
+            .count()
         )
+        if open_drafts >= config.max_open_drafts:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                {
+                    "message": (
+                        f"You have {open_drafts} unfinished checks. "
+                        "Finish or delete one to start another."
+                    ),
+                    "code": "too_many_drafts",
+                },
+            )
 
     code = _next_submission_code(db)
     submission = Submission(
@@ -175,14 +210,10 @@ def create_submission(
         user_id=user.id,
         status=SubmissionStatus.created,
         language=payload.language,
+        mail_in=payload.mail_in,
     )
     db.add(submission)
     db.flush()
-
-    # Spend the credit in the same transaction as the row it paid for, so a
-    # failure below can't leave the user charged for a submission that doesn't
-    # exist -- nor create one that was never paid for.
-    entitlements.consume_submission(db, user)
 
     db.add(
         Card(
@@ -201,20 +232,50 @@ def create_submission(
     db.commit()
     db.refresh(submission)
 
-    settings = db.query(Settings).first()
-    send_submission_received(user, submission, settings)
+    # Only a mail-in is a submission the customer is waiting on us for; the
+    # email carries the reference to put in the package. A photo draft is
+    # created silently by its first upload and may never be finished.
+    if submission.mail_in:
+        settings = db.query(Settings).first()
+        send_submission_received(user, submission, settings)
 
     return submission
+
+
+def _summary(submission: Submission) -> SubmissionSummary:
+    card = submission.card
+    return SubmissionSummary(
+        submission_code=submission.submission_code,
+        status=submission.status,
+        created_at=submission.created_at,
+        card_name=card.card_name if card else None,
+        game=card.game if card else None,
+        mail_in=submission.mail_in,
+        charged=submission.charged,
+        scores={
+            str(getattr(result.category, "value", result.category)): (
+                float(result.raw_score) if result.raw_score is not None else None
+            )
+            for result in submission.analysis_results
+            if result.side == AnalysisSide.combined
+        },
+    )
 
 
 @router.get(
     "", response_model=list[SubmissionSummary], dependencies=[Depends(_submission_read_limit)]
 )
-def list_submissions(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Submission]:
-    query = db.query(Submission)
+def list_submissions(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[SubmissionSummary]:
+    # selectinload: one query per relationship however many rows, rather
+    # than one per row -- tests/test_submission_summary.py counts them.
+    query = db.query(Submission).options(
+        selectinload(Submission.card), selectinload(Submission.analysis_results)
+    )
     if user.role != UserRole.operator:
         query = query.filter(Submission.user_id == user.id)
-    return query.order_by(Submission.created_at.desc()).all()
+    return [_summary(s) for s in query.order_by(Submission.created_at.desc()).all()]
 
 
 @router.get(
@@ -340,6 +401,48 @@ async def upload_scan(
             checksum=sha256_file(file_path),
         )
     )
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
+@router.patch(
+    "/{code}/card", response_model=SubmissionDetail, dependencies=[Depends(_card_update_limit)]
+)
+def update_card(
+    code: str,
+    payload: CardUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Submission:
+    """Name, set and number are labels -- nothing measured depends on them --
+    so they edit in any status. Foil is part of the analysis
+    (assessment.CARD_IS_FOIL), so it is locked once analysis has run: changing
+    it afterwards would put a stale assessment beside a new declaration."""
+    submission = _get_owned_submission(code, user, db)
+    card = submission.card
+    if card is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This submission has no card")
+
+    fields = payload.model_fields_set
+    if (
+        "foil" in fields
+        and payload.foil is not None
+        and payload.foil != card.foil
+        and submission.status not in PRE_ANALYSIS_STATUSES
+    ):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Foil can only be changed before the card is analysed -- it changes the result.",
+        )
+
+    for name in ("card_name", "set_name", "card_number"):
+        if name in fields:
+            value = getattr(payload, name)
+            setattr(card, name, (value.strip() or None) if isinstance(value, str) else None)
+    if "foil" in fields and payload.foil is not None:
+        card.foil = payload.foil
+
     db.commit()
     db.refresh(submission)
     return submission
@@ -515,18 +618,38 @@ def confirm_crop(
             status.HTTP_409_CONFLICT,
             f"Submission is '{submission.status.value}' -- crop can no longer be confirmed",
         )
+
     scan = _get_scan(submission, side)
     _validate_points(payload, scan)
 
-    scan.crop_points = [list(point) for point in payload.points]
-    db.commit()
-    db.refresh(submission)
-
-    confirmed = _confirmed_sides(submission)
-    # The pipeline runs inside this call, so this is where request concurrency
-    # becomes CPU concurrency. The guard refuses rather than queues -- see
-    # api/capacity.py for why a 503 beats a hang here.
+    # The slot is acquired before anything is saved, not after. A capacity
+    # refusal (409/503) that landed after the crop was persisted would still
+    # leave it stored -- saved crop points make the front "confirmed", and the
+    # worker's poll analyses confirmed fronts without asking anyone, so a
+    # refused request here would be followed by an unattended analysis and
+    # charge with no quota check at all. Holding the slot first means a
+    # refusal leaves nothing saved: the quota check, the crop save and the
+    # analysis all happen inside it, or none of them do.
     with capacity.analysis_slot(user.id, code):
+        # Before the crop is saved, not after: saved crop points make the front
+        # "confirmed", and the worker's poll analyses confirmed fronts without
+        # asking anyone -- so a refusal here that left them stored would be
+        # followed by a charge past the limit anyway. A charged submission is
+        # completing a check already paid for (typically adding its back).
+        if submission.charged_at is None:
+            quota = entitlements.get_quota(db, submission.user)
+            if not quota.can_submit:
+                db.commit()  # keep a rolled-forward window, as GET /quota does
+                raise _quota_exhausted(quota)
+
+        scan.crop_points = [list(point) for point in payload.points]
+        db.commit()
+        db.refresh(submission)
+
+        confirmed = _confirmed_sides(submission)
+        # The pipeline runs inside this call, so this is where request
+        # concurrency becomes CPU concurrency -- see api/capacity.py for why a
+        # 503 beats a hang here.
         submission = _advance_submission(db, submission, confirmed, {ScanSide(side)}, code)
     db.refresh(submission)
     return submission

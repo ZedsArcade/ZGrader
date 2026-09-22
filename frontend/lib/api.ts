@@ -5,10 +5,22 @@ const API_BASE = "/api";
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** The response's parsed `detail`. Structured refusals -- the 402 quota
+   *  payload, the 409 `too_many_drafts` -- carry fields here the UI can act on
+   *  rather than a sentence it can only show. */
+  detail: unknown;
+  constructor(status: number, message: string, detail: unknown = null) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
+}
+
+/** The machine-readable `code` of a structured refusal, if it has one. */
+export function errorCode(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const detail = err.detail as { code?: unknown } | null;
+  return detail && typeof detail.code === "string" ? detail.code : null;
 }
 
 export type UserRole = "client" | "operator";
@@ -29,7 +41,7 @@ export interface User {
 
 export interface Card {
   game: string;
-  card_name: string;
+  card_name: string | null;
   set_name: string | null;
   card_number: string | null;
   foil: boolean;
@@ -48,6 +60,12 @@ export interface SubmissionSummary {
   submission_code: string;
   status: SubmissionStatus;
   created_at: string;
+  card_name: string | null;
+  game: string | null;
+  mail_in: boolean;
+  charged: boolean;
+  /** Combined score per category once analysed; null = not measurable. */
+  scores: Partial<Record<"centering" | "corners" | "edges" | "surface", number | null>>;
 }
 
 export interface AnalysisResult {
@@ -113,6 +131,10 @@ export interface SubmissionDetail {
   created_at: string;
   notes: string | null;
   auto_publish: boolean | null;
+  /** Whether a check has been spent: true once an analysis first scored it. */
+  charged: boolean;
+  /** The card is coming by post rather than as a photo. */
+  mail_in: boolean;
   card: Card | null;
   scan_sides: ScanSide[];
   confirmed_sides: ScanSide[];
@@ -201,11 +223,21 @@ export interface CropSuggestion {
 
 export interface SubmissionCreate {
   game: string;
-  card_name: string;
+  card_name?: string | null;
   set_name?: string;
   card_number?: string;
   foil?: boolean;
   language?: "en" | "es";
+  mail_in?: boolean;
+}
+
+/** Omitted fields are left alone; null clears a label. Foil is refused (409)
+ *  once the card has been analysed. */
+export interface CardUpdate {
+  card_name?: string | null;
+  set_name?: string | null;
+  card_number?: string | null;
+  foil?: boolean;
 }
 
 export interface Game {
@@ -338,6 +370,12 @@ export interface AuditLogEntry {
  *  the user nothing -- so name the offending field and quote the reason. */
 function describeDetail(detail: unknown): string | null {
   if (typeof detail === "string") return detail;
+  // A structured refusal ({message, ...}) -- the 402 and 409 bodies. Without
+  // this the customer saw the bare status text, "Payment Required".
+  if (typeof detail === "object" && detail !== null && !Array.isArray(detail)) {
+    const message = (detail as { message?: unknown }).message;
+    return typeof message === "string" ? message : null;
+  }
   if (!Array.isArray(detail)) return null;
   const parts = detail
     .map((item) => {
@@ -357,13 +395,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
     let message = res.statusText;
+    let detail: unknown = null;
     try {
       const body = await res.json();
-      message = describeDetail(body.detail) ?? message;
+      detail = body.detail ?? null;
+      message = describeDetail(detail) ?? message;
     } catch {
       // response wasn't JSON -- fall back to statusText
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, detail);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -751,6 +791,14 @@ export async function updatePlanEntitlement(
 export async function createSubmission(token: string, payload: SubmissionCreate): Promise<SubmissionDetail> {
   return request("/submissions", {
     method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCard(token: string, code: string, payload: CardUpdate): Promise<SubmissionDetail> {
+  return request(`/submissions/${code}/card`, {
+    method: "PATCH",
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });

@@ -1,4 +1,6 @@
 import type { PublicReport } from "./api";
+import { en } from "./i18n/en";
+import { es } from "./i18n/es";
 
 /**
  * Server-side fetch of a shared report.
@@ -42,11 +44,20 @@ export async function fetchPublicReport(token: string): Promise<PublicReport | n
   }
 }
 
-/** How a shared card is described in a link preview and a browser tab. */
+/** How a shared card is described in a link preview and a browser tab.
+ *
+ * `card.card_name` is null for an unnamed photo check (unnamed is now the
+ * default for that flow, see AGENTS.md), and `Array.join` renders a null
+ * entry as `""` rather than dropping it -- so the untitled case needs its own
+ * branch, not just a fallback string spliced into the array. The localized
+ * label comes from `checkFlow.untitledCard` in the shared dictionaries, the
+ * same source `CheckFlow.tsx` reads, so the two surfaces cannot say different
+ * things about an unnamed card. */
 export function cardTitle(report: PublicReport): string {
   const card = report.card;
   if (!card) return "Pre-grade report";
-  const parts = [card.card_name];
+  const t = report.language === "es" ? es : en;
+  const parts = [card.card_name ?? t.checkFlow.untitledCard];
   if (card.set_name) parts.push(card.set_name);
   if (card.card_number) parts.push(`#${card.card_number}`);
   return parts.join(" — ");

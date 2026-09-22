@@ -5,6 +5,8 @@ entitled to, so the audit trail is part of the behaviour under test, not an
 afterthought.
 """
 
+import datetime
+
 from fastapi.testclient import TestClient
 
 from zgrader.api.main import app
@@ -60,7 +62,8 @@ def test_operator_can_look_up_a_customer_by_email(db_session):
     rows = resp.json()
     assert len(rows) == 1
     assert rows[0]["email"] == "findme@example.com"
-    assert rows[0]["remaining"] == 2
+    # Creating a submission spends nothing; a check is charged when analysis scores it.
+    assert rows[0]["remaining"] == 3
 
 
 def test_lookup_requires_a_search_term(db_session):
@@ -86,11 +89,13 @@ def test_operator_restores_credits_after_something_went_wrong(db_session):
     op = _operator(db_session)
     customer = register_and_verify(client, "wasted@example.com")
 
-    assert _create(customer, "one").status_code == 201
-    assert _create(customer, "two").status_code == 201
+    # Two scored checks already spent this window.
+    user = db_session.query(User).filter(User.email == "wasted@example.com").one()
+    user.quota_used = 2
+    user.quota_period_started_at = datetime.datetime.now(datetime.timezone.utc)
+    db_session.commit()
     assert _create(customer, "three").status_code == 402
 
-    user = db_session.query(User).filter(User.email == "wasted@example.com").one()
     resp = client.patch(
         f"/admin/users/{user.id}/quota", json={"remaining": 2}, headers=_headers(op)
     )

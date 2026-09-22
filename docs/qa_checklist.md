@@ -72,6 +72,26 @@ operator (or auto-publish) gets it in front of the client as a report.
       the correct submission code, operator email, and a `report_version`
       detail. Pagination ("Newer"/"Older") doesn't error on an empty page.
 
+## Photo check (self-serve)
+
+- [ ] `/dashboard/new` as an **unverified** account shows "Confirm your email" with a working
+      Resend button, and no photo buttons.
+- [ ] As a verified account: the game defaults to the last one used; "Take photo" opens the camera
+      on a phone, "Choose photo" opens the library.
+- [ ] Choosing a photo changes the address to `/dashboard/SUB-…` and shows the crop editor.
+      Reloading there resumes the crop — it does not start a new draft.
+- [ ] On a phone, dragging a corner shows the magnifier above the finger. On a desktop, Tab reaches
+      each corner and the arrow keys move it.
+- [ ] Before "Analyse card", the quota chip is unchanged. After a scored result it drops by one;
+      adding the back does not drop it again.
+- [ ] With the quota at zero, `/dashboard/new` shows "You've used this period's checks" with a
+      countdown and a link to `/pricing`.
+- [ ] A fourth unfinished photo draft is refused with "You have unfinished checks".
+- [ ] "Sending us the card instead?" creates a mail-in submission, which shows "Waiting for your
+      card" with its reference.
+- [ ] The dashboard lists cards by name ("Untitled card" when none), with scores and the customer
+      status words; drafts say "Not charged" and "Continue".
+
 ## Client sees the result
 
 - [ ] Log back in as the client. The submission now shows status

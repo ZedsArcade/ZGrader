@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Card, Chip, Table } from "@heroui/react";
 import type { Assessment, Comparison, ScanSide, SubmissionDetail } from "@/lib/api";
 import { centeringHandles, ratiosFromWidths } from "@/lib/use-centering-adjust";
@@ -14,6 +15,8 @@ export default function SubmissionOverview({
   locale = "en",
   onToggleRegion,
   onAdjusted,
+  audience = "operator",
+  afterScores,
 }: {
   submission: SubmissionDetail;
   token: string;
@@ -22,6 +25,12 @@ export default function SubmissionOverview({
   /** Omitted by the read-only callers (the operator's admin view), which
    *  hides the handles rather than showing controls that do nothing. */
   onAdjusted?: (updated: SubmissionDetail) => void;
+  /** "customer" hides the in-card status chip -- the page header already
+   *  shows the customer's own wording. The admin view keeps it. */
+  audience?: "customer" | "operator";
+  /** Rendered directly under the scores: where "add the back" belongs on a
+   *  front-only check, rather than below the whole report. */
+  afterScores?: ReactNode;
 }) {
   const t = getDictionary(locale);
   const dismissedRegions = new Set(submission.dismissed_regions ?? []);
@@ -63,7 +72,7 @@ export default function SubmissionOverview({
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-foreground">
-                {submission.card?.card_name ?? t.submissionDetail.unknownCard}
+                {submission.card?.card_name ?? t.checkFlow.untitledCard}
               </h2>
               <p className="text-sm text-muted">
                 {submission.card?.game}
@@ -72,7 +81,7 @@ export default function SubmissionOverview({
                 {submission.card?.foil ? ` — ${t.submissionDetail.foilLabel}` : ""}
               </p>
             </div>
-            <StatusBadge status={submission.status} locale={locale} />
+            {audience === "operator" && <StatusBadge status={submission.status} locale={locale} />}
           </div>
 
           {combinedByCategory.size > 0 && (
@@ -236,6 +245,7 @@ export default function SubmissionOverview({
           )}
         </Card.Content>
       </Card>
+      {afterScores && <div className="mt-5">{afterScores}</div>}
 
       {SIDES.filter((side) => (resultsBySide.get(side)?.length ?? 0) > 0).map((side) => (
         <Card className="mt-5" key={side}>

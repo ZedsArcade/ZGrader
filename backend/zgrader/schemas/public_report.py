@@ -47,7 +47,7 @@ class PublicCardOut(BaseModel):
     and it identifies a card rather than a person."""
 
     game: str
-    card_name: str
+    card_name: str | None
     set_name: str | None
     card_number: str | None
     foil: bool

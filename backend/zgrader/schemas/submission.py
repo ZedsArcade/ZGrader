@@ -3,7 +3,7 @@ import uuid
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from zgrader.models import SubmissionLanguage, SubmissionStatus
 
@@ -35,29 +35,54 @@ class SubmissionCreate(BaseModel):
     # a 500 where a 422 belongs -- and these strings also reach the report PDF,
     # the link-preview image and the public share page.
     game: str = Field(min_length=1, max_length=100)
-    card_name: str = Field(min_length=1, max_length=200)
+    # Optional: the photo-first page creates the draft from the photo, and the
+    # name is a label the customer may add later with PATCH .../card.
+    card_name: str | None = Field(default=None, max_length=200)
     set_name: str | None = Field(default=None, max_length=200)
     card_number: str | None = Field(default=None, max_length=50)
     foil: bool = False
     language: SubmissionLanguage = SubmissionLanguage.en
+    # The card is coming by post. Needs a name -- the operator matches the
+    # physical card by it -- and is exempt from the open-draft cap.
+    mail_in: bool = False
+
+    @field_validator("card_name", mode="before")
+    @classmethod
+    def _blank_name_is_none(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    @model_validator(mode="after")
+    def _mail_in_needs_a_name(self) -> "SubmissionCreate":
+        if self.mail_in and not self.card_name:
+            raise ValueError("A card sent by post needs a name, so it can be matched when it arrives.")
+        return self
 
 
 class CardOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     game: str
-    card_name: str
+    card_name: str | None
     set_name: str | None
     card_number: str | None
     foil: bool
 
 
 class SubmissionSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """One row of the customer's list: enough to tell ten cards apart."""
 
     submission_code: str
     status: SubmissionStatus
     created_at: datetime.datetime
+    card_name: str | None = None
+    game: str | None = None
+    mail_in: bool = False
+    charged: bool = False
+    # The four combined category scores once analysed; None = unmeasurable,
+    # never zero. Empty before any analysis.
+    scores: dict[str, float | None] = {}
 
 
 class AnalysisResultOut(BaseModel):
@@ -97,6 +122,10 @@ class SubmissionDetail(BaseModel):
     created_at: datetime.datetime
     notes: str | None
     auto_publish: bool | None
+    # Whether a check has been spent on this submission. Read from the
+    # model's `charged` property (charged_at is not None).
+    charged: bool = False
+    mail_in: bool = False
     card: CardOut | None
     scan_sides: list[str] = []
     confirmed_sides: list[str] = []
@@ -176,3 +205,15 @@ class CenteringAdjustIn(BaseModel):
     right_px: float = Field(ge=0)
     top_px: float = Field(ge=0)
     bottom_px: float = Field(ge=0)
+
+
+class CardUpdate(BaseModel):
+    """Edits to a submission's card. Omitted fields are left alone; `null`
+    clears a label. Widths mirror models/card.py, as SubmissionCreate's do."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    card_name: str | None = Field(default=None, max_length=200)
+    set_name: str | None = Field(default=None, max_length=200)
+    card_number: str | None = Field(default=None, max_length=50)
+    foil: bool | None = None

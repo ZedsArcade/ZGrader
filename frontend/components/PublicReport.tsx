@@ -213,7 +213,7 @@ export default function PublicReport({
       <Card>
         <Card.Content>
           <h1 className="text-lg font-semibold text-foreground">
-            {report.card?.card_name ?? t.submissionDetail.unknownCard}
+            {report.card?.card_name ?? t.checkFlow.untitledCard}
           </h1>
           <p className="text-sm text-muted">
             {report.card?.game}
