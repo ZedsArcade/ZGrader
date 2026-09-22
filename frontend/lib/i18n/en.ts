@@ -437,6 +437,16 @@ export const en = {
     // one condition should not have two descriptions.
     checking: "Checking the crop…",
     boundaryWarningTitle: "The card's edges couldn't be found",
+    // Shown only when the check named a specific side (crop_disagreement_sides
+    // is non-empty) -- an extra, minimal sentence on top of the reused
+    // geometry_unverified/geometry_crop_disagreement explanation above it.
+    disagreementSides: "Side(s) that disagreed with the crop: {sides}.",
+    side: {
+      top: "top",
+      right: "right",
+      bottom: "bottom",
+      left: "left",
+    },
     boundaryWarningHint:
       "You can still submit, but this card would come back with no scores. Adjusting the crop fixes it far more often than retaking the photo does.",
     adjustInstead: "Let me adjust it",

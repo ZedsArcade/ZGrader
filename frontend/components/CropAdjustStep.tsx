@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import Button from "@/components/Button";
 import Skeleton from "@/components/Skeleton";
 import { toastError } from "@/lib/toast";
-import { useTranslations } from "@/lib/i18n/context";
+import { useLocale, useTranslations } from "@/lib/i18n/context";
 import * as api from "@/lib/api";
 
 type NormPoint = [number, number];
@@ -21,6 +21,7 @@ export default function CropAdjustStep({
   onConfirmed: (updated: api.SubmissionDetail) => void;
 }) {
   const t = useTranslations();
+  const { locale } = useLocale();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const dragIndex = useRef<number | null>(null);
 
@@ -34,6 +35,10 @@ export default function CropAdjustStep({
   // the codes rather than a boolean lets the panel below reuse the same
   // wording the results page uses for the same condition.
   const [boundaryWarning, setBoundaryWarning] = useState<string[] | null>(null);
+  // Which side(s) of the crop disagreed, when the check said so -- named
+  // separately from `boundaryWarning` because it renders as one extra
+  // sentence on top of the reused limitation copy, not a second explanation.
+  const [disagreementSides, setDisagreementSides] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,11 +188,13 @@ export default function CropAdjustStep({
   async function handleConfirm() {
     if (!points || !dims) return;
     setBoundaryWarning(null);
+    setDisagreementSides([]);
     setChecking(true);
     try {
       const check = await api.checkCrop(token, code, side, toPixels(points));
       if (!check.boundary_found) {
         setBoundaryWarning(check.limitations);
+        setDisagreementSides(check.crop_disagreement_sides);
         return;
       }
     } catch {
@@ -298,9 +305,31 @@ export default function CropAdjustStep({
               </p>
             ) : null;
           })}
+          {/* One extra, minimal sentence naming the side(s) -- the reused
+              limitation copy above explains *that* a side disagreed, not
+              *which*. */}
+          {disagreementSides.length > 0 && (
+            <p className="text-sm leading-relaxed text-muted">
+              {t.cropAdjust.disagreementSides.replace(
+                "{sides}",
+                new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(
+                  disagreementSides.map(
+                    (side) => t.cropAdjust.side[side as keyof typeof t.cropAdjust.side] ?? side
+                  )
+                )
+              )}
+            </p>
+          )}
           <p className="text-sm leading-relaxed text-muted">{t.cropAdjust.boundaryWarningHint}</p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="primary" size="sm" onPress={() => setBoundaryWarning(null)}>
+            <Button
+              variant="primary"
+              size="sm"
+              onPress={() => {
+                setBoundaryWarning(null);
+                setDisagreementSides([]);
+              }}
+            >
               {t.cropAdjust.adjustInstead}
             </Button>
             <Button

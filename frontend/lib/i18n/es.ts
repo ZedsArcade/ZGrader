@@ -408,6 +408,13 @@ export const es: Dictionary = {
     rotateRight: "Girar a la derecha",
     checking: "Comprobando el recorte…",
     boundaryWarningTitle: "No se han podido localizar los filos de la carta",
+    disagreementSides: "Lado(s) que no coincidieron con el recorte: {sides}.",
+    side: {
+      top: "superior",
+      right: "derecho",
+      bottom: "inferior",
+      left: "izquierdo",
+    },
     boundaryWarningHint:
       "Puede enviarla igualmente, pero esta carta volvería sin ninguna puntuación. Ajustar el recorte lo soluciona mucho más a menudo que repetir la foto.",
     adjustInstead: "Prefiero ajustarlo",

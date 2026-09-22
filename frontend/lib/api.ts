@@ -861,6 +861,9 @@ export async function snapCrop(
 export interface CropCheck {
   boundary_found: boolean;
   limitations: string[];
+  /** Which side(s) of the crop disagreed with the card edge found in the
+   *  image, when that is why the boundary was not found. Empty otherwise. */
+  crop_disagreement_sides: string[];
 }
 
 /** Asked before confirming, because confirming spends the submission.

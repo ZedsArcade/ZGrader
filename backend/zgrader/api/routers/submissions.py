@@ -489,6 +489,7 @@ def check_crop(
     return CropCheckOut(
         boundary_found=not disqualifying,
         limitations=list(rectified.limitations),
+        crop_disagreement_sides=list(rectified.geometry.get("crop_disagreement_sides", [])),
     )
 
 
