@@ -169,7 +169,7 @@ export const en = {
       centering_client_placed:
         "No printed border could be found, so these centering lines were placed by hand rather than measured.",
       geometry_crop_disagreement:
-        "Your crop and the card edge we found disagree, and there's no edge where the crop says one is — so that side rests on your crop rather than on a measurement. Drag that side onto the card's edge and check again.",
+        "Your crop and the card edge we found disagree, and there's no edge where the crop says one is — so the card's outline falls back to your crop instead of a measurement, and centering, corners and edges aren't scored. Drag that side onto the card's edge and check again.",
       edges_partial: "Some edges couldn't be sampled and were left out of this score.",
       edges_thin_border:
         "This card's border is too narrow to sample clean card beside the cut, so those edges were judged on the straightness of the cut alone.",

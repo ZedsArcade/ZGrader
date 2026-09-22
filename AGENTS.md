@@ -79,8 +79,10 @@ That stands, with one addition the crop earned by being right. When a fitted sid
 **outermost** gradient peak that stands at `geometry.CROP_REFIT_PEAK_FRACTION` (0.65) of the
 strongest step along its own normal. It never takes the crop itself. The crop is evidence about
 where to look; the edge still comes from pixels. A side whose search finds nothing edge-shaped
-at all falls back to the crop. It carries `GEOMETRY_UNVERIFIED` with `GEOMETRY_CROP_DISAGREEMENT`
-beside it, so every boundary-dependent category declines through the path that already existed.
+at all takes the whole outline down with it -- every apex reverts to the raw crop quad, not just
+that side's own line, so centering, corners and edges are not scored, not merely the one side in
+question. It carries `GEOMETRY_UNVERIFIED` with `GEOMETRY_CROP_DISAGREEMENT` beside it, through
+the path that already existed.
 
 It was earned on `real_scans/shadowed_photo.jpg`. A shadow across the lower card put that part
 of it on the background side of the threshold. The fitted bottom stopped 3.7–7.4mm inside the
