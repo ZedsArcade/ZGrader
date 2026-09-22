@@ -32,6 +32,123 @@ def _parse_dismissed(dismissed_regions: list | None) -> dict[tuple[str, str], se
     return parsed
 
 
+def placed_side(side_measurements: dict, adjustment: dict | None) -> tuple[float, float, dict] | None:
+    """Score, worse-side percentage and assessment for a side whose centering
+    lines the customer placed by hand; None if this side is not a placement.
+
+    A placement exists only where the pipeline declined for want of a printed
+    frame on a trusted card outline (`centering.placement_eligible`). The widths
+    are scored through the same functions as a measurement, and the assessment
+    says plainly that nobody measured them.
+    """
+    widths = centering.widths_from(adjustment)
+    if widths is None or not centering.placement_eligible(side_measurements):
+        return None
+    left, right, top, bottom = widths
+    ratios = centering.ratios_from_widths(
+        left, right, top, bottom, have_lr=left + right > 0, have_tb=top + bottom > 0
+    )
+    if ratios["measured_axes"] == 0:
+        return None
+    worse = float(ratios["worse_side_pct"])
+    score = round(centering.score_from_worse_pct(worse), 2)
+    block = assessment.measured(
+        score,
+        assessment.CONFIDENCE_CENTERING_CLIENT_PLACED,
+        (assessment.CENTERING_CLIENT_PLACED,),
+    ).as_dict()
+    return score, worse, block
+
+
+#: Bounds tolerance, in raster pixels, on both the placement bound and the
+#: nudge cap. A line the client dragged to a bound gets rounded to 0.1px on
+#: the way to the server, and a same-side coordinate can differ by a
+#: sub-pixel amount from what the browser computed the bound to be; either
+#: refusing a legitimately-at-the-bound line on that account is the bug this
+#: guards against (final review Minor 1). It replaces an earlier 1e-6, which
+#: was tight enough to do exactly that.
+_BOUNDS_TOLERANCE_PX = 0.05
+
+
+def check_centering_adjustment(
+    side_measurements: dict,
+    scored: bool,
+    widths: dict,
+    limit_mm: float,
+    *,
+    enforce_nudge_cap: bool = True,
+) -> tuple[str | None, str | None]:
+    """("place" | "nudge", None) when the widths are allowed, or (None, reason).
+
+    The one check shared by the centering-adjust endpoint, which asks about a
+    proposed move against the row it already has, and by re-analysis, which
+    asks about a *stored* adjustment against the freshly persisted row --
+    the same question from two callers, so the two can no longer drift apart
+    the way the endpoint's bounds check and this module's aggregation already
+    had once each.
+
+    `scored` names which question is being asked: a scored side can only be
+    nudged, a declined one can only be placed and only where
+    `centering.placement_eligible` agrees, and it also folds in the "no scale
+    to bound against" refusal. `widths` is the four raw widths in raster
+    pixels, keyed like `centering.WIDTH_KEYS`.
+
+    `reason` is a short machine code an endpoint maps to its own HTTP status
+    and message. Where the failure names one line, the key is appended after
+    a colon, e.g. "beyond_nudge_cap:left_px" -- the caller decides how much of
+    that to surface.
+
+    The kill switch (`limit_mm <= 0` disabling adjustment outright) is
+    deliberately not checked here: the endpoint means it as "refuse anything
+    new", but re-analysis revalidating what is already stored means it as
+    "the cap no longer applies" (`enforce_nudge_cap=False`) rather than "drop
+    everything", per the settings comment on `centering_adjust_limit_mm`.
+    """
+    m = side_measurements or {}
+    if scored:
+        mode = "nudge"
+    elif centering.placement_eligible(m):
+        mode = "place"
+    else:
+        return None, "not_measurable"
+
+    px_per_mm = float((m.get("card_geometry") or {}).get("px_per_mm") or 0)
+    if px_per_mm <= 0:
+        return None, "no_scale"
+
+    if mode == "place":
+        max_px = scoring.CENTERING_PLACEMENT_MAX_MM * px_per_mm
+        for key in centering.WIDTH_KEYS:
+            value = widths.get(key)
+            if value is None or float(value) > max_px + _BOUNDS_TOLERANCE_PX:
+                return None, f"beyond_placement_bound:{key}"
+        parsed = centering.widths_from(widths)
+        if parsed is None:
+            return None, "no_axis"
+        left, right, top, bottom = parsed
+        ratios = centering.ratios_from_widths(
+            left, right, top, bottom, have_lr=left + right > 0, have_tb=top + bottom > 0
+        )
+        if ratios["measured_axes"] == 0:
+            return None, "no_axis"
+        return "place", None
+
+    # Nudge: bounded from where detection put each line, which must itself
+    # exist on the fresh row for every key before a distance to it means
+    # anything.
+    for key in centering.WIDTH_KEYS:
+        if m.get(key) is None:
+            return None, f"no_detected_width:{key}"
+    if enforce_nudge_cap:
+        limit_px = limit_mm * px_per_mm
+        for key in centering.WIDTH_KEYS:
+            value = widths.get(key)
+            detected = float(m[key])
+            if value is None or abs(float(value) - detected) > limit_px + _BOUNDS_TOLERANCE_PX:
+                return None, f"beyond_nudge_cap:{key}"
+    return "nudge", None
+
+
 def _adjusted_side_score(
     category: str,
     side_measurements: dict,
@@ -47,6 +164,14 @@ def _adjusted_side_score(
     used to be reported as 10.0 here, which manufactured a perfect score out
     of nothing.
     """
+    # A placement turns a declined centering side into a reading, so it has to
+    # be checked before the guard below, which exists to keep every *other*
+    # declined state declined -- including ones nobody has written yet.
+    if category == "centering":
+        placed = placed_side(side_measurements, centering_adjustment)
+        if placed is not None:
+            return placed[0], placed[1]
+
     # A side the pipeline declined to score cannot have a score re-derived for
     # it. This is generic rather than per-category on purpose: every time a
     # category has gained the ability to decline -- corners below the
@@ -159,15 +284,20 @@ def recompute_submission(db: Session, submission: Submission) -> None:
 
         scores_by_side: dict[str, float] = {}
         worse_by_side: dict[str, float] = {}
+        # The assessment in force per side: a placement's, or what was stored.
+        effective: dict[str, dict | None] = {}
         for side in ("front", "back"):
             side_m = measurements.get(side)
             if side_m is None:
                 continue
+            adjustment = adjustments.get(side) if category == "centering" else None
+            placed = placed_side(side_m, adjustment) if category == "centering" else None
+            effective[side] = placed[2] if placed else side_m.get("assessment")
             score, worse = _adjusted_side_score(
                 category,
                 side_m,
                 dismissed.get((side, category), set()),
-                adjustments.get(side) if category == "centering" else None,
+                adjustment,
             )
             if score is None:
                 score = stored_side_scores.get((side, category))
@@ -178,16 +308,37 @@ def recompute_submission(db: Session, submission: Submission) -> None:
             if worse is not None:
                 worse_by_side[side] = float(worse)
 
+        if category == "centering":
+            # A placement can turn a declined side into a reading, so the
+            # combined assessment is rebuilt from what is in force. The
+            # pipeline's own is kept the first time this runs -- rows analysed
+            # before placement existed have none -- so clearing restores it.
+            measurements.setdefault("original_assessment", measurements.get("assessment"))
+            measurements["assessment"] = assessment.combine_assessments(
+                effective.get("front"), effective.get("back")
+            )
+
         combined = scoring.combine_sides_by_name(scores_by_side)
-        if combined is None:
+        state = (measurements.get("assessment") or {}).get("state")
+        if state is not None and state != assessment.MEASURED:
+            # The score follows the assessment, as in pipeline._persist_combined.
+            # Without this a front-declined card with a scored back took the
+            # back's number on every recompute -- the SUB-00011 contradiction.
+            combined = None
+        elif combined is None:
+            # Nothing derivable and nothing saying otherwise: leave the row.
             continue
 
         row.raw_score = combined
-        if category == "centering" and worse_by_side:
-            combined_worse = scoring.combine_sides_by_name(worse_by_side)
-            if combined_worse is not None:
-                measurements["worse_side_pct"] = round(combined_worse, 1)
-                row.measurements = measurements  # reassign so SQLAlchemy tracks the JSONB change
+        if category == "centering":
+            if combined is None:
+                # No reading, so nothing for the rules engine to compare.
+                measurements.pop("worse_side_pct", None)
+            elif worse_by_side:
+                combined_worse = scoring.combine_sides_by_name(worse_by_side)
+                if combined_worse is not None:
+                    measurements["worse_side_pct"] = round(combined_worse, 1)
+            row.measurements = measurements  # reassign so SQLAlchemy tracks the JSONB change
 
     db.flush()
 
@@ -199,7 +350,7 @@ def recompute_submission(db: Session, submission: Submission) -> None:
 
 
 def redraw_centering_annotations(db: Session, submission: Submission) -> list[str]:
-    """Redraw each side's centering overlay from detected widths + adjustment.
+    """Redraw each side's centering overlay from detected widths, adjustment or placement.
 
     The stored AnalysisResult deliberately keeps holding what was *measured* --
     clearing an adjustment must restore the detected figures with no other trace
@@ -218,7 +369,7 @@ def redraw_centering_annotations(db: Session, submission: Submission) -> list[st
 
     Returns the paths rewritten, so callers can log or test what happened.
     """
-    from zgrader.analysis import annotate, pipeline, scale
+    from zgrader.analysis import annotate, centering, pipeline, scale
     from zgrader.models import AnalysisCategory, ScanSide
 
     adjustments = submission.centering_adjustments or {}
@@ -231,41 +382,62 @@ def redraw_centering_annotations(db: Session, submission: Submission) -> list[st
     for row in submission.analysis_results:
         if row.category != AnalysisCategory.centering or row.side == AnalysisSide.combined:
             continue
-        if not row.annotated_image_path or row.raw_score is None:
-            # Nothing was drawn for an unscored side -- build_regions and
-            # _annotate_category both decline together, and re-drawing here
-            # would assert a border that analysis refused to claim.
+        if not row.annotated_image_path:
+            continue
+        measurements = row.measurements or {}
+        # A declined side is drawn only when it can be placed. With a placement
+        # it shows the customer's lines; without one, the plain card -- which is
+        # what analysis saved -- so clearing a placement leaves nothing behind.
+        # Any other unscored side stays undrawn: build_regions and
+        # _annotate_category decline together, and a redraw here would assert a
+        # border analysis refused to claim.
+        placeable = row.raw_score is None and centering.placement_eligible(measurements)
+        if row.raw_score is None and not placeable:
             continue
 
         scan = scans.get(ScanSide(row.side.value))
-        measurements = row.measurements or {}
-        if scan is None or "left_px" not in measurements:
+        if scan is None or (not placeable and "left_px" not in measurements):
             continue
-
-        merged = dict(measurements)
-        merged.update(adjustments.get(row.side.value) or {})
-        # Ratios from the same function the score routes through, so the numbers
-        # printed on the drawing cannot disagree with the ones beside it.
-        ratios = centering.ratios_from_widths(
-            merged["left_px"], merged["right_px"], merged["top_px"], merged["bottom_px"]
-        )
-        merged["lr_ratio"] = ratios["lr_ratio"]
-        merged["tb_ratio"] = ratios["tb_ratio"]
 
         try:
             rectified = pipeline.load_deskewed_card(scan, width_mm, height_mm)
         except ValueError:
             # A scan that no longer rectifies must not stop a report being
-            # generated; the previous drawing stays, which is what it did
-            # before this function existed.
+            # generated; the previous drawing stays.
             continue
+
+        if placeable:
+            widths = centering.widths_from(adjustments.get(row.side.value))
+            if widths is None:
+                image = annotate.to_pil(rectified.image)
+            else:
+                merged = dict(zip(centering.WIDTH_KEYS, widths))
+                left, right, top, bottom = widths
+                ratios = centering.ratios_from_widths(
+                    left, right, top, bottom, have_lr=left + right > 0, have_tb=top + bottom > 0
+                )
+                # An axis the customer left at the card's edge has no split; the
+                # label then reads 50/50 for it, which the placed-by-hand note
+                # beside the score qualifies.
+                merged["lr_ratio"] = ratios["lr_ratio"] or [50.0, 50.0]
+                merged["tb_ratio"] = ratios["tb_ratio"] or [50.0, 50.0]
+                image = annotate.annotate_centering(rectified.image, merged)
+        else:
+            merged = dict(measurements)
+            merged.update(adjustments.get(row.side.value) or {})
+            # Ratios from the same function the score routes through, so the
+            # numbers printed on the drawing cannot disagree with the ones beside it.
+            ratios = centering.ratios_from_widths(
+                merged["left_px"], merged["right_px"], merged["top_px"], merged["bottom_px"]
+            )
+            merged["lr_ratio"] = ratios["lr_ratio"]
+            merged["tb_ratio"] = ratios["tb_ratio"]
+            image = annotate.annotate_centering(rectified.image, merged)
 
         # Written back to the path the row already holds, in whatever format
         # that path names -- a submission analysed before derived images became
         # JPEG keeps its PNG, because the row still points at it.
-        artifacts.save_to(
-            annotate.annotate_centering(rectified.image, merged), Path(row.annotated_image_path)
-        )
+        artifacts.save_to(image, Path(row.annotated_image_path))
         rewritten.append(row.annotated_image_path)
 
     return rewritten

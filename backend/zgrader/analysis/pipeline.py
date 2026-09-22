@@ -35,12 +35,14 @@ from zgrader.models import (
     AnalysisCategory,
     AnalysisResult,
     AnalysisSide,
+    AuditLog,
     GradingCompanyComparison,
     ScanImage,
     ScanSide,
     Submission,
     SubmissionStatus,
 )
+from zgrader.models.settings import get_or_create_settings
 
 
 class PipelineError(Exception):
@@ -219,76 +221,6 @@ def _combine_score(front_score: float | None, back_score: float | None) -> float
     return scoring.combine_front_back(front_score, back_score)
 
 
-def _combine_assessments(front: dict | None, back: dict | None) -> dict | None:
-    """Merge two sides' assessments pessimistically, but not destructively.
-
-    Lowest confidence and the union of limitations: a category is only as
-    trustworthy as its weaker face, and a limitation that applied to one side
-    applied to the card the customer sent. Averaging confidence would let a
-    clean back talk up an unreadable front, which is the mistake the 70/30
-    score weighting exists to avoid.
-
-    **The front decides whether there is a reading at all**, and the two sides
-    are deliberately not symmetric here. A readable front with an unreadable
-    back is a narrower reading of the card; an unreadable front with a clean
-    back is not a reading at all. A card back is a near-symmetric printed
-    design that is almost always well centred and rarely handled, so scoring
-    off the back alone would flatter the card on exactly the face nobody
-    buys it for -- the same reason the score weighting is 70/30 rather than
-    even.
-
-    So: unmeasurable if the front is, whatever the back says. Otherwise the
-    front carries it, and a declining back costs confidence and adds
-    COMBINED_SINGLE_SIDE rather than voiding the result.
-
-    That second half is the fix to a real contradiction. It used to be
-    unmeasurable if *either* side was, which disagreed with
-    combine_front_back -- that keeps the measurable side's score at full
-    weight, so the row ended up saying `unmeasurable` while still carrying a
-    number. It also disagreed with the front-only case, which returns the
-    front's block unchanged a few lines above and is reported `measured`:
-    uploading a poor back made the result worse than uploading no back at all.
-    """
-    blocks = [b for b in (front, back) if b]
-    if not blocks:
-        return None
-    if len(blocks) == 1:
-        return dict(blocks[0])
-
-    limitations = set().union(*(set(b["limitations"]) for b in blocks))
-    measured = [b for b in blocks if b["state"] == assessment.MEASURED]
-
-    # `front` is always present in practice -- _persist_combined has a front
-    # result for every category -- so this is the "front could not be read"
-    # branch, and no clean back rescues it.
-    if front is None or front["state"] != assessment.MEASURED or not measured:
-        return {
-            "state": assessment.UNMEASURABLE,
-            "confidence": 0.0,
-            "score_low": None,
-            "score_high": None,
-            "limitations": sorted(limitations),
-        }
-
-    confidence = min(b["confidence"] for b in measured)
-    if len(measured) < len(blocks):
-        limitations.add(assessment.COMBINED_SINGLE_SIDE)
-        confidence *= assessment.CONFIDENCE_SINGLE_SIDE_FACTOR
-
-    # Interval spans only the sides that produced one -- a side with no
-    # reading has no bounds to contribute, and treating its absence as a wide
-    # interval would be inventing uncertainty rather than reporting it.
-    lows = [b["score_low"] for b in measured if b["score_low"] is not None]
-    highs = [b["score_high"] for b in measured if b["score_high"] is not None]
-    return {
-        "state": assessment.MEASURED,
-        "confidence": round(confidence, 2),
-        "score_low": min(lows) if lows else None,
-        "score_high": max(highs) if highs else None,
-        "limitations": sorted(limitations),
-    }
-
-
 def _persist_combined(
     db: Session,
     submission: Submission,
@@ -335,7 +267,7 @@ def _persist_combined(
         # front/back nesting. The pessimistic merge is the point: a category
         # is only as trustworthy as its weaker side, and a limitation that
         # applied to either face applied to the card.
-        measurements["assessment"] = _combine_assessments(
+        measurements["assessment"] = assessment.combine_assessments(
             front_result["measurements"].get("assessment"),
             back_result["measurements"].get("assessment") if back_result else None,
         )
@@ -399,6 +331,77 @@ def load_deskewed_card(
     points = crop_points if crop_points is not None else scan.crop_points
     roi = np.array(points, dtype="float32") if points is not None else None
     return preprocessing.rectify(image, width_mm, height_mm, roi_quad=roi)
+
+
+def _revalidate_centering_adjustments(db: Session, submission: Submission) -> None:
+    """Drop any stored centering adjustment or placement that no longer fits
+    the freshly persisted per-side centering rows, auditing each drop.
+
+    A re-analysis rebuilds every per-side row from scratch, and a stored
+    adjustment was validated against the *previous* one -- the border may now
+    be detected where it wasn't, or lost where it was. Revalidating through
+    `recompute.check_centering_adjustment`, the same check the endpoint runs
+    on a proposed move, means a placement a fresh detection now covers
+    survives as a nudge, and a nudge on a side that now declined survives as
+    a placement, each within its own bound; only a widths set that fits
+    neither mode is dropped. Without this, re-analysis could leave a
+    placement's widths read back through the nudge branch of
+    `recompute._adjusted_side_score` uncapped and unlabelled -- a 4mm cap
+    ignored on a reading nobody flagged as placed by hand.
+
+    The nudge cap is not enforced here when `centering_adjust_limit_mm` is 0:
+    the kill switch means "refuse anything new," not "invalidate everything
+    already stored" (see the setting's own comment). The placement bound,
+    eligibility and scale are always enforced -- those aren't the kill
+    switch's business.
+    """
+    adjustments = submission.centering_adjustments or {}
+    if not adjustments:
+        return
+
+    settings = get_or_create_settings(db)
+    limit_mm = float(settings.centering_adjust_limit_mm or 0)
+    rows = {
+        row.side.value: row
+        for row in submission.analysis_results
+        if row.category == AnalysisCategory.centering and row.side != AnalysisSide.combined
+    }
+
+    remaining = dict(adjustments)
+    for side, widths in adjustments.items():
+        row = rows.get(side)
+        if row is None:
+            remaining.pop(side, None)
+            db.add(
+                AuditLog(
+                    submission_id=submission.id,
+                    user_id=None,
+                    action="centering_adjustment_dropped",
+                    detail={"side": side, "reason": "no_row"},
+                )
+            )
+            continue
+        _mode, reason = recompute.check_centering_adjustment(
+            row.measurements or {},
+            row.raw_score is not None,
+            widths,
+            limit_mm,
+            enforce_nudge_cap=limit_mm > 0,
+        )
+        if reason is not None:
+            remaining.pop(side, None)
+            db.add(
+                AuditLog(
+                    submission_id=submission.id,
+                    user_id=None,
+                    action="centering_adjustment_dropped",
+                    detail={"side": side, "reason": reason},
+                )
+            )
+
+    # A new dict, so SQLAlchemy tracks the JSONB change even when nothing was
+    # dropped and the contents happen to compare equal.
+    submission.centering_adjustments = remaining or None
 
 
 def run_analysis(db: Session, submission: Submission) -> None:
@@ -517,10 +520,17 @@ def run_analysis(db: Session, submission: Submission) -> None:
     rules_engine.evaluate(db, submission)
 
     # A re-analysis (e.g. a late back scan) rebuilds every row from scratch;
-    # re-apply any dismissals the client had already made so their
-    # adjustments aren't silently lost. Region ids are stable across
-    # re-analysis, so previously-dismissed keys still resolve.
-    if submission.dismissed_regions:
+    # re-apply any dismissals and centering adjustments/placements the client
+    # had already made so they aren't silently lost. Region ids are stable
+    # across re-analysis, so previously-dismissed keys still resolve. Centering
+    # adjustments are revalidated against the fresh per-side rows first --
+    # `_revalidate_centering_adjustments` -- and anything that no longer fits
+    # either bound is dropped and audited rather than re-scored against a row
+    # it was never checked against. Without this, a re-analysis could turn a
+    # capped, labelled placement into an uncapped, unlabelled detected reading:
+    # the combined row is derived below.
+    _revalidate_centering_adjustments(db, submission)
+    if submission.dismissed_regions or submission.centering_adjustments:
         db.expire(submission, ["analysis_results", "company_comparisons"])
         recompute.recompute_submission(db, submission)
 

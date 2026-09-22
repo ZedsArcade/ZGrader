@@ -192,6 +192,35 @@ def _walk(node, keys: set, values: set) -> None:
         values.add(node)
 
 
+#: Every key the public payload may contain. See the test below for why it is a
+#: literal, and what to ask before adding to it.
+_PUBLIC_KEYS = {
+    # top level
+    "card", "language", "created_at", "client_adjusted", "dismissed_count",
+    "sides", "results", "comparisons", "centering_adjustments", "grading_companies",
+    # Added deliberately: a hash of what the link-preview image is drawn
+    # from, so an adjusted report gets a different og:image URL. Derived
+    # from what the page already shows, so it discloses nothing new.
+    "og_version",
+    # card
+    "game", "card_name", "set_name", "card_number", "foil",
+    # results
+    "category", "side", "raw_score", "flags", "measurements",
+    # flags
+    "lower_confidence", "reason",
+    # measurements
+    "regions", "assessment", "original_raw_score", "ai_observations",
+    "px_per_mm", "left_px", "right_px", "top_px", "bottom_px",
+    # assessment
+    "state", "confidence", "score_low", "score_high", "limitations",
+    # regions
+    "id", "kind", "severity", "score", "bbox_norm", "anchor_norm", "note",
+    "area_fraction", "length_mm", "low_confidence", "line_norm",
+    # comparisons
+    "company", "contention_note",
+}
+
+
 def test_submission_code_appears_nowhere_in_the_public_response(shared):
     """Keys *and* values. The code could just as easily arrive inside a
     contention note or an image path as under a field named after it."""
@@ -257,31 +286,7 @@ def test_public_payload_key_allowlist(shared):
     keys: set = set()
     _walk(resp.json(), keys, set())
 
-    assert keys == {
-        # top level
-        "card", "language", "created_at", "client_adjusted", "dismissed_count",
-        "sides", "results", "comparisons", "centering_adjustments", "grading_companies",
-        # Added deliberately: a hash of what the link-preview image is drawn
-        # from, so an adjusted report gets a different og:image URL. Derived
-        # from what the page already shows, so it discloses nothing new.
-        "og_version",
-        # card
-        "game", "card_name", "set_name", "card_number", "foil",
-        # results
-        "category", "side", "raw_score", "flags", "measurements",
-        # flags
-        "lower_confidence", "reason",
-        # measurements
-        "regions", "assessment", "original_raw_score", "ai_observations",
-        "px_per_mm", "left_px", "right_px", "top_px", "bottom_px",
-        # assessment
-        "state", "confidence", "score_low", "score_high", "limitations",
-        # regions
-        "id", "kind", "severity", "score", "bbox_norm", "anchor_norm", "note",
-        "area_fraction", "length_mm", "low_confidence", "line_norm",
-        # comparisons
-        "company", "contention_note",
-    }
+    assert keys == _PUBLIC_KEYS
 
 
 def test_unmeasurable_category_publishes_a_null_not_a_zero(shared):
@@ -289,6 +294,50 @@ def test_unmeasurable_category_publishes_a_null_not_a_zero(shared):
     corners = [r for r in resp.json()["results"] if r["category"] == "corners"][0]
 
     assert corners["raw_score"] is None
+
+
+def test_a_placed_centering_is_published_with_its_label(db_session):
+    """A placement reaches the public page as a score with its placed-by-hand
+    limitation beside it, marks the report adjusted, and adds no new key."""
+    from zgrader.models import SubmissionStatus
+    from tests.centering_rows import add_centering_rows, declined_side
+
+    auth_token = register_and_verify(client, "placer@example.com")
+    code = _create_submission(auth_token)
+    with SessionLocal() as db:
+        submission = db.query(Submission).filter(Submission.submission_code == code).one()
+        submission.status = SubmissionStatus.draft_ready
+        add_centering_rows(db, submission, declined_side())
+        db.commit()
+
+    placed = {"left_px": 30.0, "right_px": 30.0, "top_px": 25.0, "bottom_px": 35.0}
+    resp = client.post(
+        f"/submissions/{code}/centering-adjust", json={"side": "front", **placed}, headers=_auth(auth_token)
+    )
+    assert resp.status_code == 200, resp.text
+
+    with SessionLocal() as db:
+        submission = db.query(Submission).filter(Submission.submission_code == code).one()
+        _publish(db, submission)
+        submission.status = SubmissionStatus.published
+        db.commit()
+    share = client.post(f"/submissions/{code}/share", headers=_auth(auth_token))
+    assert share.status_code == 200, share.text
+    token = share.json()["url"].rsplit("/", 1)[-1]
+
+    body = client.get(f"/public/reports/{token}").json()
+
+    combined = next(r for r in body["results"] if r["category"] == "centering" and r["side"] == "combined")
+    assert combined["raw_score"] is not None
+    assert "centering_client_placed" in combined["measurements"]["assessment"]["limitations"]
+    assert body["centering_adjustments"]["front"] == placed
+    assert body["client_adjusted"] is True
+    keys: set = set()
+    _walk(body, keys, set())
+    # "front"/"back" are the side names inside centering_adjustments, which is
+    # already published; the base fixture has no adjustment, so they are allowed
+    # here rather than in the exact allowlist.
+    assert keys <= _PUBLIC_KEYS | {"front", "back"}
 
 
 # --- 404, never 403 -----------------------------------------------------

@@ -61,6 +61,17 @@ _CORNER_RADIUS_MM = 1.5
 _CORNER_SHADOW_RADIUS_MM = 4.5
 _CORNER_SHADOW_FLOOR = 0.15
 
+#: A shadow lying across the lower part of the card, for
+#: `capture_shadowed_bottom`. The floor is what puts the shadowed card below
+#: the threshold that separates card from backing, so the detected outline
+#: stops inside the card -- the committed form of the failure
+#: `real_scans/shadowed_photo.jpg` shows, where a shadow cost about 5mm of the
+#: bottom edge and the fit reported no problem at all.
+_BOTTOM_SHADOW_FLOOR = 0.40
+#: Where the shadow starts, as a fraction of the card's height. Below the
+#: artwork, so the card still reads as a card to the aspect check.
+_BOTTOM_SHADOW_START = 0.55
+
 
 def _round_corners(card: np.ndarray, radius_px: int) -> np.ndarray:
     """Cut the card's four corners to a radius, leaving backing behind them.
@@ -171,6 +182,7 @@ def make_card_scan(
     keystone_amount: float = 0.0,
     scale: float = 1.0,
     shadow_bottom_left_corner: bool = False,
+    shadow_bottom_band: bool = False,
 ) -> np.ndarray:
     """Build one synthetic scan.
 
@@ -262,6 +274,18 @@ def make_card_scan(
             -((distance_mm / _CORNER_SHADOW_RADIUS_MM) ** 2)
         )
         card = np.clip(card.astype(np.float64) * falloff[..., None], 0, 255).astype(np.uint8)
+
+    if shadow_bottom_band:
+        # A soft ramp from full brightness at `_BOTTOM_SHADOW_START` down to
+        # `_BOTTOM_SHADOW_FLOOR` at the bottom of the card, driving the card's
+        # own lower rows toward the level of the black backing it will be
+        # composited onto below -- which is why one threshold can no longer
+        # separate the two once they are placed on the canvas together.
+        height = card.shape[0]
+        rows = np.arange(height, dtype=np.float32) / max(1, height - 1)
+        ramp = np.clip((rows - _BOTTOM_SHADOW_START) / max(1e-6, 1.0 - _BOTTOM_SHADOW_START), 0.0, 1.0)
+        factor = 1.0 - ramp * (1.0 - _BOTTOM_SHADOW_FLOOR)
+        card = np.clip(card.astype(np.float32) * factor[:, None, None], 0, 255).astype(np.uint8)
 
     # Place on a dark scanner-backing canvas with a comfortable margin.
     # Real cards are die-cut to a rounded corner, roughly 1.5mm radius. Every
@@ -390,6 +414,14 @@ FIXTURES: tuple[tuple[str, tuple[float, float], dict], ...] = (
         "capture_shadowed_corner",
         _POKEMON,
         dict(shadow_bottom_left_corner=True),
+    ),
+    (
+        # A shadow across the lower card: detection's threshold cuts the card
+        # off inside its own edge and the fit reports no problem, which is what
+        # makes it worth a fixture -- see tests/test_crop_refit.py.
+        "capture_shadowed_bottom",
+        _POKEMON,
+        dict(shadow_bottom_band=True),
     ),
     (
         # ~7 px/mm, far below the ~25 the brief calls the floor for seeing

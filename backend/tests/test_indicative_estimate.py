@@ -119,7 +119,7 @@ def test_a_declined_category_produces_no_company_verdicts(db_session):
 
 def test_the_combined_assessment_takes_the_weaker_side():
     """A clean back must not talk up an unreadable front."""
-    from zgrader.analysis.pipeline import _combine_assessments
+    from zgrader.analysis.assessment import combine_assessments as _combine_assessments
     from zgrader.analysis import assessment as a
 
     front = a.unmeasurable((a.CENTERING_NO_FRAME,)).as_dict()

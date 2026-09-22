@@ -26,6 +26,7 @@ numbers are for eyeballing, not asserting. See that directory's README.
 import argparse
 import json
 import sys
+import zlib
 from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,10 @@ TOLERANCE = 0.002
 # Standard TCG stock unless a filename says otherwise.
 _DEFAULT_CARD_MM = (63.0, 88.0)
 
+#: A "<name>_traced.png" is a copy of its photo with a crop drawn on it by hand
+#: -- an input to `traced_crop`, not another photograph to measure.
+_TRACED_SUFFIX = "_traced"
+
 
 def measure_all_synthetic() -> dict[str, dict[str, float]]:
     results = {}
@@ -71,15 +76,86 @@ def crop_like_a_customer(image: np.ndarray) -> np.ndarray:
     return np.array(rectified.geometry["apexes"], dtype=np.float64)
 
 
-def measure_real_scans() -> dict[str, dict[str, dict[str, float]]]:
-    """Measure any real photographs that have been dropped in, both without a
-    crop and with one -- production always passes a crop, and a bug confined to
-    that path was once invisible here because only the uncropped path was
-    measured.
+def suggested_crop(image: np.ndarray) -> np.ndarray:
+    """The box a crop producer actually sends -- `suggest_crop`,
+    `snap_points_to_boundary` and the watcher's registration all call
+    `detect_boundary` directly on the raw upload, not `rectify`'s fitted
+    apexes. `crop_like_a_customer` above is the *fit's* own corners, which
+    can never contain the disagreement those three call sites used to ship:
+    called without the card's `expected_aspect`, `detect_boundary` can lock
+    onto a different contour than the one `rectify` finds inside the region
+    of interest with it -- the desk rather than the card, on two real
+    photographs, 13-35mm outside the fit. This is the crop that ships."""
+    expected_aspect = min(_DEFAULT_CARD_MM) / max(_DEFAULT_CARD_MM)
+    box, _info = preprocessing.detect_boundary(image, expected_aspect=expected_aspect)
+    return np.array(box, dtype=np.float64)
+
+
+def traced_crop(path: Path) -> np.ndarray | None:
+    """The crop a person traced around this card, from `<stem>.crop.json`.
+
+    The harness's own `crop_like_a_customer` is the *fit's* own apexes, so it
+    can never contain a crop that corrects the fit -- which is the only case
+    the crop-guided refit exists for. A traced crop is the missing input, and
+    it stays out of git with the photographs it belongs to.
+    """
+    sidecar = path.with_suffix(".crop.json")
+    if not sidecar.is_file():
+        return None
+    points = json.loads(sidecar.read_text(encoding="utf-8"))["points"]
+    return np.array(points, dtype=np.float64).reshape(4, 2)
+
+
+def sloppy_crop(quad: np.ndarray, px_per_mm: float, seed: int) -> np.ndarray:
+    """`quad` with each side pushed in or out by 1-2mm, deterministically.
+
+    A crop traced by finger on a phone is never on the edge to the millimetre,
+    and the refit must not pull a good fit off its edge when the crop is merely
+    imprecise. Each *side* is moved along its own outward normal and the
+    corners are re-intersected, so every side really does move by its drawn
+    amount -- moving the corners instead attenuates the displacement by the
+    diagonal's cosine and lets two draws cancel on the side they share.
+    """
+    ordered = np.asarray(quad, dtype=np.float64).reshape(4, 2)
+    rng = np.random.default_rng(seed)
+    centre = ordered.mean(axis=0)
+    # Ordered corners are top-left, top-right, bottom-right, bottom-left.
+    side_corners = {"top": (0, 1), "right": (1, 2), "bottom": (3, 2), "left": (0, 3)}
+
+    lines = {}
+    for name, (i, j) in side_corners.items():
+        direction = ordered[j] - ordered[i]
+        length = float(np.hypot(*direction))
+        if length < 1e-6:
+            return ordered
+        normal = np.array([-direction[1], direction[0]]) / length
+        offset = float(normal @ ordered[i])
+        if (centre @ normal - offset) > 0:  # point the normal outward
+            normal, offset = -normal, -offset
+        shift = float(rng.uniform(1.0, 2.0) * px_per_mm * rng.choice([-1.0, 1.0]))
+        lines[name] = (normal, offset + shift)
+
+    def _corner(a: str, b: str) -> np.ndarray:
+        (na, oa), (nb, ob) = lines[a], lines[b]
+        matrix = np.stack([na, nb])
+        if abs(float(np.linalg.det(matrix))) < 1e-9:
+            return ordered[0]
+        return np.linalg.solve(matrix, np.array([oa, ob]))
+
+    return np.array(
+        [_corner("top", "left"), _corner("top", "right"),
+         _corner("bottom", "right"), _corner("bottom", "left")],
+        dtype=np.float64,
+    )
+
+
+def measure_real_scans(sloppy: bool = False) -> dict[str, dict[str, dict[str, float]]]:
+    """Measure any real photographs that have been dropped in: without a crop,
+    with the harness's own crop, with a hand-traced crop where one exists, and
+    -- under --sloppy -- with that crop deliberately misplaced by 1-2mm.
 
     Returns empty when the directory is absent or empty, which is the normal
-    state for a fresh clone without git-LFS content pulled -- this must never
-    be the reason the harness fails.
+    state for a fresh clone -- this must never be the reason the harness fails.
     """
     if not REAL_SCANS_DIR.is_dir():
         return {}
@@ -87,17 +163,39 @@ def measure_real_scans() -> dict[str, dict[str, dict[str, float]]]:
     for path in sorted(REAL_SCANS_DIR.iterdir()):
         if path.suffix.lower() not in (".png", ".jpg", ".jpeg", ".tif", ".tiff"):
             continue
+        if path.stem.endswith(_TRACED_SUFFIX):
+            print(f"  - skipped {path.name} (traced overlay)", file=sys.stderr)
+            continue
         image = cv2.imread(str(path))
         if image is None:
             print(f"  ! could not read {path.name}", file=sys.stderr)
             continue
         try:
-            results[path.stem] = {
+            crop = crop_like_a_customer(image)
+            measurements = {
                 "uncropped": measure_image(image, *_DEFAULT_CARD_MM),
-                "cropped": measure_image(
-                    image, *_DEFAULT_CARD_MM, roi_quad=crop_like_a_customer(image)
+                "cropped": measure_image(image, *_DEFAULT_CARD_MM, roi_quad=crop),
+                "suggested": measure_image(
+                    image, *_DEFAULT_CARD_MM, roi_quad=suggested_crop(image)
                 ),
             }
+            try:
+                traced = traced_crop(path)
+            except Exception as exc:  # noqa: BLE001 -- a malformed sidecar must not drop this photo
+                print(f"  ! {path.name}: bad crop.json: {type(exc).__name__}: {exc}", file=sys.stderr)
+                traced = None
+            if traced is not None:
+                measurements["traced"] = measure_image(
+                    image, *_DEFAULT_CARD_MM, roi_quad=traced
+                )
+            if sloppy:
+                px_per_mm = measurements["cropped"].get("px_per_mm") or 1.0
+                measurements["sloppy"] = measure_image(
+                    image,
+                    *_DEFAULT_CARD_MM,
+                    roi_quad=sloppy_crop(crop, px_per_mm, seed=zlib.crc32(path.stem.encode())),
+                )
+            results[path.stem] = measurements
         except Exception as exc:  # noqa: BLE001 -- one bad photo must not stop the run
             print(f"  ! {path.name}: {type(exc).__name__}: {exc}", file=sys.stderr)
     return results
@@ -142,6 +240,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--update", action="store_true", help="accept current values as baseline")
     parser.add_argument("--json", action="store_true", help="print current metrics as JSON")
+    parser.add_argument(
+        "--sloppy",
+        action="store_true",
+        help="also measure each real photo with its crop misplaced by 1-2mm per side",
+    )
     args = parser.parse_args()
 
     current = measure_all_synthetic()
@@ -160,7 +263,7 @@ def main() -> int:
 
     changes = diff(load_baseline(), current)
 
-    real = measure_real_scans()
+    real = measure_real_scans(sloppy=args.sloppy)
     if real:
         print(f"\nreal photographs measured (not baselined): {len(real)}")
         for name, paths in real.items():
@@ -174,7 +277,7 @@ def main() -> int:
                     value = metrics.get(key)
                     return f"{value:5.2f}" if value is not None else "   --"
 
-                tag = name if label == "uncropped" else "  (cropped)"
+                tag = name if label == "uncropped" else f"  ({label})"
                 print(
                     f"  {tag:28} cen {_score('centering.raw_score')}"
                     f"  cor {_score('corners.raw_score')}"
@@ -182,9 +285,22 @@ def main() -> int:
                     f"  sur {_score('surface.raw_score')}"
                     f"  ({metrics['px_per_mm']:.1f} px/mm)"
                 )
-        for label in ("uncropped", "cropped"):
+        for label in ("uncropped", "cropped", "suggested"):
             scored = sum("corners.raw_score" in paths[label] for paths in real.values())
             print(f"  corners scored, {label}: {scored}/{len(real)}")
+        for label in ("traced", "sloppy"):
+            present = [p for p in real.values() if label in p]
+            if not present:
+                continue
+            # px/mm is the raster's own scale, so a shift in it means the fitted
+            # card changed size -- a cheap summary of "did this crop move the
+            # geometry". The millimetre displacement of each apex is measured
+            # directly in the plan's final task; these metrics do not carry it.
+            shift = [
+                abs(p[label].get("px_per_mm", 0.0) - p["cropped"].get("px_per_mm", 0.0))
+                for p in present
+            ]
+            print(f"  {label}: {len(present)} photo(s), max px/mm shift {max(shift):.2f}")
 
     if not changes:
         print(f"\nno drift across {len(current)} fixtures.")

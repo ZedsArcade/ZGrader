@@ -148,6 +148,10 @@ export const es: Dictionary = {
         "No hay un borde impreso claro con el que medir: normal en cartas de ilustración completa.",
       centering_partial_frame:
         "Se encontró borde impreso en algunos lados pero no en todos, así que esto se apoya en menos filos de lo habitual.",
+      centering_client_placed:
+        "No se encontró un borde impreso, así que estas líneas de centrado se colocaron a mano en lugar de medirse.",
+      geometry_crop_disagreement:
+        "Su recorte y el filo de la carta que encontramos no coinciden, y no hay ningún filo donde el recorte indica: el contorno de la carta se apoya en su recorte en lugar de una medición, y el centrado, las esquinas y los filos no se puntúan. Arrastre ese lado hasta el filo de la carta y vuelva a comprobarlo.",
       edges_partial: "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
       edges_thin_border:
         "El borde de esta carta es demasiado estrecho para muestrear cartón limpio junto al filo, así que esos lados se juzgaron solo por la rectitud del corte.",
@@ -175,6 +179,9 @@ export const es: Dictionary = {
     processingDescription: "Esto normalmente solo toma un momento.",
     photoTitle: "Foto analizada",
     adjustedChip: "Ajustado",
+    placedChip: "colocado por usted",
+    placeLinesLink: "Coloque usted las líneas",
+    adjustLinesLink: "Ajustar sus líneas",
     originalScorePrefix: "era",
     adjustedBannerTitle: "Ha ajustado esta evaluación",
     adjustedBannerBody:
@@ -346,6 +353,21 @@ export const es: Dictionary = {
     applied: "Centrado recalculado con las líneas que ha fijado.",
     applyFailed: "No se pudo aplicar ese ajuste.",
     reset: "Volver a lo detectado",
+    placeToggle: "Colocar líneas de centrado",
+    placeInstructions:
+      "No se encontró un borde impreso en este lado, así que coloque usted cada línea: arrástrela hasta el filo interior del borde impreso de la carta. Aparece una lupa mientras arrastra, y puede tocar una línea para moverla con precisión. La puntuación se calcula al aplicar, y el informe indica que las líneas se colocaron a mano.",
+    placeApply: "Aplicar y puntuar",
+    placeApplied: "Centrado puntuado con las líneas que ha colocado.",
+    placeReset: "Volver a las líneas iniciales",
+    clear: "Borrar mis líneas",
+    cleared: "Se borraron sus líneas de centrado.",
+    clearFailed: "No se pudieron borrar las líneas.",
+    nudge: {
+      up: "Subir 0,1 mm",
+      down: "Bajar 0,1 mm",
+      left: "Mover a la izquierda 0,1 mm",
+      right: "Mover a la derecha 0,1 mm",
+    },
     handleLabel: {
       left_px: "Línea del borde izquierdo",
       right_px: "Línea del borde derecho",
@@ -370,6 +392,13 @@ export const es: Dictionary = {
     rotateRight: "Girar a la derecha",
     checking: "Comprobando el recorte…",
     boundaryWarningTitle: "No se han podido localizar los filos de la carta",
+    disagreementSides: "Lado(s) que no coincidieron con el recorte: {sides}.",
+    side: {
+      top: "superior",
+      right: "derecho",
+      bottom: "inferior",
+      left: "izquierdo",
+    },
     boundaryWarningHint:
       "Puede enviarla igualmente, pero esta carta volvería sin ninguna puntuación. Ajustar el recorte lo soluciona mucho más a menudo que repetir la foto.",
     adjustInstead: "Prefiero ajustarlo",
@@ -793,7 +822,7 @@ export const es: Dictionary = {
 
     adjustTitle: "Cuando se equivoca, decide usted",
     adjustBody:
-      "Hay dos cosas que puede corregir, y funcionan de forma distinta. Cualquier hallazgo puede descartarse: si los que quedan siguen sosteniendo una puntuación, se recalcula al momento, y si descartar no deja nada desde donde medir, la medición original se mantiene y su desacuerdo queda registrado junto a ella. Descartar algo dice que nos equivocamos, lo cual no es prueba de que la carta esté impecable, y sería deshonesto conceder una puntuación perfecta por eso. El centrado además le deja mover las propias líneas del borde. Si el software colocó una donde no iba, puede arrastrarla hasta el borde real y la puntuación se recalcula desde donde usted la puso: es una corrección, no una objeción, y por eso sí produce un número nuevo. El movimiento está limitado a unos milímetros respecto a donde se detectó el borde, de modo que una línea se puede corregir pero no inventar, y devolver todas las líneas a su sitio original elimina el ajuste por completo. En cualquier caso el informe indica con claridad, en todas sus páginas, que usted lo ajustó y qué cambió. Esa marca no se puede desactivar: un informe ajustado que pareciera idéntico a uno sin ajustar no valdría nada para quien se lo enseñe.",
+      "Hay dos cosas que puede corregir, y funcionan de forma distinta. Cualquier hallazgo puede descartarse: si los que quedan siguen sosteniendo una puntuación, se recalcula al momento, y si descartar no deja nada desde donde medir, la medición original se mantiene y su desacuerdo queda registrado junto a ella. Descartar algo dice que nos equivocamos, lo cual no es prueba de que la carta esté impecable, y sería deshonesto conceder una puntuación perfecta por eso. El centrado además le deja mover las propias líneas del borde. Si el software colocó una donde no iba, puede arrastrarla hasta el borde real y la puntuación se recalcula desde donde usted la puso: es una corrección, no una objeción, y por eso sí produce un número nuevo. Donde se encontró el borde, el movimiento se limita a unos milímetros a cada lado, de modo que una línea puede corregirse pero no inventarse, y devolver todas las líneas a donde empezaron borra el ajuste por completo. Donde no se pudo encontrar ningún borde impreso, puede colocar usted las líneas: esa cifra se puntúa, pero se indica en todas partes como colocada a mano y no medida, y lleva menos confianza que cualquier cosa que el programa haya leído por sí mismo. En cualquier caso el informe indica con claridad, en todas sus páginas, que usted lo ajustó y qué cambió. Esa marca no se puede desactivar: un informe ajustado que pareciera idéntico a uno sin ajustar no valdría nada para quien se lo enseñe.",
 
     notTitle: "Lo que esto no es",
     notBody:
@@ -824,6 +853,7 @@ export const es: Dictionary = {
     notFoundTitle: "Este enlace no está disponible",
     notFoundBody:
       "Puede que quien lo compartió lo haya desactivado, lo haya reemplazado por uno nuevo, o que nunca haya existido. Pídale un enlace actualizado.",
+    placedChip: "colocado por el propietario",
   },
   contact: {
     title: "Contacto",

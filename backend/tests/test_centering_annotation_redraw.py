@@ -215,3 +215,48 @@ def test_redrawing_twice_with_no_change_is_a_no_op(db_session, analysed):
     recompute.redraw_centering_annotations(db_session, analysed)
 
     assert _digest(row.annotated_image_path) == first
+
+
+def _full_art_scan(tmp_path):
+    """A card with no printed frame: centering declines with centering_no_frame
+    while the edge fit holds, which is exactly the placeable case."""
+    import cv2
+
+    from tests.fixtures.generate_samples import build_fixture
+
+    path = tmp_path / "full_art_centered.png"
+    cv2.imwrite(str(path), build_fixture("full_art_centered"))
+    return path
+
+
+def _pixels(path) -> np.ndarray:
+    with Image.open(path) as image:
+        return np.asarray(image.convert("RGB"), dtype=np.int16)
+
+
+def _changed(a: np.ndarray, b: np.ndarray) -> int:
+    """Pixels that differ by more than JPEG noise."""
+    return int((np.abs(a - b).max(axis=2) > 60).sum())
+
+
+def test_a_placed_side_is_drawn_from_the_placement_and_cleared_back_to_plain(db_session, tmp_path):
+    from zgrader.analysis import centering
+
+    submission = _submission_with_analysis(db_session, "SUB-PLD01", _full_art_scan(tmp_path), tmp_path)
+    row = _centering_row(db_session, submission)
+    assert row.raw_score is None
+    assert centering.placement_eligible(row.measurements)
+    plain = _pixels(row.annotated_image_path)
+    ppm = row.measurements["card_geometry"]["px_per_mm"]
+
+    submission.centering_adjustments = {
+        "front": {"left_px": 2.5 * ppm, "right_px": 3.5 * ppm, "top_px": 3.0 * ppm, "bottom_px": 3.0 * ppm}
+    }
+    db_session.commit()
+    assert recompute.redraw_centering_annotations(db_session, submission) == [row.annotated_image_path]
+    assert _changed(_pixels(row.annotated_image_path), plain) > 500, "the placed frame was not drawn"
+
+    submission.centering_adjustments = None
+    db_session.commit()
+    recompute.redraw_centering_annotations(db_session, submission)
+    assert _changed(_pixels(row.annotated_image_path), plain) < 50, "clearing left the placed lines behind"

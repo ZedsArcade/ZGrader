@@ -16,7 +16,7 @@ so uploading a poor back produced a worse outcome than uploading none.
 """
 
 from zgrader.analysis import assessment
-from zgrader.analysis.pipeline import _combine_assessments
+from zgrader.analysis.assessment import combine_assessments as _combine_assessments
 
 
 def _measured(score=8.0, confidence=0.8, limitations=()):

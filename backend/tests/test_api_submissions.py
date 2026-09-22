@@ -524,6 +524,76 @@ def test_snap_crop_400_for_wrong_point_count(db_session, sample_scan_paths):
     assert resp.status_code == 400
 
 
+def test_suggest_crop_passes_expected_aspect_to_detect_boundary(db_session, sample_scan_paths, monkeypatch):
+    """`suggest_crop` calls `detect_boundary` on the raw upload, exactly what
+    `rectify` calls again inside the region of interest once a crop exists --
+    but only if both calls agree on `expected_aspect`. Without it, the two
+    calls can pick different contours (AGENTS.md's crop-guided-fit section:
+    13-35mm apart on two real photographs), which trips the crop-guided
+    refit on an untouched, auto-detected crop and silently loses every
+    boundary score."""
+    from zgrader.analysis import preprocessing as api_preprocessing
+
+    token = _register_and_login("suggestaspect@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+    _upload(token, code, "front", sample_scan_paths["pokemon_front"])
+
+    real_detect_boundary = api_preprocessing.detect_boundary
+    captured: dict = {}
+
+    def _spy(image, *args, **kwargs):
+        captured["expected_aspect"] = kwargs.get("expected_aspect")
+        return real_detect_boundary(image, *args, **kwargs)
+
+    monkeypatch.setattr(api_preprocessing, "detect_boundary", _spy)
+
+    resp = client.get(f"/submissions/{code}/scans/front/suggest-crop", headers=_auth_headers(token))
+
+    assert resp.status_code == 200
+    # Standard TCG stock (no CardDimensionReference row for "Pokemon" in the
+    # test database): min(63, 88) / max(63, 88), the same arithmetic rectify
+    # itself uses.
+    assert captured["expected_aspect"] == pytest.approx(63.0 / 88.0)
+
+
+def test_snap_crop_passes_expected_aspect_to_boundary_snap(db_session, sample_scan_paths, monkeypatch):
+    """The self-serve counterpart to the suggest-crop test above: `snap_crop`
+    must forward the same `expected_aspect` into `snap_points_to_boundary`,
+    or a sloppy manual placement can snap onto the wrong contour."""
+    from zgrader.analysis import preprocessing as api_preprocessing
+
+    token = _register_and_login("snapaspect@example.com")
+    create_resp = client.post(
+        "/submissions", json={"game": "Pokemon", "card_name": "Pikachu"}, headers=_auth_headers(token)
+    )
+    code = create_resp.json()["submission_code"]
+    _upload(token, code, "front", sample_scan_paths["pokemon_front"])
+    suggestion = client.get(
+        f"/submissions/{code}/scans/front/suggest-crop", headers=_auth_headers(token)
+    ).json()
+
+    real_snap = api_preprocessing.snap_points_to_boundary
+    captured: dict = {}
+
+    def _spy(image, points, *args, **kwargs):
+        captured["expected_aspect"] = kwargs.get("expected_aspect")
+        return real_snap(image, points, *args, **kwargs)
+
+    monkeypatch.setattr(api_preprocessing, "snap_points_to_boundary", _spy)
+
+    resp = client.post(
+        f"/submissions/{code}/scans/front/snap-crop",
+        json={"points": suggestion["points"]},
+        headers=_auth_headers(token),
+    )
+
+    assert resp.status_code == 200
+    assert captured["expected_aspect"] == pytest.approx(63.0 / 88.0)
+
+
 def test_snap_crop_403_for_non_owner(db_session, sample_scan_paths):
     token_a = _register_and_login("snapowner@example.com")
     token_b = _register_and_login("snapintruder@example.com")

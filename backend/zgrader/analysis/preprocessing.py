@@ -280,7 +280,10 @@ def detect_boundary(
 
 
 def snap_points_to_boundary(
-    image: np.ndarray, points: list[list[float]], tolerance_fraction: float = 0.06
+    image: np.ndarray,
+    points: list[list[float]],
+    tolerance_fraction: float = 0.06,
+    expected_aspect: float | None = None,
 ) -> list[list[float]]:
     """Refine a user's 4 manual crop corners toward the auto-detected card
     boundary: each corner snaps to the matching detected corner only when
@@ -288,10 +291,18 @@ def snap_points_to_boundary(
     deliberately-placed corner is preserved and only sloppy near-misses get
     cleaned up. Returns the 4 points (raw pixel space) in top-left,
     top-right, bottom-right, bottom-left order. If no card boundary can be
-    detected, the input points are returned unchanged (ordered)."""
+    detected, the input points are returned unchanged (ordered).
+
+    `expected_aspect` should be computed the same way `rectify` computes it
+    (`min(width_mm, height_mm) / max(width_mm, height_mm)`) and passed by the
+    caller. Without it this call can pick a different contour than the one
+    `rectify` finds later inside the region of interest -- on a real
+    photograph, the desk rather than the card -- which trips the crop-guided
+    refit on a crop nobody touched. See AGENTS.md's crop-guided-fit section.
+    """
     ordered_user = _order_points(np.array(points, dtype="float32"))
     try:
-        box, _info = detect_boundary(image)
+        box, _info = detect_boundary(image, expected_aspect=expected_aspect)
     except ValueError:
         return ordered_user.tolist()
 
@@ -486,6 +497,37 @@ def rectify(
     except ValueError:
         box = None
 
+    crop_disagreement: list[str] = []
+    if fitted is not None and roi_quad is not None:
+        # The crop is evidence about where each edge is, not the edge itself.
+        # A side the crop agrees with is untouched; one it disagrees with is
+        # searched for again near the crop line, in the image. Both the fit and
+        # the crop have to be in the same coordinates first: the fit ran inside
+        # the region of interest, the crop arrived in the source image's.
+        px_per_mm_estimate = _canonical_size(fitted.apexes, width_mm, height_mm)[2]
+        refit = geometry.refit_geometry_near_crop(
+            search, fitted, roi_quad - offset, px_per_mm_estimate
+        )
+        crop_disagreement = list(refit.unresolved)
+        if not crop_disagreement:
+            fitted = refit.geometry
+            # `refit.moved`'s values are numpy.float64 (the disagreement and
+            # px_per_mm arithmetic upstream stays in numpy), and this block is
+            # persisted as JSONB -- the stdlib JSON encoder rejects a NumPy
+            # scalar outright. Cast to plain float before it is stored.
+            refit_sides = {
+                side: {k: round(float(v), 2) for k, v in moved.items()}
+                for side, moved in refit.moved.items()
+            }
+        else:
+            # A side that disagreed and could not be re-found leaves nothing
+            # trustworthy to measure that edge from, so the whole fit is set
+            # aside rather than kept with one invented side.
+            fitted = None
+            refit_sides = {}
+    else:
+        refit_sides = {}
+
     if fitted is not None:
         apexes = fitted.apexes + offset
         geometry_block = fitted.as_dict()
@@ -496,6 +538,8 @@ def rectify(
         geometry_block["apexes"] = [
             [round(float(x), 2), round(float(y), 2)] for x, y in apexes
         ]
+        if refit_sides:
+            geometry_block["refit_sides"] = refit_sides
     elif roi_quad is not None:
         # Detection failed inside the region of interest, or the fit was not
         # trustworthy. The customer's crop is the only geometry left, so it
@@ -504,6 +548,12 @@ def rectify(
         apexes = _order_points(roi_quad.astype("float32")).astype(np.float64)
         geometry_block = {"method": "user_crop", "apexes": apexes.round(2).tolist(), "sides": {}}
         limitations.append(assessment.GEOMETRY_UNVERIFIED)
+        if crop_disagreement:
+            # Not merely "no card found in the crop": the card was found, and
+            # it disagreed with the crop on a side where nothing edge-shaped
+            # sits near the customer's line. The copy says which side.
+            geometry_block["crop_disagreement_sides"] = crop_disagreement
+            limitations.append(assessment.GEOMETRY_CROP_DISAGREEMENT)
     elif box is not None:
         apexes = _order_points(box).astype(np.float64) + offset
         geometry_block = {"method": "coarse_quad", "apexes": apexes.round(2).tolist(), "sides": {}}

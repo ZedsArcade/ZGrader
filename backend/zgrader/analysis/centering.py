@@ -104,6 +104,45 @@ def _measure_border(
     return float(np.median(widths)), spread_fraction
 
 
+#: The four border widths an adjustment or placement carries, in raster pixels.
+WIDTH_KEYS = ("left_px", "right_px", "top_px", "bottom_px")
+
+
+def widths_from(adjustment: dict | None) -> tuple[float, float, float, float] | None:
+    """The four widths from a stored adjustment, or None if any is missing.
+
+    Stored JSON is not a schema: a row written by an older version, or by hand,
+    must be ignored rather than half-applied.
+    """
+    if not adjustment:
+        return None
+    values = [adjustment.get(key) for key in WIDTH_KEYS]
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+        return None
+    return tuple(float(v) for v in values)  # type: ignore[return-value]
+
+
+def placement_eligible(measurements: dict | None) -> bool:
+    """Whether a declined side may have its centering lines placed by hand.
+
+    Only when centering declined for want of a printed frame, and the card's
+    outline itself was trusted. A side whose edge fit fell back
+    (GEOMETRY_UNVERIFIED) may be a raster of mostly desk, and lines placed on it
+    would publish a centering score for a card nobody has seen. The endpoint,
+    recompute and the redraw all ask this one question, so they cannot disagree.
+    """
+    m = measurements or {}
+    block = m.get("assessment") or {}
+    limitations = block.get("limitations") or []
+    geometry = m.get("card_geometry") or {}
+    return (
+        block.get("state") == assessment.UNMEASURABLE
+        and assessment.CENTERING_NO_FRAME in limitations
+        and not any(code in assessment.DISQUALIFYING_LIMITATIONS for code in limitations)
+        and float(geometry.get("px_per_mm") or 0) > 0
+    )
+
+
 def ratios_from_widths(
     left: float,
     right: float,

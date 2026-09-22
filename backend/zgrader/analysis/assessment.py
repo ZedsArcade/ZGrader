@@ -53,6 +53,9 @@ CORNERS_BOUNDARY_UNREADABLE = "corners_boundary_unreadable"
 CENTERING_NO_FRAME = "centering_no_frame"
 #: A printed frame was found on some sides but not all of them.
 CENTERING_PARTIAL_FRAME = "centering_partial_frame"
+#: No printed frame was found, and the customer placed the lines by hand. A
+#: claim rather than a measurement, so it is labelled wherever the score shows.
+CENTERING_CLIENT_PLACED = "centering_client_placed"
 #: One or more edges could not be sampled and were left out of the score.
 EDGES_PARTIAL = "edges_partial"
 #: The printed border is too narrow to sample clean card beside the cut.
@@ -65,6 +68,9 @@ CAPTURE_MODEST_RESOLUTION = "capture_modest_resolution"
 GEOMETRY_UNVERIFIED = "geometry_unverified"
 #: What was measured is not the shape of a card, so its scale is wrong.
 GEOMETRY_ASPECT_MISMATCH = "geometry_aspect_mismatch"
+#: The customer's crop disagreed with a fitted edge and no edge could be found
+#: near where they put it, so the crop is all there is for that side.
+GEOMETRY_CROP_DISAGREEMENT = "geometry_crop_disagreement"
 #: The card is foil or holo, which every detector here reads less reliably.
 CARD_IS_FOIL = "card_is_foil"
 #: One side could not be read, so the combined figure rests on the other alone.
@@ -78,12 +84,14 @@ ALL_LIMITATION_CODES = (
     CORNERS_BOUNDARY_UNREADABLE,
     CENTERING_NO_FRAME,
     CENTERING_PARTIAL_FRAME,
+    CENTERING_CLIENT_PLACED,
     EDGES_PARTIAL,
     EDGES_THIN_BORDER,
     CAPTURE_TOO_LOW_RESOLUTION,
     CAPTURE_MODEST_RESOLUTION,
     GEOMETRY_UNVERIFIED,
     GEOMETRY_ASPECT_MISMATCH,
+    GEOMETRY_CROP_DISAGREEMENT,
     CARD_IS_FOIL,
     COMBINED_SINGLE_SIDE,
 )
@@ -106,6 +114,10 @@ CONFIDENCE_CENTERING_NO_FRAME = 0.2
 #: A frame on some sides only. The ratio still comes from real borders, but
 #: one of the two axes may rest on a single confident side.
 CONFIDENCE_CENTERING_PARTIAL_FRAME = 0.6
+#: Lines placed by the customer where no frame was found. REASONED: below a
+#: partial frame, because no part of this reading was measured; above a
+#: declined frame, because the customer can see a border the detector could not.
+CONFIDENCE_CENTERING_CLIENT_PLACED = 0.4
 #: Corners now measure material loss in mm^2 as well as discolouration, which
 #: is a physical quantity against a known apex rather than a colour comparison.
 #: That is a materially better position than the whitening-only reading this
@@ -353,3 +365,76 @@ def unmeasurable(limitations: tuple[str, ...]) -> Assessment:
         score_high=None,
         limitations=limitations,
     )
+
+
+def combine_assessments(front: dict | None, back: dict | None) -> dict | None:
+    """Merge two sides' assessments pessimistically, but not destructively.
+
+    Lives here rather than in the pipeline because recompute rebuilds a combined
+    assessment too, when a placement turns a declined side into a reading.
+
+    Lowest confidence and the union of limitations: a category is only as
+    trustworthy as its weaker face, and a limitation that applied to one side
+    applied to the card the customer sent. Averaging confidence would let a
+    clean back talk up an unreadable front, which is the mistake the 70/30
+    score weighting exists to avoid.
+
+    **The front decides whether there is a reading at all**, and the two sides
+    are deliberately not symmetric here. A readable front with an unreadable
+    back is a narrower reading of the card; an unreadable front with a clean
+    back is not a reading at all. A card back is a near-symmetric printed
+    design that is almost always well centred and rarely handled, so scoring
+    off the back alone would flatter the card on exactly the face nobody
+    buys it for -- the same reason the score weighting is 70/30 rather than
+    even.
+
+    So: unmeasurable if the front is, whatever the back says. Otherwise the
+    front carries it, and a declining back costs confidence and adds
+    COMBINED_SINGLE_SIDE rather than voiding the result.
+
+    That second half is the fix to a real contradiction. It used to be
+    unmeasurable if *either* side was, which disagreed with
+    combine_front_back -- that keeps the measurable side's score at full
+    weight, so the row ended up saying `unmeasurable` while still carrying a
+    number. It also disagreed with the front-only case, which returns the
+    front's block unchanged a few lines above and is reported `measured`:
+    uploading a poor back made the result worse than uploading no back at all.
+    """
+    blocks = [b for b in (front, back) if b]
+    if not blocks:
+        return None
+    if len(blocks) == 1:
+        return dict(blocks[0])
+
+    limitations = set().union(*(set(b["limitations"]) for b in blocks))
+    measured = [b for b in blocks if b["state"] == MEASURED]
+
+    # `front` is always present in practice -- _persist_combined has a front
+    # result for every category -- so this is the "front could not be read"
+    # branch, and no clean back rescues it.
+    if front is None or front["state"] != MEASURED or not measured:
+        return {
+            "state": UNMEASURABLE,
+            "confidence": 0.0,
+            "score_low": None,
+            "score_high": None,
+            "limitations": sorted(limitations),
+        }
+
+    confidence = min(b["confidence"] for b in measured)
+    if len(measured) < len(blocks):
+        limitations.add(COMBINED_SINGLE_SIDE)
+        confidence *= CONFIDENCE_SINGLE_SIDE_FACTOR
+
+    # Interval spans only the sides that produced one -- a side with no
+    # reading has no bounds to contribute, and treating its absence as a wide
+    # interval would be inventing uncertainty rather than reporting it.
+    lows = [b["score_low"] for b in measured if b["score_low"] is not None]
+    highs = [b["score_high"] for b in measured if b["score_high"] is not None]
+    return {
+        "state": MEASURED,
+        "confidence": round(confidence, 2),
+        "score_low": min(lows) if lows else None,
+        "score_high": max(highs) if highs else None,
+        "limitations": sorted(limitations),
+    }

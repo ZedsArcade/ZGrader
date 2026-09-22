@@ -72,6 +72,77 @@ region-of-interest hint and nothing more. It used to be the geometry itself, whi
 number a function of where four handles were dragged: a crop half a millimetre inside the card
 removed the damage from the image before any detector saw it.
 
+That stands, with one addition the crop earned by being right. When a fitted side sits more than
+`geometry.CROP_REFIT_TRIGGER_MM` (2.0) from the customer's crop line, and the crop is claiming
+*more* card than the fit found, that side is searched for again within
+`geometry.CROP_REFIT_BAND_MM` (4.0) of the line. The search runs in the image and takes the
+**outermost** gradient peak that stands at `geometry.CROP_REFIT_PEAK_FRACTION` (0.65) of the
+strongest step along its own normal. It never takes the crop itself. The crop is evidence about
+where to look; the edge still comes from pixels. A side whose search finds nothing edge-shaped
+at all takes the whole outline down with it -- every apex reverts to the raw crop quad, not just
+that side's own line, so centering, corners and edges are not scored, not merely the one side in
+question. It carries `GEOMETRY_UNVERIFIED` with `GEOMETRY_CROP_DISAGREEMENT` beside it, through
+the path that already existed.
+
+It was earned on `real_scans/shadowed_photo.jpg`. A shadow across the lower card put that part
+of it on the background side of the threshold. The fitted bottom stopped 3.7–7.4mm inside the
+cut (it is tilted against it), and a crop traced on the true edges changed the fitted apexes by
+**zero pixels**. With the re-search both bottom apexes land within 0.06mm of the true edge,
+measured independently by profiling L* down five columns, and aspect deviation falls from 0.058
+to 0.005. Two things are worth keeping. A shape threshold cannot catch this failure: correctly
+fitted angled photographs read up to 0.073 aspect deviation and that photograph reads 0.058,
+inside the band, so do not reach for one. And the harness could not see it either:
+`fixture_drift.crop_like_a_customer` returns the *fit's own apexes*, so its "customer crop" can
+never correct the fit. Real photographs may now carry a hand-traced crop in `<name>.crop.json`
+(uncommitted, like the photographs), which the harness measures as a third path. `--sloppy`
+perturbs each crop by 1–2mm per side.
+
+**The first version of the search grew cards on any textured backdrop, and the flat fixtures
+could not show it.** It took the outermost peak above `MIN_GRADIENT_RESPONSE`, an *absolute*
+floor that was set for a ±6px refinement window. A desk, a mat or a sleeve clears it all along
+the band. So on a crop 2.5–3mm proud of the card, which is ordinary finger slop, the search found
+the outer limit of *its own band*. All four sides moved out together, cards grew 17% in px/mm,
+and `limitations` stayed empty. Uniform growth keeps the aspect ratio, so `MAX_ASPECT_DEVIATION`
+could not catch it. Every synthetic backing is a flat fill with a gradient of exactly zero, where
+the floor rejects everything, so the synthetic suite passed.
+
+What protects against it now is two stages, and the second one does more of the work. The
+relative fraction only *narrows the candidates*: it keeps the outermost peak comparable to the
+strongest step, instead of the outermost scrap of texture. The RANSAC consensus gate is what
+rejects *unstructured* texture. On `12_FrontView` at 2.5mm proud, the surviving peak still lands
+on the backdrop on about half the normals. Three of that photo's four sides return
+`_NO_CONSENSUS` and keep their fit; the fourth is found and moves 0.00mm. Together the two stages
+take 72 measured proud-crop runs, on the 37 real photographs that fit, from 72 moving a side out
+by more than 0.5mm to 2. Those two are `Kabutop_Back`, where the uncropped fit is the wrong one.
+Its right and left sides sit 2.45mm and 2.86mm inside the cut and its top is tilted, because a
+thin red rectangle has been **drawn on that image** inside the card. The re-search puts the top
+back on the cut, but a correction onto an annotated image is weak evidence.
+
+The fraction sits in the middle of a measured plateau. At 0.45 and below, a strong feature
+outside the card wins again. At 0.8 and above, the shadowed photograph's own cut, a weak step
+next to a strong shadow boundary, stops qualifying, and the side the refit exists for goes
+unresolved. **Neither stage stops structured texture.** A straight backdrop feature inside the
+band clears the fraction and forms a perfect line, so it is taken for the cut. That case is
+listed under the characterised-but-unfixed issues below.
+
+`tests/test_crop_refit.py` adds seeded noise to a fixture's backing to carry the unstructured
+case, and checks that the noise really clears the floor. Without that check the test could
+quietly pass against a flat fill again.
+
+**"Found nothing" has two meanings, and only one of them declines.** Suppose no normal in the band
+has a real edge on it at all. Then the crop is pointing at background, and the side is
+unresolved. Now suppose the edges are there but do not form a line, which comes from glare, a
+busy backdrop or a low-contrast cut. Then the search has nothing better than the fitted side,
+and that side stands untouched. Declining on the second case threw away 22 of 37 real
+photographs that fitted perfectly well when the crop was only 2.5–3mm proud. A crop that fails
+to corroborate the fit is not evidence against it. There is a cost, and it is recorded below:
+when the fit is the wrong one and the search scatters, the wrong side stands with no limitation.
+
+The material mask is still the filled `detect_boundary` contour, so on a re-fitted side the mask and
+the geometry disagree and `corners._corner_readable` declines those corners. That is the honest
+outcome and it is deliberate: rebuilding the mask from the re-fitted lines would erase real corner
+damage on that side.
+
 **When the fit falls back, every category declines rather than scoring.** The result carries
 `GEOMETRY_UNVERIFIED` and `assessment.apply_external_limitations` strips the score outright — see
 `assessment.DISQUALIFYING_LIMITATIONS`. It used to halve confidence instead, which was not enough:
@@ -171,6 +242,36 @@ shown to somebody deciding whether to buy the card.
 
 Before adding another client-editable measurement, ask what is drawn from it. Before adding another
 view of an existing one, ask whether it remaps.
+
+**A declined centering can now become a score, by hand.** Where centering declined with
+`centering_no_frame` on a trusted card outline (`centering.placement_eligible`), the customer can
+place the four lines themselves. It is stored in `centering_adjustments` like a nudge, and the
+per-side row keeps saying what was measured; `recompute.placed_side` scores it through the usual
+functions under `centering_client_placed` at confidence 0.4, and rebuilds the combined assessment.
+Clearing an adjustment restores the pipeline's own assessment by re-deriving it from the per-side
+rows, the same way any other recompute does -- not by reading it back. `original_assessment` sits
+beside the combined row only as a record of what the pipeline first produced; nothing reads it. A
+`geometry_unverified` side can never be placed, because its raster may be a desk. This is the first
+path that *un-declines* a category, and it reached the same surfaces declining did: recompute, the
+redraw, the PDF, the share page. Adjusting of either kind is allowed only in `draft_ready`, because the
+share page renders from the database and would otherwise change after publication with nobody
+reviewing it.
+
+A re-analysis rebuilds every per-side row from scratch, so a stored adjustment or placement is
+revalidated against the *fresh* row before anything re-applies, through
+`recompute.check_centering_adjustment` -- the same check the endpoint runs on a proposed move,
+now asked about a stored one. A placement a fresh detection now covers survives as a nudge if it
+is within the cap; a nudge on a side that now declined survives as a placement if it is within the
+8mm placement bound; anything that fits neither is dropped and the drop is audited as
+`centering_adjustment_dropped`, so a re-analysis can never leave a 2.22-at-confidence-0.4 placement
+silently reappearing as a 2.22-at-confidence-0.9 detected reading nobody labelled. The nudge cap
+is not enforced during this revalidation when `centering_adjust_limit_mm` is 0 -- the kill switch
+governs *new* adjustments, and its own comment already says it breaks nothing already stored; the
+placement bound, eligibility and scale are enforced regardless.
+
+Planning it also found that recompute never applied "the score follows the assessment": a
+front-declined card with a scored back took the back's number on any recompute. Fixed in the same
+change; `test_recompute_never_resurrects_a_score_the_front_declined` pins it.
 
 **The link-preview image gets the same guarantee from the other direction: its cache key is its
 state.** `analysis/og_image.py` renders `/r/{token}`'s `og:image` on demand and caches it as
@@ -840,6 +941,26 @@ it, so the next attempt starts from where the last one stopped.
   from it — also exempts the shadow fixture and the real bite, so it is not the fix. A fix needs a signal that
   separates a real cut from an artefact. `test_loss_reaching_along_the_edge_declines_rather_than_scoring` pins the
   current limit.
+- **A straight backdrop feature inside the crop re-search band is taken for the cut.** The relative fraction and
+  the consensus gate reject scattered texture, but a straight line satisfies both. Take the textured test fixture
+  (backing V about 14) and add a line at V=90 3mm outside the card. A crop 2.5mm proud then grows the card to
+  **66.03×88.02mm**, and a crop 3.0mm proud grows it to **63.00×91.05mm**, both with `unresolved=()` and no
+  limitation. Plausible real versions are a cutting-mat grid line, a playmat border and a sleeve edge. Nothing in a
+  single normal's profile separates a straight feature from a cut. A fix needs a signal from outside the profile,
+  such as which side of the line is backdrop-coloured, or agreement with the card's physical size.
+- **When the fit is wrong and the re-search scatters, the wrong side stands silently.** Take `Kabutop_Back` with a
+  crop 2.5mm proud. Its left side is fitted 2.86mm inside the cut, onto a red rectangle drawn on that image. The
+  re-search splits about 50/50 between the cut (tap ≈ −3) and the drawn line (tap ≈ +27). It returns
+  `_NO_CONSENSUS`, and the wrong left side stands with `limitations == ()`. At 3.0mm proud the same side clears
+  consensus only narrowly, 54 of 96 normals. The same mechanism covers a real cut weaker than about 0.65× of a
+  printed border or shadow boundary inside the band. On `shadowed_photo` at 0.65 the cut qualifies on only 85% of
+  normals, so that photograph is recovered with less margin than its 0.06mm result suggests. This is the price of
+  keeping the fit on `_NO_CONSENSUS`, which saves 22 of 37 good fits on ordinary sloppy crops. Declining instead
+  would trade those back.
+- **`_NO_EDGE` depends on the backdrop, not the crop.** A whole-image crop declines 4 of 14 well-fitted
+  smooth-backdrop photographs (`3_FrontView`, `4_FrontGlareShot`, `1_SideAngle`, `2_AngleView`), because a flat
+  backdrop carries no edge near the crop line. Textured-backdrop photographs keep the fit, because their texture
+  counts as "something there".
 
 ## Known-open, deliberately
 

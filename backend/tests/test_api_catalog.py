@@ -145,3 +145,14 @@ def test_blank_values_clear_a_setting(db_session):
     body = client.get("/catalog/branding").json()
     assert body["social_x"] is None
     assert body["contact_email"] is None
+
+
+def test_branding_publishes_the_placement_bounds(db_session):
+    """The page bounds the drag handles with the numbers the endpoint enforces,
+    so it must be given them rather than keeping its own copy."""
+    from zgrader.analysis import scoring
+
+    body = client.get("/catalog/branding").json()
+
+    assert body["centering_placement_max_mm"] == scoring.CENTERING_PLACEMENT_MAX_MM
+    assert body["centering_placement_default_mm"] == scoring.CENTERING_PLACEMENT_DEFAULT_MM

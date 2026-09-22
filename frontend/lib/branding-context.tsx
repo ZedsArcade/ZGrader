@@ -20,6 +20,9 @@ const DEFAULT_BRANDING: api.Branding = {
   social_whatsapp: null,
   // Matches the backend default; replaced by the real value on first load.
   centering_adjust_limit_mm: 4,
+  // Match analysis/scoring.py; replaced by the real values on first load.
+  centering_placement_max_mm: 8,
+  centering_placement_default_mm: 3,
   // Empty until the backend answers. The copy falls back to a generic phrase
   // rather than briefly naming companies that may not be enabled.
   grading_companies: [],

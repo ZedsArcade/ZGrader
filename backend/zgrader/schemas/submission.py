@@ -169,10 +169,17 @@ class CropCheckOut(BaseModel):
     contract -- the frontend already has localised copy for
     `geometry_unverified` and reuses it here rather than inventing a second
     wording for the same condition.
+
+    `crop_disagreement_sides` names which side(s) of the crop disagreed with
+    the card edge found in the image, when that is why the boundary was not
+    found -- filled from the rectified geometry block's own
+    `crop_disagreement_sides`. Without it the crop-adjust UI could say only
+    that *something* about the crop was wrong, not what to drag.
     """
 
     boundary_found: bool
     limitations: list[str]
+    crop_disagreement_sides: list[str] = []
 
 
 class RegionToggleIn(BaseModel):

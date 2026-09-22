@@ -27,7 +27,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from zgrader import entitlements, images
-from zgrader.analysis import pipeline, preprocessing
+from zgrader.analysis import pipeline, preprocessing, scale
 from zgrader.email.notifications import send_report_published
 from zgrader.models import (
     AuditLog,
@@ -139,9 +139,13 @@ def _register_new_scans(db: Session, submission: Submission, folder: Path) -> li
         # detection failure just leaves crop_points NULL, the same safe
         # degraded fallback the migration backfill uses.
         crop_points = None
+        width_mm, height_mm = scale.dimensions_for(
+            db, submission.card.game if submission.card else None
+        )
+        expected_aspect = min(width_mm, height_mm) / max(width_mm, height_mm)
         try:
             image = preprocessing.load_image(path)
-            box, _info = preprocessing.detect_boundary(image)
+            box, _info = preprocessing.detect_boundary(image, expected_aspect=expected_aspect)
             crop_points = box.tolist()
         except Exception:
             logger.warning("Boundary auto-detection failed for %s -- crop unconfirmed", path)

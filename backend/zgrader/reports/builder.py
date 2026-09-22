@@ -198,7 +198,11 @@ def build_report_context(submission: Submission, settings: Settings) -> dict:
         "comparisons_by_category": comparisons_by_category,
         "companies": [c.value for c in GradingCompany],
         "lower_confidence_categories": lower_confidence_categories,
-        "client_adjusted": bool(dismissed_findings),
+        # The model's property, not a recount of dismissals: a moved centering
+        # line changes a published number as much as a dismissed finding does,
+        # and leaves less trace. Recounting here shipped a centering-only
+        # adjustment without the watermark.
+        "client_adjusted": submission.client_adjusted,
         "dismissed_count": len(dismissed_findings),
         "dismissed_findings": dismissed_findings,
         "generated_at": datetime.datetime.now(datetime.timezone.utc),

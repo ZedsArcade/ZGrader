@@ -47,6 +47,11 @@ export default function SubmissionOverview({
   const resultsBySide = new Map<ScanSide, typeof submission.analysis_results>(
     SIDES.map((side) => [side, submission.analysis_results.filter((r) => r.side === side)])
   );
+  // The side a "Place the lines yourself" link opens: the first whose
+  // centering declined for want of a printed border and can be placed.
+  const placeableSide = SIDES.find(
+    (side) => centeringHandles(resultsBySide.get(side) ?? [])?.mode === "place"
+  );
 
   return (
     <>
@@ -95,6 +100,7 @@ export default function SubmissionOverview({
                 // reads is the same as no caveat.
                 const assessmentBlock = result.measurements?.assessment as Assessment | undefined;
                 const limitationCodes: string[] = assessmentBlock?.limitations ?? [];
+                const placedByHand = limitationCodes.includes("centering_client_placed");
                 const adjusted =
                   !unmeasurable &&
                   original !== null &&
@@ -116,6 +122,11 @@ export default function SubmissionOverview({
                           {t.submissionDetail.adjustedChip}
                         </Chip>
                       )}
+                      {placedByHand && (
+                        <Chip color="danger" variant="soft" size="sm">
+                          {t.submissionDetail.placedChip}
+                        </Chip>
+                      )}
                     </div>
                     <div className="mt-1 flex items-baseline gap-2">
                       {unmeasurable ? (
@@ -135,6 +146,15 @@ export default function SubmissionOverview({
                         </span>
                       )}
                     </div>
+                    {category === "centering" && onAdjusted && placeableSide && (
+                      <a
+                        href={`#place-centering-${placeableSide}`}
+                        className="mt-1 inline-flex min-h-6 items-center text-xs font-medium"
+                        style={{ color: "var(--neon-pink)" }}
+                      >
+                        {placedByHand ? t.submissionDetail.adjustLinesLink : t.submissionDetail.placeLinesLink}
+                      </a>
+                    )}
                     {/* The measurement behind the number, and the form a
                         collector actually thinks in: "47/53" says more at a
                         glance than 7.9 does, and together they explain each
@@ -156,12 +176,13 @@ export default function SubmissionOverview({
                     {category === "centering" && !unmeasurable && (
                       <div className="mt-1.5 flex flex-col gap-0.5">
                         {SIDES.map((side) => {
-                          const detected = centeringHandles(resultsBySide.get(side) ?? []);
-                          if (!detected) return null;
-                          const widths = {
-                            ...detected.detected,
-                            ...(submission.centering_adjustments?.[side] ?? {}),
-                          };
+                          const handles = centeringHandles(resultsBySide.get(side) ?? []);
+                          if (!handles) return null;
+                          const adjustment = submission.centering_adjustments?.[side];
+                          // A placeable side with nothing placed has no border to
+                          // split -- its starting lines are a guess.
+                          if (handles.mode === "place" && !adjustment) return null;
+                          const widths = { ...handles.detected, ...(adjustment ?? {}) };
                           const { lr, tb } = ratiosFromWidths(widths);
                           const pair = (r: [number, number]) =>
                             `${Math.round(r[0])}/${Math.round(r[1])}`;

@@ -305,7 +305,10 @@ export default function SubmissionView({ code }: { code: string | null }) {
           locale={locale}
           audience="customer"
           onToggleRegion={handleToggleRegion}
-          onAdjusted={setSubmission}
+          // Adjusting (nudging or placing centering lines) is only accepted while
+          // the draft is under review; offering it on a published report invites a
+          // 409 on every Apply, because the share page renders from the database.
+          onAdjusted={s.status === "draft_ready" ? setSubmission : undefined}
           afterScores={
             UPLOAD_ALLOWED.has(s.status) && !s.confirmed_sides.includes("back") ? (
               <UploadStep code={s.submission_code} token={token!} scanSides={s.scan_sides} onUploaded={setSubmission} />

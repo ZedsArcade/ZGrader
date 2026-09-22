@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import Link from "next/link";
 import { Chip } from "@heroui/react";
 import Button from "@/components/Button";
-import CenteringLines from "@/components/CenteringLines";
+import CenteringLines, { arrowDeltaMm, directionsFor, type LineKey } from "@/components/CenteringLines";
 import PhotoInspector from "@/components/PhotoInspector";
 import RegionOverlay, {
   dismissKey,
@@ -39,10 +39,7 @@ const COLLAPSED_COUNT = 3;
 // Which panels the viewer folded away, remembered per submission side.
 const COLLAPSE_STORAGE_PREFIX = "zgrader_collapsed_regions:";
 
-// Stand-in for a side with no measurable centering, so the adjust hook can be
-// called unconditionally. Never reaches the server: `canAdjust` is false, so
-// the control that would submit it is not rendered.
-const NO_WIDTHS = { left_px: 0, right_px: 0, top_px: 0, bottom_px: 0 };
+const ARROW_GLYPHS = { up: "▲", down: "▼", left: "◀", right: "▶" } as const;
 
 export default function AnnotatedPhoto({
   token,
@@ -82,22 +79,38 @@ export default function AnnotatedPhoto({
   // would otherwise open it mid-adjustment.
   const [adjusting, setAdjusting] = useState(false);
   const [raster, setRaster] = useState<{ w: number; h: number } | null>(null);
+  // The line picked for fine nudges, by tap, click or keyboard focus.
+  const [selected, setSelected] = useState<LineKey | null>(null);
 
   // `centering` is null when this side has no scorable centering result, but
-  // the hook still has to run every render -- so it is fed zeroes and the
-  // control is gated on `canAdjust` instead. Hooks cannot be conditional.
+  // the hook still has to run every render -- hooks cannot be conditional --
+  // so it takes `handles: null` and falls back to zero widths internally
+  // (`NO_WIDTHS` in use-centering-adjust.ts). Adjusting itself is gated on
+  // `canAdjust` below.
   const centering = centeringHandles(results);
   const adjust = useCenteringAdjust({
     token,
     code,
     side,
-    detected: centering?.detected ?? NO_WIDTHS,
+    handles: centering,
     applied: centeringApplied,
-    pxPerMm: centering?.pxPerMm ?? 0,
     raster,
     onAdjusted: onAdjusted ?? (() => {}),
   });
   const canAdjust = centering !== null && onAdjusted !== undefined;
+  const placing = centering?.mode === "place";
+
+  // The scorecard's "Place the lines yourself" link points here, and opening
+  // the adjuster on arrival saves hunting for the toggle.
+  useEffect(() => {
+    if (!canAdjust) return;
+    const openFromHash = () => {
+      if (window.location.hash === `#place-centering-${side}`) setAdjusting(true);
+    };
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, [canAdjust, side]);
   // cosmetic -- a collapsed panel stays in `visible`, so the numbered markers
   // on the photo and in the inspector are unaffected.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -161,8 +174,14 @@ export default function AnnotatedPhoto({
   // Detected widths with the client's adjustment laid over them -- the same
   // composition the remapped region and the scorecard splits use, so all three
   // describe the same border.
+  // A placeable side with nothing applied draws nothing read-only: its
+  // starting lines are a guess, not a border anyone found or placed.
   const appliedWidths =
-    centering && centeringApplied ? { ...centering.detected, ...centeringApplied } : centering?.detected ?? null;
+    centering && centeringApplied
+      ? { ...centering.detected, ...centeringApplied }
+      : centering?.mode === "nudge"
+        ? centering.detected
+        : null;
   // Region keys whose detail (crop image + note) is folded away. Purely
 
   const adjustedRegions: CategoryRegion[] =
@@ -301,6 +320,7 @@ export default function AnnotatedPhoto({
   return (
     <div
       ref={wrapperRef}
+      id={`place-centering-${side}`}
       className="relative grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_320px]"
     >
       <div>
@@ -313,8 +333,26 @@ export default function AnnotatedPhoto({
               {t.inspector.inspect}
             </Button>
             {canAdjust && (
-              <Button variant="outline" size="sm" onPress={() => setAdjusting((a) => !a)}>
-                {adjusting ? t.centeringAdjust.toggleDone : t.centeringAdjust.toggle}
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() => {
+                  // Closing without clearing a matching hash would leave the
+                  // link inert on a second click -- no hashchange fires when
+                  // the hash is already set, so the adjuster would only
+                  // scroll instead of reopening.
+                  if (adjusting && window.location.hash === `#place-centering-${side}`) {
+                    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+                  }
+                  setAdjusting((a) => !a);
+                  setSelected(null);
+                }}
+              >
+                {adjusting
+                  ? t.centeringAdjust.toggleDone
+                  : placing
+                    ? t.centeringAdjust.placeToggle
+                    : t.centeringAdjust.toggle}
               </Button>
             )}
             {visible.length > 0 && (
@@ -367,6 +405,12 @@ export default function AnnotatedPhoto({
             enabled={adjust.enabled}
             handleLabels={t.centeringAdjust.handleLabel}
             onDrag={adjust.setWidth}
+            photoUrl={photoUrl}
+            selected={selected}
+            onSelect={setSelected}
+            onNudge={adjust.nudgeBy}
+            pxPerMm={adjust.pxPerMm}
+            boundsMm={adjust.boundsMm}
           />
         )}
         {/* The measured border, drawn whenever the markings are on rather than
@@ -383,11 +427,17 @@ export default function AnnotatedPhoto({
             Suppressed when a centering region exists, which happens exactly
             when the score is flagged: that region already draws this boundary
             and carries the severity, note and dismissal with it. Drawing both
-            would double the frame. */}
-        {photoUrl && !adjusting && showMarkers && canAdjust && raster && !hasCenteringRegion && (
+            would double the frame.
+
+            Gated on `centering !== null` rather than `canAdjust`: these lines
+            are read-only, so a published report (where `onAdjusted` is
+            undefined and adjusting is refused server-side) still shows them --
+            only the adjuster itself needs `canAdjust`. */}
+        {photoUrl && !adjusting && showMarkers && centering !== null && raster && !hasCenteringRegion && appliedWidths && (
           <CenteringLines
-            widths={appliedWidths ?? adjust.widths}
+            widths={appliedWidths}
             raster={raster}
+            variant={placing ? "placed" : "detected"}
             // Read-only: no handles, so nothing here is draggable until the
             // adjuster is opened deliberately.
             enabled={false}
@@ -399,7 +449,11 @@ export default function AnnotatedPhoto({
         {photoUrl && adjusting && canAdjust && (
           <div className="mt-3 flex flex-col gap-3">
             <p className="text-sm text-muted">
-              {adjust.enabled ? t.centeringAdjust.instructions : t.centeringAdjust.disabled}
+              {!adjust.enabled
+                ? t.centeringAdjust.disabled
+                : placing
+                  ? t.centeringAdjust.placeInstructions
+                  : t.centeringAdjust.instructions}
             </p>
             {/* The measurements the whole request started with. Shown whether
                 or not anything has been dragged. */}
@@ -417,6 +471,22 @@ export default function AnnotatedPhoto({
                 {adjust.ratios.worse.toFixed(1)}%
               </dd>
             </dl>
+            {adjust.enabled && selected && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted">{t.centeringAdjust.handleLabel[selected]}</span>
+                {directionsFor(selected).map((direction) => (
+                  <Button
+                    key={direction}
+                    variant="outline"
+                    size="sm"
+                    aria-label={t.centeringAdjust.nudge[direction]}
+                    onPress={() => adjust.nudgeBy(selected, arrowDeltaMm(selected, direction, 0.1))}
+                  >
+                    {ARROW_GLYPHS[direction]}
+                  </Button>
+                ))}
+              </div>
+            )}
             {adjust.showControls && (
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -425,7 +495,11 @@ export default function AnnotatedPhoto({
                   isDisabled={adjust.applying}
                   onPress={adjust.apply}
                 >
-                  {adjust.applying ? t.centeringAdjust.applying : t.centeringAdjust.apply}
+                  {adjust.applying
+                    ? t.centeringAdjust.applying
+                    : placing
+                      ? t.centeringAdjust.placeApply
+                      : t.centeringAdjust.apply}
                 </Button>
                 <Button
                   variant="outline"
@@ -433,8 +507,18 @@ export default function AnnotatedPhoto({
                   isDisabled={adjust.applying || !adjust.moved}
                   onPress={adjust.reset}
                 >
-                  {t.centeringAdjust.reset}
+                  {placing ? t.centeringAdjust.placeReset : t.centeringAdjust.reset}
                 </Button>
+                {placing && centeringApplied && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isDisabled={adjust.clearing || adjust.applying}
+                    onPress={adjust.clear}
+                  >
+                    {t.centeringAdjust.clear}
+                  </Button>
+                )}
               </div>
             )}
           </div>

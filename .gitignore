@@ -6,3 +6,6 @@ data/
 # shared. The rest of .claude/ is deliberately not ignored, in case project
 # config worth sharing lands there later.
 .claude/launch.json
+
+# Brainstorming mockups (superpowers visual companion)
+.superpowers/

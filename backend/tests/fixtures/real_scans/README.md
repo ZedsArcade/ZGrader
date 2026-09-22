@@ -67,3 +67,19 @@ half-clones is a worse problem than not having the photos.
 Also worth remembering these are photographs of cards you own. Don't put a
 customer's uploaded scan in here; user uploads are not retained, and this
 directory is version-controlled and public to anyone with repo access.
+
+## Tracing a crop for a photograph
+
+The harness's own "customer crop" is the pipeline's own fitted apexes, so it can never contain a
+crop that *corrects* the fit — and that is the only case the crop-guided refit exists for. To
+supply a real one, draw the crop you would drag in the app around the card (any image editor, a
+bright line a few pixels wide), save it beside the photo as `<name>_traced.png`, and record its four
+corners in `<name>.crop.json`:
+
+```json
+{ "points": [[x, y], [x, y], [x, y], [x, y]], "traced_by": "...", "note": "..." }
+```
+
+Points are top-left, top-right, bottom-right, bottom-left in the photograph's own pixels, along the
+**centre** of the drawn stroke. `fixture_drift.py` then measures a `traced` path for that photo, and
+skips the `_traced` image itself. Both files stay out of git, like the photographs.

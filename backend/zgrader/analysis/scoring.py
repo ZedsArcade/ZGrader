@@ -96,6 +96,17 @@ def combine_sides_by_name(scores_by_side: dict[str, float]) -> float | None:
 # claiming to reproduce any company's actual cutoffs.
 CENTERING_POINTS_PER_PCT = 1.0 / 5.0
 
+# ARBITRARY. How far from the card's edge a customer may place a centering
+# line when detection found no printed frame. Wider than any printed border on
+# the supported games, and short of letting a line be dragged across the
+# artwork. Published through /catalog/branding so the page and the endpoint
+# enforce one number.
+CENTERING_PLACEMENT_MAX_MM = 8.0
+
+# ARBITRARY. Where a placed line starts on a side the pipeline found nothing
+# on. Only a starting position; the customer is expected to move it.
+CENTERING_PLACEMENT_DEFAULT_MM = 3.0
+
 # A diamond cut -- the card trimmed at an angle to its own printing -- shows as
 # the border width changing steadily along one side. It is a defect in its own
 # right, not a symptom of being off-centre: a card can average out to a perfect

@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from zgrader.analysis import assessment
 from zgrader.api.main import app
-from zgrader.models import ScanImage, Submission
+from zgrader.models import ScanImage, ScanSide, Submission
 
 from tests.conftest import register_and_verify
 
@@ -138,6 +138,119 @@ def test_it_rejects_the_wrong_number_of_points(db_session, sample_scan_paths):
         headers=_auth(token),
     )
     assert resp.status_code == 400
+
+
+def _submission_with_front_scan(email: str) -> tuple[str, str]:
+    """Register, verify, and upload the standard sample front scan.
+
+    `_submission_with_scan` already does the upload half; this adds
+    registration and points it at the same `pokemon_front.png` fixture
+    `sample_scan_paths` serves, generating it first if this is the first
+    test in the run to need it -- the same guard that fixture itself uses.
+    """
+    from tests.conftest import FIXTURES_DIR
+    from tests.fixtures.generate_samples import write_sample_set
+
+    if not (FIXTURES_DIR / "pokemon_front.png").exists():
+        write_sample_set(FIXTURES_DIR)
+    token = register_and_verify(client, email)
+    code = _submission_with_scan(token, FIXTURES_DIR / "pokemon_front.png")
+    return token, code
+
+
+def _detected_crop(code: str) -> list[list[float]]:
+    """The auto-detected crop for the front scan, via `suggest-crop`,
+    canonically ordered top-left/top-right/bottom-right/bottom-left.
+
+    `suggest-crop` returns `detect_boundary`'s box in whatever order its
+    contour trace happened to start at -- on the `pokemon_front` fixture
+    that is bottom-left/top-left/top-right/bottom-right, not the tl/tr/br/bl
+    order the rest of the pipeline uses (see `_canonical_size`'s
+    `tl, tr, br, bl = apexes`). Reordering with the same `_order_points`
+    `preprocessing.py` itself uses is what makes indices 2 and 3 reliably
+    "the bottom edge" for a caller pushing one side, rather than two
+    corners of whichever side the contour happened to start on.
+
+    Mints its own access token for the submission's owner from the DB
+    rather than taking one as a parameter, so a caller holding only `code`
+    (as the disagreement test does, once it has moved on from registration)
+    can still ask for this.
+    """
+    import numpy as np
+
+    from zgrader.analysis.preprocessing import _order_points
+    from zgrader.auth.security import create_access_token
+    from zgrader.db import SessionLocal
+
+    with SessionLocal() as session:
+        submission = session.query(Submission).filter(Submission.submission_code == code).one()
+        token = create_access_token(str(submission.user_id), submission.user.token_version)
+    resp = client.get(f"/submissions/{code}/scans/front/suggest-crop", headers=_auth(token))
+    raw_points = np.array(resp.json()["points"], dtype=np.float64)
+    return _order_points(raw_points).tolist()
+
+
+def _px_per_mm(code: str) -> float:
+    """The px/mm `preprocessing.rectify` builds the front scan's canonical
+    raster at -- the same scale `check-crop` itself uses internally, via a
+    standard 63x88mm card (there is no `CardDimensionReference` row for
+    "Pokemon" in the test database, so this is the same fallback size the
+    endpoint would compute through `scale.dimensions_for`)."""
+    from zgrader.analysis import preprocessing
+    from zgrader.db import SessionLocal
+
+    with SessionLocal() as session:
+        scan = (
+            session.query(ScanImage)
+            .join(Submission)
+            .filter(Submission.submission_code == code, ScanImage.side == ScanSide.front)
+            .one()
+        )
+        file_path = scan.file_path
+    image = preprocessing.load_image(file_path)
+    rectified = preprocessing.rectify(image, 63.0, 88.0)
+    return rectified.px_per_mm
+
+
+def test_a_crop_whose_edge_is_not_there_names_the_side(db_session):
+    """The customer dragged a side out over the backing. The check says so
+    before they spend the submission, and names which side rather than the
+    generic "could not fit the edges". Asserting the *named side* rather than
+    just the presence of the limitation code is also what makes this
+    assertion robust: the 6mm push below is clamped to the image edge (see
+    below), so its exact reach past the search band is not guaranteed to the
+    millimetre -- what has to hold is that the disagreement fired for the
+    side under test, not merely that it fired somewhere."""
+    token, code = _submission_with_front_scan("crop-disagreement@example.com")
+    points = _detected_crop(code)
+    # Push the bottom edge 6mm below the card, into featureless backing.
+    # `pokemon_front`'s scanner-backing margin (8% of the card's shorter
+    # side, ~5mm) is narrower than that, so the raw push would land outside
+    # the scan and the endpoint would 400 before ever reaching geometry --
+    # clamp to the image edge, which is still comfortably past the 4mm the
+    # crop refit's own search band (CROP_REFIT_BAND_MM) reaches back from a
+    # crop line, so the true edge stays out of the re-search entirely.
+    px_per_mm = _px_per_mm(code)
+    scan = (
+        db_session.query(ScanImage)
+        .join(Submission)
+        .filter(Submission.submission_code == code, ScanImage.side == ScanSide.front)
+        .one()
+    )
+    points[2][1] = min(points[2][1] + 6.0 * px_per_mm, float(scan.height_px))
+    points[3][1] = min(points[3][1] + 6.0 * px_per_mm, float(scan.height_px))
+
+    resp = client.post(
+        f"/submissions/{code}/scans/front/check-crop",
+        json={"points": points},
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["boundary_found"] is False
+    assert "geometry_crop_disagreement" in body["limitations"]
+    assert body["crop_disagreement_sides"] == ["bottom"]
 
 
 def test_another_customer_cannot_check_your_crop(db_session, sample_scan_paths):

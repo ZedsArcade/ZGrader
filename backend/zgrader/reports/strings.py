@@ -195,6 +195,11 @@ LIMITATION_LABELS = {
             "A printed border was found on some sides of this card but not all of them, "
             "so the centering figures rest on fewer edges than usual."
         ),
+        "centering_client_placed": (
+            "No printed border could be found on this card, so the centering lines were "
+            "placed by hand rather than measured. The centering figures describe where "
+            "those lines were put."
+        ),
         "edges_partial": "Some edges could not be sampled and were left out of this score.",
         "edges_thin_border": (
             "This card's printed border is too narrow to sample clean card beside the cut "
@@ -226,6 +231,12 @@ LIMITATION_LABELS = {
         "geometry_aspect_mismatch": (
             "The measured area is not the shape of a card, which means the millimetre "
             "figures on this report are scaled wrong on at least one axis."
+        ),
+        "geometry_crop_disagreement": (
+            "The crop supplied with this scan disagreed with the card edge found in the "
+            "image, and no edge could be found where the crop said one was -- so the card's "
+            "outline falls back to the crop instead of a fitted measurement, and centering, "
+            "corners and edges are not scored for it."
         ),
         "combined_single_side": (
             "Only one face of the card could be read for this category, so the figure "
@@ -270,6 +281,11 @@ LIMITATION_LABELS = {
             "Se encontró un borde impreso en algunos lados de esta carta pero no en todos, "
             "así que las cifras de centrado se apoyan en menos filos de lo habitual."
         ),
+        "centering_client_placed": (
+            "No se pudo encontrar un borde impreso en esta carta, así que las líneas de "
+            "centrado se colocaron a mano en lugar de medirse. Las cifras de centrado "
+            "describen dónde se pusieron esas líneas."
+        ),
         "edges_partial": "Algunos bordes no pudieron muestrearse y quedaron fuera de esta puntuación.",
         "edges_thin_border": (
             "El borde impreso de esta carta es demasiado estrecho para muestrear cartón "
@@ -297,6 +313,13 @@ LIMITATION_LABELS = {
         "geometry_aspect_mismatch": (
             "El área medida no tiene la forma de una carta, lo que significa que las "
             "cifras en milímetros de este informe están mal escaladas en al menos un eje."
+        ),
+        "geometry_crop_disagreement": (
+            "El recorte enviado con este escaneo no coincide con el filo de la carta "
+            "encontrado en la imagen, y no se pudo encontrar ningún filo donde el recorte "
+            "indicaba -- así que el contorno de la carta se apoya en el recorte en lugar de "
+            "una medición ajustada, y el centrado, las esquinas y los filos no se puntúan "
+            "para ella."
         ),
         "combined_single_side": (
             "Solo se pudo leer una cara de la carta para esta categoría, así que esta "
