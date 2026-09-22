@@ -111,3 +111,30 @@ def test_snap_points_returns_input_when_no_card_detectable():
         preprocessing._order_points(np.array(points, dtype="float32")),
         atol=1.0,
     )
+
+
+def test_snap_points_forwards_expected_aspect_to_detect_boundary(monkeypatch):
+    """`snap_points_to_boundary` is one of the three places a crop producer
+    calls `detect_boundary` -- `suggest_crop` and the watcher's registration
+    are the other two. Called without the card's `expected_aspect`, any of
+    them can lock onto a different contour than the one `rectify` finds
+    inside the region of interest with it (AGENTS.md's crop-guided-fit
+    section measures this at 13-35mm on two real photographs), so the
+    parameter has to reach `detect_boundary` unchanged rather than being
+    silently dropped."""
+    scan = make_card_scan(63.0, 88.0)
+    box, _info = preprocessing.detect_boundary(scan, expected_aspect=63.0 / 88.0)
+    real_detect_boundary = preprocessing.detect_boundary
+    captured: dict = {}
+
+    def _spy(image, *args, **kwargs):
+        captured["expected_aspect"] = kwargs.get("expected_aspect")
+        return real_detect_boundary(image, *args, **kwargs)
+
+    monkeypatch.setattr(preprocessing, "detect_boundary", _spy)
+
+    preprocessing.snap_points_to_boundary(
+        scan, [[float(x), float(y)] for x, y in box], expected_aspect=63.0 / 88.0
+    )
+
+    assert captured["expected_aspect"] == 63.0 / 88.0

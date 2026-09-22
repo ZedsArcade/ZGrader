@@ -76,6 +76,21 @@ def crop_like_a_customer(image: np.ndarray) -> np.ndarray:
     return np.array(rectified.geometry["apexes"], dtype=np.float64)
 
 
+def suggested_crop(image: np.ndarray) -> np.ndarray:
+    """The box a crop producer actually sends -- `suggest_crop`,
+    `snap_points_to_boundary` and the watcher's registration all call
+    `detect_boundary` directly on the raw upload, not `rectify`'s fitted
+    apexes. `crop_like_a_customer` above is the *fit's* own corners, which
+    can never contain the disagreement those three call sites used to ship:
+    called without the card's `expected_aspect`, `detect_boundary` can lock
+    onto a different contour than the one `rectify` finds inside the region
+    of interest with it -- the desk rather than the card, on two real
+    photographs, 13-35mm outside the fit. This is the crop that ships."""
+    expected_aspect = min(_DEFAULT_CARD_MM) / max(_DEFAULT_CARD_MM)
+    box, _info = preprocessing.detect_boundary(image, expected_aspect=expected_aspect)
+    return np.array(box, dtype=np.float64)
+
+
 def traced_crop(path: Path) -> np.ndarray | None:
     """The crop a person traced around this card, from `<stem>.crop.json`.
 
@@ -160,6 +175,9 @@ def measure_real_scans(sloppy: bool = False) -> dict[str, dict[str, dict[str, fl
             measurements = {
                 "uncropped": measure_image(image, *_DEFAULT_CARD_MM),
                 "cropped": measure_image(image, *_DEFAULT_CARD_MM, roi_quad=crop),
+                "suggested": measure_image(
+                    image, *_DEFAULT_CARD_MM, roi_quad=suggested_crop(image)
+                ),
             }
             try:
                 traced = traced_crop(path)
@@ -267,7 +285,7 @@ def main() -> int:
                     f"  sur {_score('surface.raw_score')}"
                     f"  ({metrics['px_per_mm']:.1f} px/mm)"
                 )
-        for label in ("uncropped", "cropped"):
+        for label in ("uncropped", "cropped", "suggested"):
             scored = sum("corners.raw_score" in paths[label] for paths in real.values())
             print(f"  corners scored, {label}: {scored}/{len(real)}")
         for label in ("traced", "sloppy"):

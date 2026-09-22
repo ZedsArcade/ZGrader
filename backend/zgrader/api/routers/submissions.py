@@ -380,12 +380,25 @@ def suggest_crop(
     (raw pixel space) plus the image's own dimensions for normalization.
     Never persists anything -- safe to call repeatedly. On detection
     failure, falls back to the raw image's own 4 corners so the user still
-    has draggable handles to start from."""
+    has draggable handles to start from.
+
+    Detects with the card's `expected_aspect`, computed exactly as `rectify`
+    computes it -- `rectify` detects again inside the region of interest with
+    that same aspect once this crop is submitted, and without it here the two
+    calls can settle on different contours. Measured on two real photographs
+    that cost: the untouched suggested crop disagreed with the fit by
+    13-35mm and every boundary score was silently lost. See AGENTS.md's
+    crop-guided-fit section.
+    """
     submission = _get_owned_submission(code, user, db)
     scan = _get_scan(submission, side)
+    width_mm, height_mm = scale.dimensions_for(
+        db, submission.card.game if submission.card else None
+    )
+    expected_aspect = min(width_mm, height_mm) / max(width_mm, height_mm)
     try:
         image = preprocessing.load_image(scan.file_path)
-        box, _info = preprocessing.detect_boundary(image)
+        box, _info = preprocessing.detect_boundary(image, expected_aspect=expected_aspect)
         points = box.tolist()
     except Exception:
         points = [[0, 0], [scan.width_px, 0], [scan.width_px, scan.height_px], [0, scan.height_px]]
@@ -412,12 +425,21 @@ def snap_crop(
     card boundary (each snaps only when it's already close), so an imperfect
     manual placement gets cleaned up. Returns the snapped points in raw
     pixel space; never persists -- the client updates its handles and the
-    user still confirms via confirm-crop."""
+    user still confirms via confirm-crop.
+
+    Passes the card's `expected_aspect` through to detection, for the same
+    reason `suggest_crop` does -- see that endpoint's docstring."""
     submission = _get_owned_submission(code, user, db)
     scan = _get_scan(submission, side)
     _validate_points(payload, scan)
+    width_mm, height_mm = scale.dimensions_for(
+        db, submission.card.game if submission.card else None
+    )
+    expected_aspect = min(width_mm, height_mm) / max(width_mm, height_mm)
     image = preprocessing.load_image(scan.file_path)
-    points = preprocessing.snap_points_to_boundary(image, [list(p) for p in payload.points])
+    points = preprocessing.snap_points_to_boundary(
+        image, [list(p) for p in payload.points], expected_aspect=expected_aspect
+    )
     return {"points": points}
 
 

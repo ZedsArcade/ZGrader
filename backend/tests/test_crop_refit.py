@@ -433,11 +433,31 @@ def test_rectify_recovers_the_hidden_edge_when_the_crop_says_where_it_is():
 
 
 def test_an_untouched_crop_changes_nothing_at_all():
-    """The path every production submission takes today: the crop is the
-    detected box. The refit must be invisible there, byte for byte."""
+    """The path every production submission takes today: the crop is the box
+    a crop producer actually sends -- `detect_boundary`'s own coarse box,
+    called *with* the card's `expected_aspect`, the way `suggest_crop`,
+    `snap_points_to_boundary` and the watcher's registration all have to call
+    it -- not the fit's own sub-pixel apexes.
+
+    The old version of this test built its crop from
+    `uncropped.geometry["apexes"]`, which is `geometry.py`'s fitted line
+    intersections and never what any crop producer sends -- so it could not
+    see the blind spot spec 1.4 describes: all three call sites used to call
+    `detect_boundary` *without* `expected_aspect`, while `rectify` detects
+    again inside the region of interest *with* it, so the box a crop producer
+    handed over could be a different contour from the one the fit itself
+    would choose. Measured on real photographs, that put the untouched
+    suggested crop 13-35mm outside the fit on `1_SideAngle` and
+    `4_FrontSlightLight`, tripping the refit and then declining -- 2 of 47
+    good photographs losing every boundary score, silently. This test's crop
+    is built the same way a real call site builds one, so it is the one that
+    would have caught that."""
     image = build_fixture("pokemon_front")
     uncropped = preprocessing.rectify(image, *POKEMON_MM)
-    crop = np.array(uncropped.geometry["apexes"], dtype=np.float64)
+    box, _info = preprocessing.detect_boundary(
+        image, expected_aspect=min(POKEMON_MM) / max(POKEMON_MM)
+    )
+    crop = np.array(box, dtype=np.float64)
 
     cropped = preprocessing.rectify(image, *POKEMON_MM, roi_quad=crop)
 

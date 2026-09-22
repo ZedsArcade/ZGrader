@@ -280,7 +280,10 @@ def detect_boundary(
 
 
 def snap_points_to_boundary(
-    image: np.ndarray, points: list[list[float]], tolerance_fraction: float = 0.06
+    image: np.ndarray,
+    points: list[list[float]],
+    tolerance_fraction: float = 0.06,
+    expected_aspect: float | None = None,
 ) -> list[list[float]]:
     """Refine a user's 4 manual crop corners toward the auto-detected card
     boundary: each corner snaps to the matching detected corner only when
@@ -288,10 +291,18 @@ def snap_points_to_boundary(
     deliberately-placed corner is preserved and only sloppy near-misses get
     cleaned up. Returns the 4 points (raw pixel space) in top-left,
     top-right, bottom-right, bottom-left order. If no card boundary can be
-    detected, the input points are returned unchanged (ordered)."""
+    detected, the input points are returned unchanged (ordered).
+
+    `expected_aspect` should be computed the same way `rectify` computes it
+    (`min(width_mm, height_mm) / max(width_mm, height_mm)`) and passed by the
+    caller. Without it this call can pick a different contour than the one
+    `rectify` finds later inside the region of interest -- on a real
+    photograph, the desk rather than the card -- which trips the crop-guided
+    refit on a crop nobody touched. See AGENTS.md's crop-guided-fit section.
+    """
     ordered_user = _order_points(np.array(points, dtype="float32"))
     try:
-        box, _info = detect_boundary(image)
+        box, _info = detect_boundary(image, expected_aspect=expected_aspect)
     except ValueError:
         return ordered_user.tolist()
 

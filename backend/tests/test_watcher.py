@@ -1,5 +1,7 @@
 import shutil
 
+import pytest
+
 from zgrader.models import (
     AnalysisSide,
     Card,
@@ -35,6 +37,46 @@ def test_empty_folder_marks_awaiting_scans(db_session, tmp_path):
     result = process_submission_folder(db_session, "SUB-90001", folder)
 
     assert result.status == SubmissionStatus.awaiting_scans
+
+
+def test_registration_passes_expected_aspect_to_detect_boundary(
+    db_session, tmp_path, sample_scan_paths, monkeypatch
+):
+    """The operator flatbed-drop path is the third of the three places a crop
+    producer calls `detect_boundary`, alongside `suggest_crop` and
+    `snap_points_to_boundary`. Without the card's `expected_aspect` it can
+    auto-confirm a crop that traces a different contour than the one
+    `rectify` finds inside the region of interest -- see AGENTS.md's
+    crop-guided-fit section."""
+    from zgrader.analysis import preprocessing as watcher_preprocessing
+
+    _make_submission(db_session, "SUB-90099")
+    folder = tmp_path / "SUB-90099"
+    folder.mkdir()
+    shutil.copy(sample_scan_paths["pokemon_front"], folder / "scan_front.png")
+
+    # A front-only drop still runs analysis (test_front_only_stays_awaiting_scans),
+    # whose own `rectify` call reaches `detect_boundary` correctly *with*
+    # `expected_aspect` already -- so a single captured value would be
+    # clobbered by that later, already-correct call and hide the bug in the
+    # earlier registration call. Record every call instead: before the fix,
+    # registration's own call is the one with `expected_aspect=None` in the list.
+    real_detect_boundary = watcher_preprocessing.detect_boundary
+    captured: list = []
+
+    def _spy(image, *args, **kwargs):
+        captured.append(kwargs.get("expected_aspect"))
+        return real_detect_boundary(image, *args, **kwargs)
+
+    monkeypatch.setattr(watcher_preprocessing, "detect_boundary", _spy)
+
+    process_submission_folder(db_session, "SUB-90099", folder)
+
+    assert captured, "detect_boundary was never called"
+    # _make_submission's card carries game="Pokemon", which has no
+    # CardDimensionReference row in the test database -- the same standard
+    # TCG stock fallback rectify itself uses.
+    assert all(value == pytest.approx(63.0 / 88.0) for value in captured), captured
 
 
 def test_front_and_back_scans_trigger_analysis(db_session, tmp_path, sample_scan_paths):
