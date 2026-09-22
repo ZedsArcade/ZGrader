@@ -364,6 +364,45 @@ def test_a_crop_on_the_true_edge_recovers_a_side_the_shadow_hid():
     assert refit.moved["bottom"]["moved_mm"] > 3.0
 
 
+def test_a_found_line_within_tolerance_of_the_fit_is_not_recorded_as_moved(monkeypatch):
+    """A re-search that lands back on the fitted line is not evidence the fit
+    moved -- it is evidence the search agrees with it. Before this, a `found`
+    line replaced `sides[name]` even when it sat within a fraction of a
+    millimetre of the line already there: because `_fit_side_near_line`
+    computes its own line from its own sampling, "the same line" was never
+    byte-identical, so a re-fitted side downstream carried slightly different
+    roughness/max_excursion/bow figures and moved the edges score with
+    nothing to show for it -- measured on real photographs at `moved_mm 0.0`:
+    8.99 -> 9.07 and 8.73 -> 8.87."""
+    image = build_fixture("capture_shadowed_bottom")
+    truth = true_card_quad("capture_shadowed_bottom")
+    fit, px_per_mm = _fitted(image)
+    original_bottom = fit.sides["bottom"]
+
+    # 0.3mm outward: inside CROP_REFIT_MIN_MOVE_MM (0.5), so this must not
+    # replace the fitted side even though the search "found" a line.
+    close_offset = original_bottom.offset - 0.3 * px_per_mm
+    close_fit = geometry.SideFit(
+        normal=original_bottom.normal,
+        offset=close_offset,
+        inlier_count=50,
+        total_points=50,
+        refined=True,
+        roughness_px=0.9,
+        max_excursion_px=1.4,
+        bow_px=0.2,
+    )
+    monkeypatch.setattr(
+        geometry, "_fit_side_near_line", lambda *a, **k: (close_fit, geometry._FOUND)
+    )
+
+    refit = geometry.refit_geometry_near_crop(image, fit, truth, px_per_mm)
+
+    assert "bottom" not in refit.moved
+    assert refit.geometry.sides["bottom"] is original_bottom
+    assert np.allclose(refit.geometry.apexes, fit.apexes)
+
+
 def test_sides_the_crop_agrees_with_stay_put_when_another_is_refit():
     image = build_fixture("capture_shadowed_bottom")
     truth = true_card_quad("capture_shadowed_bottom")

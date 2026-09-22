@@ -623,6 +623,17 @@ CROP_REFIT_OUTER_GUARD_TAPS = 2
 #: bottom-right, bottom-left), matching `_split_sides`.
 _CROP_SIDE_CORNERS = {"top": (0, 1), "right": (1, 2), "bottom": (3, 2), "left": (0, 3)}
 
+#: Below this, a re-search's line is treated as agreeing with the fit rather
+#: than correcting it, and the fitted `SideFit` is kept unchanged. REASONED:
+#: the acceptance tolerance used throughout this work -- the same 0.5mm the
+#: shadowed-photograph recovery and the real-photograph sweeps were judged
+#: against. Without it, a search that lands back on the fitted edge still
+#: replaces it with a second, independently-sampled `SideFit` whose
+#: roughness/max_excursion/bow differ from the original's, publishing a
+#: different edge score for a side that did not move: measured on real
+#: photographs at `moved_mm` rounding to 0.0, 8.99 -> 9.07 and 8.73 -> 8.87.
+CROP_REFIT_MIN_MOVE_MM = 0.5
+
 #: Why a re-search came back the way it did. The two empty reasons are not the
 #: same thing and the caller must not treat them alike -- see
 #: `_fit_side_near_line`.
@@ -758,7 +769,49 @@ def _fit_side_near_line(
     fit_normal, fit_offset = _fit_total_least_squares(points[mask])
     if (centre @ fit_normal - fit_offset) < 0:
         fit_normal, fit_offset = -fit_normal, -fit_offset
-    residuals = points[mask] @ fit_normal - fit_offset
+
+    # The RANSAC inlier mask above exists to find the *line*, not to describe
+    # it: `mask` was built with a +/-2.5px tolerance, which excludes a nick by
+    # construction, so residuals against it always look straighter than the
+    # edge really is. `fit_card_geometry` does not make this mistake -- it
+    # runs `_refine_side` around its RANSAC line and reports roughness,
+    # max_excursion and bow from *every* refined point, nicks included. Mirror
+    # that pass here rather than inventing a second way to describe a line.
+    inliers = points[mask]
+    along = np.array([-fit_normal[1], fit_normal[0]])
+    projections = inliers @ along
+    side_start = inliers[np.argmin(projections)]
+    side_end = inliers[np.argmax(projections)]
+    # Put start/end back onto the fitted line, matching fit_card_geometry: the
+    # refinement search should run along the line itself, not between two
+    # points that happen to sit a pixel off it.
+    side_start = side_start - (side_start @ fit_normal - fit_offset) * fit_normal
+    side_end = side_end - (side_end @ fit_normal - fit_offset) * fit_normal
+
+    refinement = _refine_side(value, fit_normal, fit_offset, side_start, side_end, fit_normal)
+    if refinement is None:
+        # As little of the edge was visible to `_refine_side` as
+        # `fit_card_geometry` would tolerate: the line stands, unrefined, with
+        # no roughness figure rather than an invented one.
+        return (
+            SideFit(
+                normal=fit_normal,
+                offset=fit_offset,
+                inlier_count=int(mask.sum()),
+                total_points=len(points),
+                refined=False,
+                roughness_px=0.0,
+                max_excursion_px=0.0,
+                bow_px=0.0,
+            ),
+            _FOUND,
+        )
+
+    refined_points, _residuals = refinement
+    fit_normal, fit_offset = _fit_total_least_squares(refined_points)
+    if (centre @ fit_normal - fit_offset) < 0:
+        fit_normal, fit_offset = -fit_normal, -fit_offset
+    final_residuals = refined_points @ fit_normal - fit_offset
     return (
         SideFit(
             normal=fit_normal,
@@ -766,9 +819,9 @@ def _fit_side_near_line(
             inlier_count=int(mask.sum()),
             total_points=len(points),
             refined=True,
-            roughness_px=float(np.std(residuals)),
-            max_excursion_px=float(np.max(np.abs(residuals))),
-            bow_px=_bow(residuals),
+            roughness_px=float(np.std(final_residuals)),
+            max_excursion_px=float(np.max(np.abs(final_residuals))),
+            bow_px=_bow(final_residuals),
         ),
         _FOUND,
     )
@@ -787,9 +840,13 @@ def refit_geometry_near_crop(
 
     `crop_quad` must be in the same coordinates as `image` and `fitted` -- the
     caller subtracts any region-of-interest offset first. A side the crop
-    agrees with to within `trigger_mm` is returned untouched, so an untouched
-    crop (which is the detected box) and a crop traced slightly inside the card
-    both leave the measured geometry exactly as it was.
+    agrees with to within `trigger_mm` is left untouched, and so is a side
+    whose re-search lands within `CROP_REFIT_MIN_MOVE_MM` of the fitted line
+    -- a search that agrees with the fit is not grounds to replace it with a
+    second, independently-sampled line. So an untouched crop (the box
+    `detect_boundary` finds when called with the card's `expected_aspect`,
+    the same call `rectify` makes internally) and a crop traced slightly
+    inside the card both leave the measured geometry exactly as it was.
 
     The re-search only ever fires **outward**. Each `SideFit.normal` points
     into the card (see `fit_card_geometry`), so `signed_distance` is positive
@@ -857,10 +914,21 @@ def refit_geometry_near_crop(
         midpoint = ((start + end) / 2)[None]
         before = float(sides[name].signed_distance(midpoint)[0])
         after = float(found.signed_distance(midpoint)[0])
+        moved_mm = abs(before - after) / px_per_mm
+        if moved_mm <= CROP_REFIT_MIN_MOVE_MM:
+            # The search agreed with the fit rather than correcting it. Two
+            # independent samplings of the same edge are never byte-identical
+            # -- `found` carries its own roughness/max_excursion/bow computed
+            # from its own points -- so replacing `sides[name]` here published
+            # a different edge score for a side that did not actually move:
+            # measured on real photographs at `moved_mm` rounding to 0.0,
+            # 8.99 -> 9.07 and 8.73 -> 8.87. Leaving the fitted side in place
+            # is the correct record of "the crop's concern was unfounded".
+            continue
         sides[name] = found
         moved[name] = {
             "disagreement_mm": round(disagreement_mm, 2),
-            "moved_mm": round(abs(before - after) / px_per_mm, 2),
+            "moved_mm": round(moved_mm, 2),
         }
 
     if not moved:
